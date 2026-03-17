@@ -19,11 +19,7 @@
   <!--
     To publish a self-contained single-file executable (run from the FileHasherApp folder):
 
-      dotnet publish -c Release -r win-x64 ^
-        --self-contained true ^
-        -p:PublishSingleFile=true ^
-        -p:EnableCompressionInSingleFile=true ^
-        -p:DebugType=embedded
+      dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true -p:DebugType=embedded
 
     Output: bin\Release\net8.0-windows\win-x64\publish\FileHasher.exe
   -->
