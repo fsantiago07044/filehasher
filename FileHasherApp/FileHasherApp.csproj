@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <PlatformTarget>x64</PlatformTarget>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <AssemblyName>FileHasher</AssemblyName>
+    <RootNamespace>FileHasher</RootNamespace>
+    <Version>0.1.0</Version>
+    <Company>FileHasher</Company>
+    <Product>FileHasher</Product>
+    <Copyright>Copyright © 2025</Copyright>
+  </PropertyGroup>
+
+  <!--
+    To publish a self-contained single-file executable (run from the FileHasherApp folder):
+
+      dotnet publish -c Release -r win-x64 ^
+        --self-contained true ^
+        -p:PublishSingleFile=true ^
+        -p:EnableCompressionInSingleFile=true ^
+        -p:DebugType=embedded
+
+    Output: bin\Release\net8.0-windows\win-x64\publish\FileHasher.exe
+  -->
+
+</Project>

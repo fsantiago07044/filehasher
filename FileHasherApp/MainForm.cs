@@ -1,0 +1,732 @@
+using System.ComponentModel;
+using System.Diagnostics;
+using System.Security.Principal;
+using System.Text;
+
+namespace FileHasher;
+
+/// <summary>Main application window.</summary>
+public sealed class MainForm : Form
+{
+    // ── Controls ─────────────────────────────────────────────────────────────
+
+    // Target group
+    private readonly TextBox  _pathBox;
+    private readonly Button   _browseFileBtn;
+    private readonly Button   _browseFolderBtn;
+    private readonly CheckBox _allTypesChk;
+
+    // Algorithm group
+    private readonly RadioButton _rdMd5, _rdSha1, _rdSha256, _rdSha512;
+
+    // Options group
+    private readonly CheckBox    _metadataChk;
+    private readonly CheckBox    _sidecarChk;
+    private readonly TextBox     _sidecarExtBox;
+    private readonly RadioButton _rdSha256Sum, _rdHashOnly;
+    private readonly Panel       _sidecarOptsPanel;
+    private readonly CheckBox    _csvChk;
+    private readonly TextBox     _csvPathBox;
+    private readonly Button      _csvBrowseBtn;
+    private readonly Panel       _csvOptsPanel;
+
+    // Actions
+    private readonly Button _runAsAdminBtn;
+    private readonly Button _runBtn;
+    private readonly Button _stopBtn;
+
+    // Progress / status
+    private readonly ProgressBar _progressBar;
+    private readonly Label       _statusLabel;
+
+    // Results
+    private readonly ListView    _resultsView;
+    private readonly ColumnHeader _colPath, _colHash, _colSize, _colModified;
+
+    // Status strip
+    private readonly ToolStripStatusLabel _logStripLabel;
+    private readonly ToolStripStatusLabel _adminStripLabel;
+
+    // ── State ────────────────────────────────────────────────────────────────
+
+    private CancellationTokenSource? _cts;
+    private Logger?                  _logger;
+    private readonly List<HashResult> _allResults = new();
+
+    // ── Constructor ──────────────────────────────────────────────────────────
+
+    public MainForm()
+    {
+        SuspendLayout();
+
+        Text            = IsAdmin() ? "FileHasher  [Administrator]" : "FileHasher";
+        Width           = 860;
+        Height          = 760;
+        MinimumSize     = new Size(720, 660);
+        Font            = new Font("Segoe UI", 9F);
+        StartPosition   = FormStartPosition.CenterScreen;
+        FormBorderStyle = FormBorderStyle.Sizable;
+
+        // ── Status strip (Bottom) ─────────────────────────────────────────────
+
+        var statusStrip = new StatusStrip { Dock = DockStyle.Bottom };
+
+        _logStripLabel = new ToolStripStatusLabel
+        {
+            Text        = "Log: (not yet started)  — click to open log folder",
+            Spring      = true,
+            TextAlign   = ContentAlignment.MiddleLeft,
+            IsLink      = true,
+            LinkBehavior = LinkBehavior.HoverUnderline
+        };
+        _logStripLabel.Click += (_, _) => OpenLogFolder();
+
+        _adminStripLabel = new ToolStripStatusLabel
+        {
+            Text      = IsAdmin() ? "● Administrator" : "○ Standard user",
+            ForeColor = IsAdmin() ? Color.DarkGreen    : SystemColors.GrayText
+        };
+
+        statusStrip.Items.Add(_logStripLabel);
+        statusStrip.Items.Add(_adminStripLabel);
+
+        // ── Top panel (all options) ───────────────────────────────────────────
+
+        const int M  = 8;   // outer margin
+        const int G  = 6;   // gap between groups
+
+        var topPanel = new Panel { Dock = DockStyle.Top };
+
+        // --- GroupBox: Target ---
+        var gbTarget = new GroupBox
+        {
+            Text   = "Target",
+            Left   = M,
+            Top    = G,
+            Height = 88,
+            Anchor = AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Top
+        };
+
+        _pathBox = new TextBox
+        {
+            Left   = M,
+            Top    = 26,
+            Height = 23,
+            Anchor = AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Top
+        };
+        _browseFolderBtn = new Button
+        {
+            Text   = "Browse Folder…",
+            Top    = 25,
+            Width  = 114,
+            Height = 25,
+            Anchor = AnchorStyles.Right | AnchorStyles.Top
+        };
+        _browseFileBtn = new Button
+        {
+            Text   = "Browse File…",
+            Top    = 25,
+            Width  = 96,
+            Height = 25,
+            Anchor = AnchorStyles.Right | AnchorStyles.Top
+        };
+        _allTypesChk = new CheckBox
+        {
+            Text    = "Scan all file types  (default: .exe and .msi only)",
+            Left    = M,
+            Top     = 58,
+            Width   = 340,
+            Checked = false
+        };
+
+        _browseFileBtn.Click   += BrowseFile_Click;
+        _browseFolderBtn.Click += BrowseFolder_Click;
+
+        gbTarget.Controls.AddRange(new Control[]
+            { _pathBox, _browseFileBtn, _browseFolderBtn, _allTypesChk });
+
+        // --- GroupBox: Hash Algorithm ---
+        var gbAlgo = new GroupBox
+        {
+            Text   = "Hash Algorithm",
+            Left   = M,
+            Top    = gbTarget.Bottom + G,
+            Height = 54,
+            Anchor = AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Top
+        };
+
+        _rdMd5    = new RadioButton { Text = "MD5",    Left = 10,  Top = 24, AutoSize = true };
+        _rdSha1   = new RadioButton { Text = "SHA1",   Left = 80,  Top = 24, AutoSize = true };
+        _rdSha256 = new RadioButton { Text = "SHA256", Left = 158, Top = 24, AutoSize = true, Checked = true };
+        _rdSha512 = new RadioButton { Text = "SHA512", Left = 248, Top = 24, AutoSize = true };
+
+        gbAlgo.Controls.AddRange(new Control[] { _rdMd5, _rdSha1, _rdSha256, _rdSha512 });
+
+        // --- GroupBox: Options ---
+        var gbOptions = new GroupBox
+        {
+            Text   = "Options",
+            Left   = M,
+            Top    = gbAlgo.Bottom + G,
+            Height = 200,
+            Anchor = AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Top
+        };
+
+        _metadataChk = new CheckBox
+        {
+            Text  = "Include file metadata  (size and last modified date)",
+            Left  = M,
+            Top   = 24,
+            Width = 380
+        };
+
+        _sidecarChk = new CheckBox
+        {
+            Text  = "Write sidecar hash files next to each file",
+            Left  = M,
+            Top   = 50,
+            Width = 340
+        };
+        _sidecarChk.CheckedChanged += (_, _) => _sidecarOptsPanel.Enabled = _sidecarChk.Checked;
+
+        _sidecarOptsPanel = new Panel
+        {
+            Left    = 26,
+            Top     = 74,
+            Height  = 56,
+            Enabled = false,
+            Anchor  = AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Top
+        };
+        var lblExt = new Label
+        {
+            Text      = "Extension:",
+            Left      = 0,
+            Top       = 5,
+            Width     = 68,
+            TextAlign = ContentAlignment.MiddleLeft
+        };
+        _sidecarExtBox  = new TextBox { Text = ".sha256", Left = 72, Top = 3, Width = 80 };
+        _rdSha256Sum    = new RadioButton { Text = "sha256sum format  (HASH *filename)", Left = 0,   Top = 30, AutoSize = true, Checked = true };
+        _rdHashOnly     = new RadioButton { Text = "Hash only",                          Left = 248, Top = 30, AutoSize = true };
+        _sidecarOptsPanel.Controls.AddRange(new Control[] { lblExt, _sidecarExtBox, _rdSha256Sum, _rdHashOnly });
+
+        _csvChk = new CheckBox
+        {
+            Text  = "Export results to CSV",
+            Left  = M,
+            Top   = 136,
+            Width = 200
+        };
+        _csvChk.CheckedChanged += (_, _) => _csvOptsPanel.Enabled = _csvChk.Checked;
+
+        _csvOptsPanel = new Panel
+        {
+            Left    = 26,
+            Top     = 158,
+            Height  = 28,
+            Enabled = false,
+            Anchor  = AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Top
+        };
+        _csvPathBox = new TextBox
+        {
+            Left   = 0,
+            Top    = 3,
+            Anchor = AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Top
+        };
+        _csvBrowseBtn = new Button
+        {
+            Text   = "Browse…",
+            Top    = 2,
+            Width  = 72,
+            Height = 24,
+            Anchor = AnchorStyles.Right | AnchorStyles.Top
+        };
+        _csvBrowseBtn.Click += BrowseCsv_Click;
+        _csvOptsPanel.Controls.AddRange(new Control[] { _csvPathBox, _csvBrowseBtn });
+
+        gbOptions.Controls.AddRange(new Control[]
+            { _metadataChk, _sidecarChk, _sidecarOptsPanel, _csvChk, _csvOptsPanel });
+
+        // --- Actions panel ---
+        var actionsPanel = new Panel
+        {
+            Left   = M,
+            Top    = gbOptions.Bottom + G,
+            Height = 34,
+            Anchor = AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Top
+        };
+
+        _runAsAdminBtn = new Button
+        {
+            Text    = IsAdmin() ? "Running as Administrator" : "Run as Administrator…",
+            Left    = 0,
+            Top     = 0,
+            Width   = 180,
+            Height  = 30,
+            Enabled = !IsAdmin()
+        };
+        _runAsAdminBtn.Click += RunAsAdmin_Click;
+
+        _stopBtn = new Button
+        {
+            Text    = "Stop",
+            Top     = 0,
+            Width   = 72,
+            Height  = 30,
+            Enabled = false,
+            Anchor  = AnchorStyles.Right | AnchorStyles.Top
+        };
+        _runBtn = new Button
+        {
+            Text   = "▶  Run",
+            Top    = 0,
+            Width  = 90,
+            Height = 30,
+            Font   = new Font("Segoe UI", 9.5F, FontStyle.Bold),
+            Anchor = AnchorStyles.Right | AnchorStyles.Top
+        };
+        _stopBtn.Click += Stop_Click;
+        _runBtn.Click  += Run_Click;
+
+        actionsPanel.Controls.AddRange(new Control[] { _runAsAdminBtn, _stopBtn, _runBtn });
+
+        // --- Progress bar ---
+        _progressBar = new ProgressBar
+        {
+            Left   = M,
+            Top    = actionsPanel.Bottom + 6,
+            Height = 20,
+            Style  = ProgressBarStyle.Blocks,
+            Anchor = AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Top
+        };
+
+        // --- Status label ---
+        _statusLabel = new Label
+        {
+            Left      = M,
+            Top       = _progressBar.Bottom + 4,
+            Height    = 20,
+            Text      = "Ready.",
+            ForeColor = SystemColors.GrayText,
+            Anchor    = AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Top
+        };
+
+        topPanel.Height = _statusLabel.Bottom + 8;
+        topPanel.Controls.AddRange(new Control[]
+            { gbTarget, gbAlgo, gbOptions, actionsPanel, _progressBar, _statusLabel });
+
+        // ── Results ListView (Fill) ───────────────────────────────────────────
+
+        _colPath     = new ColumnHeader { Text = "File Path",      Width = 440 };
+        _colHash     = new ColumnHeader { Text = "SHA256",         Width = 220 };
+        _colSize     = new ColumnHeader { Text = "Size (bytes)",   Width = 95  };
+        _colModified = new ColumnHeader { Text = "Modified (UTC)", Width = 145 };
+
+        _resultsView = new ListView
+        {
+            Dock          = DockStyle.Fill,
+            View          = View.Details,
+            FullRowSelect = true,
+            GridLines     = true,
+            Font          = new Font("Consolas", 8.5F)
+        };
+        _resultsView.Columns.AddRange(new[] { _colPath, _colHash, _colSize, _colModified });
+
+        // ── Wire up form ──────────────────────────────────────────────────────
+
+        // Order matters: Fill first, then Top, then Bottom
+        Controls.Add(_resultsView);
+        Controls.Add(topPanel);
+        Controls.Add(statusStrip);
+
+        ResumeLayout(false);
+        PerformLayout();
+
+        // Fix up right-anchored widths that depend on form client size
+        LayoutRightAlignedControls(gbTarget, gbAlgo, gbOptions, actionsPanel);
+        SizeChanged += (_, _) => LayoutRightAlignedControls(gbTarget, gbAlgo, gbOptions, actionsPanel);
+    }
+
+    // ── Layout helper ────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Sets widths of the GroupBoxes and repositions right-anchored controls within them.
+    /// Called on construction and on SizeChanged so the layout is always correct.
+    /// </summary>
+    private void LayoutRightAlignedControls(
+        GroupBox gbTarget, GroupBox gbAlgo, GroupBox gbOptions, Panel actionsPanel)
+    {
+        const int M        = 8;
+        int       gbWidth  = ClientSize.Width - M * 2;
+        int       innerW   = gbWidth - M * 2;   // usable inside a GroupBox (8px each side)
+
+        gbTarget.Width    = gbWidth;
+        gbAlgo.Width      = gbWidth;
+        gbOptions.Width   = gbWidth;
+        actionsPanel.Width = gbWidth;
+
+        // Target: TextBox fills, buttons right-anchored
+        int btnFolderLeft = gbWidth - M - _browseFolderBtn.Width;
+        int btnFileLeft   = btnFolderLeft - 4 - _browseFileBtn.Width;
+
+        _browseFolderBtn.Left = btnFolderLeft;
+        _browseFileBtn.Left   = btnFileLeft;
+        _pathBox.Width        = btnFileLeft - M - 4;
+
+        // Options: sidecar and csv panels fill width
+        _sidecarOptsPanel.Width = innerW - 18;   // 18 = indent offset
+        _csvOptsPanel.Width     = innerW - 18;
+
+        int csvBrowseLeft = _csvOptsPanel.Width - _csvBrowseBtn.Width;
+        _csvBrowseBtn.Left  = csvBrowseLeft;
+        _csvPathBox.Width   = csvBrowseLeft - 4;
+
+        // Actions: Stop and Run right-aligned
+        _stopBtn.Left = gbWidth - _runBtn.Width - 4 - _stopBtn.Width;
+        _runBtn.Left  = gbWidth - _runBtn.Width;
+    }
+
+    // ── Browse / file-picker handlers ─────────────────────────────────────────
+
+    private void BrowseFile_Click(object? sender, EventArgs e)
+    {
+        using var dlg = new OpenFileDialog
+        {
+            Title           = "Select a file to hash",
+            Filter          = "Executables|*.exe;*.msi|All files|*.*",
+            CheckFileExists = true
+        };
+        if (dlg.ShowDialog(this) == DialogResult.OK)
+        {
+            _pathBox.Text         = dlg.FileName;
+            _allTypesChk.Enabled  = false;  // irrelevant for a single file
+        }
+    }
+
+    private void BrowseFolder_Click(object? sender, EventArgs e)
+    {
+        using var dlg = new FolderBrowserDialog
+        {
+            Description         = "Select a folder to scan recursively",
+            UseDescriptionForTitle = true
+        };
+        if (dlg.ShowDialog(this) == DialogResult.OK)
+        {
+            _pathBox.Text        = dlg.SelectedPath;
+            _allTypesChk.Enabled = true;
+        }
+    }
+
+    private void BrowseCsv_Click(object? sender, EventArgs e)
+    {
+        using var dlg = new SaveFileDialog
+        {
+            Title       = "Save results as CSV",
+            Filter      = "CSV files|*.csv|All files|*.*",
+            DefaultExt  = "csv",
+            FileName    = $"FileHasher_{DateTime.Now:yyyyMMdd_HHmmss}.csv"
+        };
+        if (dlg.ShowDialog(this) == DialogResult.OK)
+            _csvPathBox.Text = dlg.FileName;
+    }
+
+    // ── UAC elevation ────────────────────────────────────────────────────────
+
+    private void RunAsAdmin_Click(object? sender, EventArgs e) => RelaunchAsAdmin();
+
+    private void RelaunchAsAdmin()
+    {
+        try
+        {
+            Process.Start(new ProcessStartInfo
+            {
+                FileName       = Application.ExecutablePath,
+                UseShellExecute = true,
+                Verb           = "runas"
+            });
+            Application.Exit();
+        }
+        catch (Win32Exception ex) when (ex.NativeErrorCode == 1223)
+        {
+            // User clicked "No" on the UAC prompt — silently ignore.
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Could not re-launch as Administrator:\n{ex.Message}",
+                            "Elevation failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+    }
+
+    // ── Run / Stop ────────────────────────────────────────────────────────────
+
+    private async void Run_Click(object? sender, EventArgs e)
+    {
+        // ── Validate inputs ──────────────────────────────────────────────────
+
+        var path = _pathBox.Text.Trim();
+        if (string.IsNullOrEmpty(path))
+        {
+            MessageBox.Show("Please select a file or folder first.",
+                            "No target", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
+
+        bool isFile = File.Exists(path);
+        bool isDir  = Directory.Exists(path);
+
+        if (!isFile && !isDir)
+        {
+            MessageBox.Show($"Path does not exist:\n{path}",
+                            "Invalid path", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
+
+        if (_csvChk.Checked && string.IsNullOrWhiteSpace(_csvPathBox.Text))
+        {
+            MessageBox.Show("Please specify a CSV output path.",
+                            "Missing CSV path", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
+
+        // ── Build options snapshot ────────────────────────────────────────────
+
+        var opts = new HashOptions(
+            TargetPath:       path,
+            IsFile:           isFile,
+            Algorithm:        GetSelectedAlgorithm(),
+            IncludeMetadata:  _metadataChk.Checked,
+            WriteSidecarHashes: _sidecarChk.Checked,
+            SidecarExtension: _sidecarExtBox.Text.Trim(),
+            SidecarFormat:    _rdSha256Sum.Checked ? "sha256sum" : "hashonly",
+            ExportCsv:        _csvChk.Checked,
+            CsvPath:          _csvPathBox.Text.Trim(),
+            AllFileTypes:     _allTypesChk.Checked
+        );
+
+        // ── Reset UI ─────────────────────────────────────────────────────────
+
+        _allResults.Clear();
+        _resultsView.Items.Clear();
+        _colHash.Text        = opts.Algorithm;
+        _progressBar.Value   = 0;
+        _progressBar.Style   = ProgressBarStyle.Marquee;
+        SetRunning(true);
+        SetStatus("Enumerating files…");
+
+        // ── Start logger ──────────────────────────────────────────────────────
+
+        _logger?.Dispose();
+        _logger = new Logger();
+        _logger.LogInfo($"Target: {path}  |  Algorithm: {opts.Algorithm}  |  AllTypes: {opts.AllFileTypes}  |  Metadata: {opts.IncludeMetadata}  |  Sidecar: {opts.WriteSidecarHashes}");
+        _logStripLabel.Text = $"Log: {_logger.LogPath}  — click to open folder";
+
+        // ── Run ───────────────────────────────────────────────────────────────
+
+        _cts = new CancellationTokenSource();
+        var worker = new HashWorker(opts, _logger);
+
+        worker.WarningRaised += w  => SafeInvoke(() => AppendWarning(w));
+        worker.FileHashed    += r  => SafeInvoke(() => AddResult(r));
+
+        try
+        {
+            // Phase 1 – enumerate
+            var files = await worker.EnumerateAsync(_cts.Token);
+
+            if (files.Count == 0)
+            {
+                SetStatus("No matching files found.");
+                return;
+            }
+
+            // Phase 2 – hash
+            SetStatus($"Hashing {files.Count:N0} file(s)…");
+            _progressBar.Style   = ProgressBarStyle.Blocks;
+            _progressBar.Maximum = files.Count;
+            _progressBar.Value   = 0;
+
+            var progress = new Progress<int>(n =>
+            {
+                _progressBar.Value = Math.Min(n, _progressBar.Maximum);
+                SetStatus($"Hashing {n:N0} / {files.Count:N0}…");
+            });
+
+            await worker.HashAllAsync(files, progress, _cts.Token);
+
+            // Done
+            int successes = _allResults.Count(r => r.Success);
+            int errors    = _allResults.Count(r => !r.Success);
+
+            _logger.LogSessionEnd(successes, errors);
+            SetStatus($"Done — {successes:N0} hashed, {errors:N0} error(s).  Log: {_logger.LogPath}");
+
+            // CSV export
+            if (opts.ExportCsv && opts.CsvPath.Length > 0)
+                ExportCsv(opts);
+        }
+        catch (OperationCanceledException)
+        {
+            SetStatus("Cancelled.");
+            _logger?.LogWarning("Operation cancelled by user.");
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            var ask = MessageBox.Show(
+                $"Access denied:\n{ex.Message}\n\nWould you like to restart as Administrator?",
+                "Elevation required",
+                MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+
+            if (ask == DialogResult.Yes)
+                RelaunchAsAdmin();
+            else
+                SetStatus($"Access denied — try running as Administrator.");
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Unexpected error:\n{ex.Message}",
+                            "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            SetStatus($"Error: {ex.Message}");
+        }
+        finally
+        {
+            _progressBar.Style = ProgressBarStyle.Blocks;
+            SetRunning(false);
+            _cts?.Dispose();
+            _cts = null;
+        }
+    }
+
+    private void Stop_Click(object? sender, EventArgs e)
+    {
+        _cts?.Cancel();
+        _stopBtn.Enabled = false;
+        SetStatus("Stopping…");
+    }
+
+    // ── Results ───────────────────────────────────────────────────────────────
+
+    private void AddResult(HashResult r)
+    {
+        _allResults.Add(r);
+
+        var item = new ListViewItem(r.FilePath);
+        item.SubItems.Add(r.Success ? r.Hash : $"ERROR: {r.ErrorMessage}");
+        item.SubItems.Add(r.Length.HasValue        ? r.Length.Value.ToString("N0")              : "");
+        item.SubItems.Add(r.LastWriteUtc.HasValue  ? r.LastWriteUtc.Value.ToString("yyyy-MM-dd HH:mm:ss") : "");
+
+        if (!r.Success)
+            item.ForeColor = Color.Firebrick;
+
+        _resultsView.Items.Add(item);
+    }
+
+    private void AppendWarning(string message)
+    {
+        var item = new ListViewItem("[WARN]");
+        item.SubItems.Add(message);
+        item.ForeColor = Color.DarkOrange;
+        _resultsView.Items.Add(item);
+    }
+
+    // ── CSV export ────────────────────────────────────────────────────────────
+
+    private void ExportCsv(HashOptions opts)
+    {
+        try
+        {
+            var sb = new StringBuilder(4096);
+
+            // Header
+            sb.Append("Path");
+            sb.Append(',');
+            sb.Append(opts.Algorithm);
+            if (opts.IncludeMetadata)
+                sb.Append(",LengthBytes,LastWriteUtc");
+            sb.AppendLine();
+
+            foreach (var r in _allResults.Where(r => r.Success).OrderBy(r => r.FilePath))
+            {
+                sb.Append(CsvEscape(r.FilePath));
+                sb.Append(',');
+                sb.Append(r.Hash);
+                if (opts.IncludeMetadata)
+                {
+                    sb.Append(',');
+                    sb.Append(r.Length);
+                    sb.Append(',');
+                    sb.Append(r.LastWriteUtc?.ToString("yyyy-MM-ddTHH:mm:ssZ"));
+                }
+                sb.AppendLine();
+            }
+
+            // UTF-8 with BOM so Excel opens it correctly without an import wizard
+            File.WriteAllText(opts.CsvPath, sb.ToString(), new UTF8Encoding(encoderShouldEmitUTF8Identifier: true));
+
+            _logger?.LogInfo($"CSV exported to: {opts.CsvPath}");
+            SetStatus($"CSV saved: {opts.CsvPath}");
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"CSV export failed:\n{ex.Message}",
+                            "Export error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
+    }
+
+    private static string CsvEscape(string s)
+    {
+        if (s.Contains(',') || s.Contains('"') || s.Contains('\n') || s.Contains('\r'))
+            return $"\"{s.Replace("\"", "\"\"")}\"";
+        return s;
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
+    private void SetRunning(bool running)
+    {
+        _runBtn.Enabled       = !running;
+        _stopBtn.Enabled      = running;
+        _browseFileBtn.Enabled   = !running;
+        _browseFolderBtn.Enabled = !running;
+        _runAsAdminBtn.Enabled   = !running && !IsAdmin();
+    }
+
+    private void SetStatus(string text) => _statusLabel.Text = text;
+
+    /// <summary>Marshals <paramref name="action"/> to the UI thread if needed.</summary>
+    private void SafeInvoke(Action action)
+    {
+        if (InvokeRequired)
+            BeginInvoke(action);
+        else
+            action();
+    }
+
+    private void OpenLogFolder()
+    {
+        if (_logger is null) return;
+        var dir = Path.GetDirectoryName(_logger.LogPath);
+        if (dir is not null && Directory.Exists(dir))
+            Process.Start("explorer.exe", dir);
+    }
+
+    private string GetSelectedAlgorithm()
+    {
+        if (_rdMd5.Checked)    return "MD5";
+        if (_rdSha1.Checked)   return "SHA1";
+        if (_rdSha512.Checked) return "SHA512";
+        return "SHA256";
+    }
+
+    private static bool IsAdmin()
+    {
+        using var id = WindowsIdentity.GetCurrent();
+        return new WindowsPrincipal(id).IsInRole(WindowsBuiltInRole.Administrator);
+    }
+
+    protected override void OnFormClosing(FormClosingEventArgs e)
+    {
+        _cts?.Cancel();
+        _logger?.Dispose();
+        base.OnFormClosing(e);
+    }
+}
