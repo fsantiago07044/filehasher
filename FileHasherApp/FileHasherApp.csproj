@@ -14,7 +14,14 @@
     <Company>FileHasher</Company>
     <Product>FileHasher</Product>
     <Copyright>Copyright © 2025 Fabian A. Santiago</Copyright>
+    <ApplicationIcon>assets\app-icon\hash-icon.ico</ApplicationIcon>
   </PropertyGroup>
+
+  <ItemGroup>
+    <Content Include="assets\app-icon\hash-icon.ico">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
 
   <!--
     To publish a self-contained single-file executable (run from the FileHasherApp folder):

@@ -59,6 +59,10 @@ public sealed class MainForm : Form
     {
         SuspendLayout();
 
+        var iconPath = Path.Combine(AppContext.BaseDirectory, "assets", "app-icon", "hash-icon.ico");
+        if (File.Exists(iconPath))
+            Icon = new Icon(iconPath);
+
         Text            = IsAdmin() ? "FileHasher  [Administrator]" : "FileHasher";
         Width           = 860;
         Height          = 760;
