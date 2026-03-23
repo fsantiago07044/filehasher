@@ -15,6 +15,7 @@
     <Product>FileHasher</Product>
     <Copyright>Copyright © 2025 Fabian A. Santiago</Copyright>
     <ApplicationIcon>assets\app-icon\hash-icon.ico</ApplicationIcon>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
   </PropertyGroup>
 
   <ItemGroup>
