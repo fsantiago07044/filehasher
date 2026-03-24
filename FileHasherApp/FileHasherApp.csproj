@@ -13,7 +13,7 @@
     <Version>0.1.1</Version>
     <Company>FileHasher</Company>
     <Product>FileHasher</Product>
-    <Copyright>Copyright © 2025 Fabian A. Santiago</Copyright>
+    <Copyright>Copyright © 2026 FSP Productions, LLC</Copyright>
     <ApplicationIcon>assets\app-icon\hash-icon.ico</ApplicationIcon>
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
   </PropertyGroup>
