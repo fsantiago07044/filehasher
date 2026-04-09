@@ -36,8 +36,8 @@ public sealed class MainForm : Form
     private readonly Button _stopBtn;
 
     // Progress / status
-    private readonly ProgressBar _progressBar;
-    private readonly Label       _statusLabel;
+    private readonly ColorProgressBar _progressBar;
+    private readonly Label            _statusLabel;
 
     // Results
     private readonly ListView    _resultsView;
@@ -295,12 +295,11 @@ public sealed class MainForm : Form
         actionsPanel.Controls.AddRange(new Control[] { _runAsAdminBtn, _stopBtn, _runBtn });
 
         // --- Progress bar ---
-        _progressBar = new ProgressBar
+        _progressBar = new ColorProgressBar
         {
             Left   = M,
             Top    = actionsPanel.Bottom + 6,
             Height = 20,
-            Style  = ProgressBarStyle.Blocks,
             Anchor = AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Top
         };
 
@@ -511,9 +510,9 @@ public sealed class MainForm : Form
 
         _allResults.Clear();
         _resultsView.Items.Clear();
-        _colHash.Text        = opts.Algorithm;
-        _progressBar.Value   = 0;
-        _progressBar.Style   = ProgressBarStyle.Marquee;
+        _colHash.Text      = opts.Algorithm;
+        _progressBar.Value = 0;
+        _progressBar.State = ColorProgressBar.BarState.Marquee;
         SetRunning(true);
         SetStatus("Enumerating files…");
 
@@ -545,7 +544,7 @@ public sealed class MainForm : Form
 
             // Phase 2 – hash
             SetStatus($"Hashing {files.Count:N0} file(s)…");
-            _progressBar.Style   = ProgressBarStyle.Blocks;
+            _progressBar.State   = ColorProgressBar.BarState.Normal;
             _progressBar.Maximum = files.Count;
             _progressBar.Value   = 0;
 
@@ -564,9 +563,20 @@ public sealed class MainForm : Form
             _logger.LogSessionEnd(successes, errors);
             SetStatus($"Done — {successes:N0} hashed, {errors:N0} error(s).  Log: {_logger.LogPath}");
 
+            _progressBar.State = ColorProgressBar.BarState.Complete;
+
             // CSV export
             if (opts.ExportCsv && opts.CsvPath.Length > 0)
                 ExportCsv(opts);
+
+            MessageBox.Show(
+                $"Hashing complete!\n\n" +
+                $"Files hashed:  {successes:N0}\n" +
+                $"Errors:             {errors:N0}\n\n" +
+                $"Log: {_logger.LogPath}",
+                "Complete",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information);
         }
         catch (OperationCanceledException)
         {
@@ -593,7 +603,7 @@ public sealed class MainForm : Form
         }
         finally
         {
-            _progressBar.Style = ProgressBarStyle.Blocks;
+            _progressBar.State = ColorProgressBar.BarState.Normal;
             SetRunning(false);
             _cts?.Dispose();
             _cts = null;
@@ -732,5 +742,99 @@ public sealed class MainForm : Form
         _cts?.Cancel();
         _logger?.Dispose();
         base.OnFormClosing(e);
+    }
+
+    // ── Custom progress bar (owner-drawn, supports color change on completion) ──
+
+    private sealed class ColorProgressBar : Panel
+    {
+        public enum BarState { Normal, Marquee, Complete }
+
+        private int      _maximum = 100;
+        private int      _value   = 0;
+        private BarState _state   = BarState.Normal;
+        private int      _marqueeOffset = 0;
+
+        private readonly System.Windows.Forms.Timer _marqueeTimer;
+
+        private static readonly Color NormalColor   = Color.FromArgb(6,   176,  37);   // system green
+        private static readonly Color CompleteColor = Color.FromArgb(0,   120, 215);   // Windows blue
+        private static readonly Color TrackColor    = Color.FromArgb(225, 225, 225);   // light grey track
+
+        public int Maximum
+        {
+            get => _maximum;
+            set { _maximum = Math.Max(1, value); Invalidate(); }
+        }
+
+        public int Value
+        {
+            get => _value;
+            set { _value = Math.Max(0, Math.Min(value, _maximum)); Invalidate(); }
+        }
+
+        public BarState State
+        {
+            get => _state;
+            set
+            {
+                _state = value;
+                _marqueeTimer.Enabled = (value == BarState.Marquee);
+                if (value != BarState.Marquee)
+                    _marqueeOffset = 0;
+                Invalidate();
+            }
+        }
+
+        public ColorProgressBar()
+        {
+            DoubleBuffered = true;
+            BackColor      = TrackColor;
+
+            _marqueeTimer = new System.Windows.Forms.Timer { Interval = 16 };
+            _marqueeTimer.Tick += (_, _) =>
+            {
+                _marqueeOffset = (_marqueeOffset + 5) % (Width + 80);
+                Invalidate();
+            };
+        }
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            var g     = e.Graphics;
+            var inner = new Rectangle(1, 1, ClientSize.Width - 2, ClientSize.Height - 2);
+
+            // Track
+            using (var trackBrush = new SolidBrush(TrackColor))
+                g.FillRectangle(trackBrush, inner);
+
+            if (_state == BarState.Marquee)
+            {
+                int blockW = Math.Max(inner.Width / 4, 40);
+                int x      = inner.Left + _marqueeOffset - blockW - 20;
+                int clampL = Math.Max(inner.Left, x);
+                int clampR = Math.Min(inner.Right, x + blockW);
+                if (clampR > clampL)
+                    using (var b = new SolidBrush(NormalColor))
+                        g.FillRectangle(b, clampL, inner.Top, clampR - clampL, inner.Height);
+            }
+            else if (_maximum > 0 && _value > 0)
+            {
+                int   fillW = (int)((double)_value / _maximum * inner.Width);
+                Color fill  = _state == BarState.Complete ? CompleteColor : NormalColor;
+                using var b = new SolidBrush(fill);
+                g.FillRectangle(b, inner.Left, inner.Top, fillW, inner.Height);
+            }
+
+            // Border
+            ControlPaint.DrawBorder(g, ClientRectangle,
+                Color.FromArgb(180, 180, 180), ButtonBorderStyle.Solid);
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing) _marqueeTimer.Dispose();
+            base.Dispose(disposing);
+        }
     }
 }
