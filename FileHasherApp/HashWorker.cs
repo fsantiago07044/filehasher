@@ -53,6 +53,10 @@ internal sealed class HashWorker
             ? null
             : new HashSet<string>(StringComparer.OrdinalIgnoreCase) { ".exe", ".msi" };
 
+        // When writing sidecars, never treat sidecar files themselves as targets —
+        // that would create .sha256.sha256 chains on repeated runs.
+        var sidecarExt = _opts.WriteSidecarHashes ? _opts.SidecarExtension : null;
+
         var results = new List<string>();
         var stack   = new Stack<string>();
         stack.Push(_opts.TargetPath);
@@ -66,6 +70,10 @@ internal sealed class HashWorker
             {
                 foreach (var f in Directory.EnumerateFiles(dir))
                 {
+                    if (sidecarExt != null &&
+                        f.EndsWith(sidecarExt, StringComparison.OrdinalIgnoreCase))
+                        continue;
+
                     if (extensions is null || extensions.Contains(Path.GetExtension(f)))
                         results.Add(f);
                 }
@@ -132,6 +140,10 @@ internal sealed class HashWorker
 
     private async Task WriteSidecarAsync(string filePath, string hash, CancellationToken ct)
     {
+        // Guard: never write a sidecar for a file that is itself a sidecar.
+        if (filePath.EndsWith(_opts.SidecarExtension, StringComparison.OrdinalIgnoreCase))
+            return;
+
         try
         {
             var sidecarPath = filePath + _opts.SidecarExtension;
