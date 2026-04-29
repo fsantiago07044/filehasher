@@ -50,6 +50,14 @@ internal sealed class HashWorker
 
             if (_opts.WriteSidecarHashes && SidecarConflictResolver is not null)
             {
+                // A previous "Skip All" decision skips all remaining files unconditionally.
+                if (_batchSidecarAction == SidecarConflictAction.SkipAll)
+                {
+                    SidecarSkippedCount++;
+                    progress.Report(++done);
+                    continue;
+                }
+
                 var sidecarPath = path + _opts.SidecarExtension;
                 if (File.Exists(sidecarPath))
                 {
@@ -72,13 +80,6 @@ internal sealed class HashWorker
     /// <summary>Returns true when the file should be skipped entirely.</summary>
     private bool ShouldSkipDueToSidecar(string filePath, string sidecarPath)
     {
-        if (_batchSidecarAction == SidecarConflictAction.SkipAll)
-        {
-            SidecarSkippedCount++;
-            WarningRaised?.Invoke($"Skipped — existing sidecar: {filePath}");
-            return true;
-        }
-
         if (_batchSidecarAction == SidecarConflictAction.OverwriteAll)
             return false;
 
