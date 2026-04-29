@@ -23,6 +23,9 @@ internal sealed class HashWorker
     /// </summary>
     public Func<string, SidecarConflictAction>? SidecarConflictResolver { get; set; }
 
+    public int SidecarSkippedCount     { get; private set; }
+    public int SidecarOverwrittenCount { get; private set; }
+
     private SidecarConflictAction? _batchSidecarAction;
 
     public HashWorker(HashOptions opts, Logger logger)
@@ -48,10 +51,14 @@ internal sealed class HashWorker
             if (_opts.WriteSidecarHashes && SidecarConflictResolver is not null)
             {
                 var sidecarPath = path + _opts.SidecarExtension;
-                if (File.Exists(sidecarPath) && ShouldSkipDueToSidecar(path, sidecarPath))
+                if (File.Exists(sidecarPath))
                 {
-                    progress.Report(++done);
-                    continue;
+                    if (ShouldSkipDueToSidecar(path, sidecarPath))
+                    {
+                        progress.Report(++done);
+                        continue;
+                    }
+                    SidecarOverwrittenCount++;
                 }
             }
 
@@ -67,6 +74,7 @@ internal sealed class HashWorker
     {
         if (_batchSidecarAction == SidecarConflictAction.SkipAll)
         {
+            SidecarSkippedCount++;
             WarningRaised?.Invoke($"Skipped — existing sidecar: {filePath}");
             return true;
         }
@@ -83,6 +91,7 @@ internal sealed class HashWorker
                 goto case SidecarConflictAction.Skip;
 
             case SidecarConflictAction.Skip:
+                SidecarSkippedCount++;
                 WarningRaised?.Invoke($"Skipped — existing sidecar: {filePath}");
                 return true;
 

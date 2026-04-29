@@ -599,8 +599,10 @@ public sealed class MainForm : Form
             await worker.HashAllAsync(files, progress, _cts.Token);
 
             // Done
-            int successes = _allResults.Count(r => r.Success);
-            int errors    = _allResults.Count(r => !r.Success);
+            int successes   = _allResults.Count(r => r.Success);
+            int errors      = _allResults.Count(r => !r.Success);
+            int skipped     = worker.SidecarSkippedCount;
+            int overwritten = worker.SidecarOverwrittenCount;
 
             _logger.LogSessionEnd(successes, errors);
             SetStatus($"Done — {successes:N0} hashed, {errors:N0} error(s).  Log: {_logger.LogPath}");
@@ -611,14 +613,21 @@ public sealed class MainForm : Form
             if (opts.ExportCsv && opts.CsvPath.Length > 0)
                 ExportCsv(opts);
 
-            MessageBox.Show(
-                $"Hashing complete!\n\n" +
-                $"Files hashed:  {successes:N0}\n" +
-                $"Errors:             {errors:N0}\n\n" +
-                $"Log: {_logger.LogPath}",
-                "Complete",
-                MessageBoxButtons.OK,
-                MessageBoxIcon.Information);
+            var msg = new System.Text.StringBuilder();
+            msg.AppendLine("Hashing complete!\n");
+            msg.AppendLine($"Files hashed:  {successes:N0}");
+            msg.AppendLine($"Errors:             {errors:N0}");
+            if (skipped > 0 || overwritten > 0)
+            {
+                msg.AppendLine();
+                if (skipped > 0)
+                    msg.AppendLine($"Sidecars skipped:      {skipped:N0}");
+                if (overwritten > 0)
+                    msg.AppendLine($"Sidecars overwritten:  {overwritten:N0}");
+            }
+            msg.Append($"\nLog: {_logger.LogPath}");
+
+            MessageBox.Show(msg.ToString(), "Complete", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
         catch (OperationCanceledException)
         {
