@@ -32,6 +32,7 @@ public sealed class MainForm : Form
 
     // Actions
     private readonly Button _runAsAdminBtn;
+    private readonly Button _clearBtn;
     private readonly Button _runBtn;
     private readonly Button _stopBtn;
 
@@ -275,6 +276,13 @@ public sealed class MainForm : Form
         };
         _runAsAdminBtn.Click += RunAsAdmin_Click;
 
+        _clearBtn = new Button
+        {
+            Text   = "Clear Results",
+            Top    = 0,
+            Width  = 110,
+            Height = 30
+        };
         _stopBtn = new Button
         {
             Text    = "Stop",
@@ -293,10 +301,11 @@ public sealed class MainForm : Form
             Font   = new Font("Segoe UI", 9.5F, FontStyle.Bold),
             Anchor = AnchorStyles.Right | AnchorStyles.Top
         };
-        _stopBtn.Click += Stop_Click;
-        _runBtn.Click  += Run_Click;
+        _clearBtn.Click += ClearResults_Click;
+        _stopBtn.Click  += Stop_Click;
+        _runBtn.Click   += Run_Click;
 
-        actionsPanel.Controls.AddRange(new Control[] { _runAsAdminBtn, _stopBtn, _runBtn });
+        actionsPanel.Controls.AddRange(new Control[] { _runAsAdminBtn, _clearBtn, _stopBtn, _runBtn });
 
         // --- Progress bar ---
         _progressBar = new ColorProgressBar
@@ -388,9 +397,11 @@ public sealed class MainForm : Form
         _csvBrowseBtn.Left  = csvBrowseLeft;
         _csvPathBox.Width   = csvBrowseLeft - 4;
 
-        // Actions: Stop and Run right-aligned
-        _stopBtn.Left = gbWidth - _runBtn.Width - 4 - _stopBtn.Width;
-        _runBtn.Left  = gbWidth - _runBtn.Width;
+        // Actions: Stop and Run right-aligned; Clear centered in the gap
+        _stopBtn.Left  = gbWidth - _runBtn.Width - 4 - _stopBtn.Width;
+        _runBtn.Left   = gbWidth - _runBtn.Width;
+        int clearMid   = (_runAsAdminBtn.Right + _stopBtn.Left) / 2;
+        _clearBtn.Left = clearMid - _clearBtn.Width / 2;
     }
 
     // ── Drag-and-drop onto the path field ────────────────────────────────────
@@ -551,6 +562,14 @@ public sealed class MainForm : Form
         _cts = new CancellationTokenSource();
         var worker = new HashWorker(opts, _logger);
 
+        if (opts.WriteSidecarHashes)
+            worker.SidecarConflictResolver = sidecarPath =>
+            {
+                SidecarConflictAction action = SidecarConflictAction.Skip;
+                Invoke(() => action = ShowSidecarConflictDialog(sidecarPath));
+                return action;
+            };
+
         worker.WarningRaised += w  => SafeInvoke(() => AppendWarning(w));
         worker.FileHashed    += r  => SafeInvoke(() => AddResult(r));
 
@@ -640,6 +659,15 @@ public sealed class MainForm : Form
         SetStatus("Stopping…");
     }
 
+    private void ClearResults_Click(object? sender, EventArgs e)
+    {
+        _allResults.Clear();
+        _resultsView.Items.Clear();
+        _progressBar.Value = 0;
+        _progressBar.State = ColorProgressBar.BarState.Normal;
+        SetStatus("Ready.");
+    }
+
     // ── Results ───────────────────────────────────────────────────────────────
 
     private void AddResult(HashResult r)
@@ -714,6 +742,34 @@ public sealed class MainForm : Form
         if (s.Contains(',') || s.Contains('"') || s.Contains('\n') || s.Contains('\r'))
             return $"\"{s.Replace("\"", "\"\"")}\"";
         return s;
+    }
+
+    // ── Sidecar conflict dialog ───────────────────────────────────────────────
+
+    private SidecarConflictAction ShowSidecarConflictDialog(string sidecarPath)
+    {
+        var btnOverwrite    = new TaskDialogButton("&Overwrite");
+        var btnOverwriteAll = new TaskDialogButton("Overwrite &All");
+        var btnSkip         = new TaskDialogButton("&Skip");
+        var btnSkipAll      = new TaskDialogButton("Skip A&ll");
+
+        var page = new TaskDialogPage
+        {
+            Caption       = "Sidecar Already Exists",
+            Heading       = "A sidecar hash file already exists",
+            Text          = $"The following sidecar file already exists:\n{sidecarPath}\n\n" +
+                            "Re-hash this file and overwrite the existing sidecar, or skip it?",
+            Icon          = TaskDialogIcon.Warning,
+            DefaultButton = btnSkip,
+            Buttons       = { btnOverwrite, btnOverwriteAll, btnSkip, btnSkipAll }
+        };
+
+        var clicked = TaskDialog.ShowDialog(this, page);
+
+        if (clicked == btnOverwriteAll) return SidecarConflictAction.OverwriteAll;
+        if (clicked == btnOverwrite)    return SidecarConflictAction.Overwrite;
+        if (clicked == btnSkipAll)      return SidecarConflictAction.SkipAll;
+        return SidecarConflictAction.Skip;
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
