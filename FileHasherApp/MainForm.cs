@@ -348,12 +348,24 @@ public sealed class MainForm : Form
         };
         _resultsView.Columns.AddRange(new[] { _colPath, _colHash, _colSize, _colModified });
 
+        // ── Menu bar ─────────────────────────────────────────────────────────
+
+        var menuStrip = new MenuStrip();
+        var helpMenu  = new ToolStripMenuItem("&Help");
+        var aboutItem = new ToolStripMenuItem("About FileHasher…");
+        aboutItem.Click += (_, _) => ShowAboutDialog();
+        helpMenu.DropDownItems.Add(aboutItem);
+        menuStrip.Items.Add(helpMenu);
+        MainMenuStrip = menuStrip;
+
         // ── Wire up form ──────────────────────────────────────────────────────
 
-        // Order matters: Fill first, then Top, then Bottom
+        // Order matters: Fill first, then Top, then Bottom.
+        // MenuStrip is added last so DockStyle.Top places it above topPanel.
         Controls.Add(_resultsView);
         Controls.Add(topPanel);
         Controls.Add(statusStrip);
+        Controls.Add(menuStrip);
 
         ResumeLayout(false);
         PerformLayout();
@@ -576,34 +588,54 @@ public sealed class MainForm : Form
                 return;
             }
 
-            // Phase 1b – pre-flight sidecar conflict check (before any hashing)
+            // Phase 1b – per-file sidecar conflict resolution, before any hashing
             int sidecarSkipped = 0, sidecarOverwritten = 0;
             if (opts.WriteSidecarHashes)
             {
-                var ext           = opts.SidecarExtension;
-                int conflictCount = await Task.Run(() => files.Count(f => File.Exists(f + ext)),
-                                                   _cts.Token);
-                if (conflictCount > 0)
+                var ext         = opts.SidecarExtension;
+                var conflicting = await Task.Run(
+                    () => files.Where(f => File.Exists(f + ext)).ToList(), _cts.Token);
+
+                if (conflicting.Count > 0)
                 {
-                    var choice = ShowSidecarBatchConflictDialog(conflictCount, files.Count);
-                    if (choice == null)               // user cancelled
+                    bool skipAll = false, overwriteAll = false;
+                    var  toSkip  = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+                    foreach (var conflictFile in conflicting)
                     {
-                        SetStatus("Cancelled.");
-                        return;
-                    }
-                    if (choice == SidecarConflictAction.SkipAll)
-                    {
-                        files.RemoveAll(f => File.Exists(f + ext));
-                        sidecarSkipped = conflictCount;
-                        if (files.Count == 0)
+                        SidecarConflictAction decision;
+
+                        if (skipAll)
+                            decision = SidecarConflictAction.Skip;
+                        else if (overwriteAll)
+                            decision = SidecarConflictAction.Overwrite;
+                        else
                         {
-                            SetStatus($"All {conflictCount:N0} files skipped — existing sidecars unchanged.");
-                            return;
+                            decision = ShowSidecarConflictDialog(conflictFile, conflictFile + ext);
+                            if      (decision == SidecarConflictAction.SkipAll)      skipAll      = true;
+                            else if (decision == SidecarConflictAction.OverwriteAll) overwriteAll = true;
+                        }
+
+                        if (decision == SidecarConflictAction.Skip ||
+                            decision == SidecarConflictAction.SkipAll)
+                        {
+                            toSkip.Add(conflictFile);
+                            sidecarSkipped++;
+                        }
+                        else
+                        {
+                            sidecarOverwritten++;
                         }
                     }
-                    else // OverwriteAll
+
+                    if (toSkip.Count > 0)
                     {
-                        sidecarOverwritten = conflictCount;
+                        files.RemoveAll(f => toSkip.Contains(f));
+                        if (files.Count == 0)
+                        {
+                            SetStatus($"All {sidecarSkipped:N0} files skipped — existing sidecars unchanged.");
+                            return;
+                        }
                     }
                 }
             }
@@ -779,33 +811,68 @@ public sealed class MainForm : Form
 
     // ── Sidecar conflict dialog ───────────────────────────────────────────────
 
-    /// <summary>
-    /// Returns OverwriteAll, SkipAll, or null (cancelled).
-    /// Shown once before hashing begins when existing sidecars are detected.
-    /// </summary>
-    private SidecarConflictAction? ShowSidecarBatchConflictDialog(int conflictCount, int totalCount)
+    private SidecarConflictAction ShowSidecarConflictDialog(string filePath, string sidecarPath)
     {
-        var btnOverwrite = new TaskDialogButton("&Overwrite");
-        var btnSkip      = new TaskDialogButton("&Skip These Files");
-        var btnCancel    = new TaskDialogButton("Cancel");
+        var btnOverwrite    = new TaskDialogButton("&Overwrite");
+        var btnOverwriteAll = new TaskDialogButton("Overwrite &All");
+        var btnSkip         = new TaskDialogButton("&Skip");
+        var btnSkipAll      = new TaskDialogButton("Skip A&ll");
 
-        string fileWord = conflictCount == 1 ? "file" : "files";
+        string details;
+        try
+        {
+            var fi = new FileInfo(filePath);
+            var si = new FileInfo(sidecarPath);
+            details = $"File:             {fi.Name}\n"                        +
+                      $"Size:             {fi.Length:N0} bytes\n"             +
+                      $"Modified:         {fi.LastWriteTime:yyyy-MM-dd HH:mm:ss}\n\n" +
+                      $"Existing sidecar: {si.Name}\n"                        +
+                      $"Sidecar written:  {si.LastWriteTime:yyyy-MM-dd HH:mm:ss}";
+        }
+        catch
+        {
+            details = $"File: {Path.GetFileName(filePath)}\n" +
+                      $"Sidecar: {Path.GetFileName(sidecarPath)}";
+        }
+
         var page = new TaskDialogPage
         {
-            Caption       = "Existing Sidecar Files Detected",
-            Heading       = $"{conflictCount:N0} {fileWord} already {(conflictCount == 1 ? "has" : "have")} a sidecar",
-            Text          = $"{conflictCount:N0} of {totalCount:N0} files already have sidecar hash files.\n\n" +
-                            "Overwrite them with fresh hashes, or skip those files?",
+            Caption       = "Sidecar Already Exists",
+            Heading       = "This file already has a sidecar hash file",
+            Text          = details + "\n\nRe-hash and overwrite the sidecar, or skip this file?",
             Icon          = TaskDialogIcon.Warning,
             DefaultButton = btnSkip,
-            Buttons       = { btnOverwrite, btnSkip, btnCancel }
+            Buttons       = { btnOverwrite, btnOverwriteAll, btnSkip, btnSkipAll }
         };
 
         var clicked = TaskDialog.ShowDialog(this, page);
 
-        if (clicked == btnOverwrite) return SidecarConflictAction.OverwriteAll;
-        if (clicked == btnSkip)      return SidecarConflictAction.SkipAll;
-        return null;
+        if (clicked == btnOverwriteAll) return SidecarConflictAction.OverwriteAll;
+        if (clicked == btnOverwrite)    return SidecarConflictAction.Overwrite;
+        if (clicked == btnSkipAll)      return SidecarConflictAction.SkipAll;
+        return SidecarConflictAction.Skip;
+    }
+
+    // ── About dialog ─────────────────────────────────────────────────────────
+
+    private void ShowAboutDialog()
+    {
+        var ver = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
+        string version = ver is null ? "0.1" : $"{ver.Major}.{ver.Minor}.{ver.Build}";
+
+        var page = new TaskDialogPage
+        {
+            Caption = "About FileHasher",
+            Heading = "FileHasher",
+            Text    = $"Version {version}\n\n"                        +
+                      "A file and folder hashing utility for Windows.\n\n" +
+                      "Author:    Fabian Santiago\n"                   +
+                      "Copyright © 2026 FSP Productions, LLC",
+            Icon    = TaskDialogIcon.Information,
+            Buttons = { TaskDialogButton.OK }
+        };
+
+        TaskDialog.ShowDialog(this, page);
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
