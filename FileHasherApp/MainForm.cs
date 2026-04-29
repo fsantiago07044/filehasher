@@ -143,6 +143,10 @@ public sealed class MainForm : Form
             Checked = false
         };
 
+        _pathBox.AllowDrop = true;
+        _pathBox.DragEnter += PathBox_DragEnter;
+        _pathBox.DragDrop  += PathBox_DragDrop;
+
         _browseFileBtn.Click   += BrowseFile_Click;
         _browseFolderBtn.Click += BrowseFolder_Click;
 
@@ -387,6 +391,25 @@ public sealed class MainForm : Form
         // Actions: Stop and Run right-aligned
         _stopBtn.Left = gbWidth - _runBtn.Width - 4 - _stopBtn.Width;
         _runBtn.Left  = gbWidth - _runBtn.Width;
+    }
+
+    // ── Drag-and-drop onto the path field ────────────────────────────────────
+
+    private static void PathBox_DragEnter(object? sender, DragEventArgs e)
+    {
+        e.Effect = e.Data?.GetDataPresent(DataFormats.FileDrop) == true
+            ? DragDropEffects.Copy
+            : DragDropEffects.None;
+    }
+
+    private void PathBox_DragDrop(object? sender, DragEventArgs e)
+    {
+        if (e.Data?.GetData(DataFormats.FileDrop) is not string[] paths || paths.Length == 0)
+            return;
+
+        var dropped = paths[0];
+        _pathBox.Text        = dropped;
+        _allTypesChk.Enabled = Directory.Exists(dropped);
     }
 
     // ── Browse / file-picker handlers ─────────────────────────────────────────
