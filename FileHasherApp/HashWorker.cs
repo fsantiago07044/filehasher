@@ -16,18 +16,6 @@ internal sealed class HashWorker
     public event Action<string>?     WarningRaised;
     public event Action<HashResult>? FileHashed;
 
-    /// <summary>
-    /// When <see cref="HashOptions.WriteSidecarHashes"/> is true, called once per file that
-    /// already has a sidecar.  The argument is the full sidecar path.  The callee must
-    /// marshal to the UI thread if needed.  Null means always overwrite (legacy behaviour).
-    /// </summary>
-    public Func<string, SidecarConflictAction>? SidecarConflictResolver { get; set; }
-
-    public int SidecarSkippedCount     { get; private set; }
-    public int SidecarOverwrittenCount { get; private set; }
-
-    private SidecarConflictAction? _batchSidecarAction;
-
     public HashWorker(HashOptions opts, Logger logger)
     {
         _opts   = opts;
@@ -47,61 +35,10 @@ internal sealed class HashWorker
         foreach (var path in files)
         {
             ct.ThrowIfCancellationRequested();
-
-            if (_opts.WriteSidecarHashes && SidecarConflictResolver is not null)
-            {
-                // A previous "Skip All" decision skips all remaining files unconditionally.
-                if (_batchSidecarAction == SidecarConflictAction.SkipAll)
-                {
-                    SidecarSkippedCount++;
-                    progress.Report(++done);
-                    continue;
-                }
-
-                var sidecarPath = path + _opts.SidecarExtension;
-                if (File.Exists(sidecarPath))
-                {
-                    if (ShouldSkipDueToSidecar(path, sidecarPath))
-                    {
-                        progress.Report(++done);
-                        continue;
-                    }
-                    SidecarOverwrittenCount++;
-                }
-            }
-
             var result = await HashFileAsync(path, ct);
             _logger.LogResult(result, _opts.Algorithm);
             FileHashed?.Invoke(result);
             progress.Report(++done);
-        }
-    }
-
-    /// <summary>Returns true when the file should be skipped entirely.</summary>
-    private bool ShouldSkipDueToSidecar(string filePath, string sidecarPath)
-    {
-        if (_batchSidecarAction == SidecarConflictAction.OverwriteAll)
-            return false;
-
-        var action = SidecarConflictResolver!(sidecarPath);
-
-        switch (action)
-        {
-            case SidecarConflictAction.SkipAll:
-                _batchSidecarAction = SidecarConflictAction.SkipAll;
-                goto case SidecarConflictAction.Skip;
-
-            case SidecarConflictAction.Skip:
-                SidecarSkippedCount++;
-                WarningRaised?.Invoke($"Skipped — existing sidecar: {filePath}");
-                return true;
-
-            case SidecarConflictAction.OverwriteAll:
-                _batchSidecarAction = SidecarConflictAction.OverwriteAll;
-                return false;
-
-            default: // Overwrite (once)
-                return false;
         }
     }
 

@@ -562,14 +562,6 @@ public sealed class MainForm : Form
         _cts = new CancellationTokenSource();
         var worker = new HashWorker(opts, _logger);
 
-        if (opts.WriteSidecarHashes)
-            worker.SidecarConflictResolver = sidecarPath =>
-            {
-                SidecarConflictAction action = SidecarConflictAction.Skip;
-                Invoke(() => action = ShowSidecarConflictDialog(sidecarPath));
-                return action;
-            };
-
         worker.WarningRaised += w  => SafeInvoke(() => AppendWarning(w));
         worker.FileHashed    += r  => SafeInvoke(() => AddResult(r));
 
@@ -582,6 +574,38 @@ public sealed class MainForm : Form
             {
                 SetStatus("No matching files found.");
                 return;
+            }
+
+            // Phase 1b – pre-flight sidecar conflict check (before any hashing)
+            int sidecarSkipped = 0, sidecarOverwritten = 0;
+            if (opts.WriteSidecarHashes)
+            {
+                var ext           = opts.SidecarExtension;
+                int conflictCount = await Task.Run(() => files.Count(f => File.Exists(f + ext)),
+                                                   _cts.Token);
+                if (conflictCount > 0)
+                {
+                    var choice = ShowSidecarBatchConflictDialog(conflictCount, files.Count);
+                    if (choice == null)               // user cancelled
+                    {
+                        SetStatus("Cancelled.");
+                        return;
+                    }
+                    if (choice == SidecarConflictAction.SkipAll)
+                    {
+                        files.RemoveAll(f => File.Exists(f + ext));
+                        sidecarSkipped = conflictCount;
+                        if (files.Count == 0)
+                        {
+                            SetStatus($"All {conflictCount:N0} files skipped — existing sidecars unchanged.");
+                            return;
+                        }
+                    }
+                    else // OverwriteAll
+                    {
+                        sidecarOverwritten = conflictCount;
+                    }
+                }
             }
 
             // Phase 2 – hash
@@ -601,8 +625,8 @@ public sealed class MainForm : Form
             // Done
             int successes   = _allResults.Count(r => r.Success);
             int errors      = _allResults.Count(r => !r.Success);
-            int skipped     = worker.SidecarSkippedCount;
-            int overwritten = worker.SidecarOverwrittenCount;
+            int skipped     = sidecarSkipped;
+            int overwritten = sidecarOverwritten;
 
             _logger.LogSessionEnd(successes, errors);
             SetStatus($"Done — {successes:N0} hashed, {errors:N0} error(s).  Log: {_logger.LogPath}");
@@ -755,30 +779,33 @@ public sealed class MainForm : Form
 
     // ── Sidecar conflict dialog ───────────────────────────────────────────────
 
-    private SidecarConflictAction ShowSidecarConflictDialog(string sidecarPath)
+    /// <summary>
+    /// Returns OverwriteAll, SkipAll, or null (cancelled).
+    /// Shown once before hashing begins when existing sidecars are detected.
+    /// </summary>
+    private SidecarConflictAction? ShowSidecarBatchConflictDialog(int conflictCount, int totalCount)
     {
-        var btnOverwrite    = new TaskDialogButton("&Overwrite");
-        var btnOverwriteAll = new TaskDialogButton("Overwrite &All");
-        var btnSkip         = new TaskDialogButton("&Skip");
-        var btnSkipAll      = new TaskDialogButton("Skip A&ll");
+        var btnOverwrite = new TaskDialogButton("&Overwrite");
+        var btnSkip      = new TaskDialogButton("&Skip These Files");
+        var btnCancel    = new TaskDialogButton("Cancel");
 
+        string fileWord = conflictCount == 1 ? "file" : "files";
         var page = new TaskDialogPage
         {
-            Caption       = "Sidecar Already Exists",
-            Heading       = "A sidecar hash file already exists",
-            Text          = $"The following sidecar file already exists:\n{sidecarPath}\n\n" +
-                            "Re-hash this file and overwrite the existing sidecar, or skip it?",
+            Caption       = "Existing Sidecar Files Detected",
+            Heading       = $"{conflictCount:N0} {fileWord} already {(conflictCount == 1 ? "has" : "have")} a sidecar",
+            Text          = $"{conflictCount:N0} of {totalCount:N0} files already have sidecar hash files.\n\n" +
+                            "Overwrite them with fresh hashes, or skip those files?",
             Icon          = TaskDialogIcon.Warning,
             DefaultButton = btnSkip,
-            Buttons       = { btnOverwrite, btnOverwriteAll, btnSkip, btnSkipAll }
+            Buttons       = { btnOverwrite, btnSkip, btnCancel }
         };
 
         var clicked = TaskDialog.ShowDialog(this, page);
 
-        if (clicked == btnOverwriteAll) return SidecarConflictAction.OverwriteAll;
-        if (clicked == btnOverwrite)    return SidecarConflictAction.Overwrite;
-        if (clicked == btnSkipAll)      return SidecarConflictAction.SkipAll;
-        return SidecarConflictAction.Skip;
+        if (clicked == btnOverwrite) return SidecarConflictAction.OverwriteAll;
+        if (clicked == btnSkip)      return SidecarConflictAction.SkipAll;
+        return null;
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
