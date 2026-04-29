@@ -629,14 +629,7 @@ public sealed class MainForm : Form
                     }
 
                     if (toSkip.Count > 0)
-                    {
                         files.RemoveAll(f => toSkip.Contains(f));
-                        if (files.Count == 0)
-                        {
-                            SetStatus($"All {sidecarSkipped:N0} files skipped — existing sidecars unchanged.");
-                            return;
-                        }
-                    }
                 }
             }
 
