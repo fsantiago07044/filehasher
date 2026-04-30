@@ -17,6 +17,7 @@ A simple utility to hash files and folders, write sidecar hash files, and export
     - [Results](#results)
     - [Logs](#logs)
     - [UAC elevation](#uac-elevation)
+    - [About dialog](#about-dialog)
 - [PowerShell Script](#powershell-script)
   - [Parameters](#parameters)
   - [Examples](#examples)
@@ -60,7 +61,7 @@ Copy `FileHasher.exe` anywhere you like — it has no external dependencies.
 | **Browse File…** | Opens a file picker. The selected file is hashed regardless of its extension. |
 | **Browse Folder…** | Opens a folder picker. The folder is scanned **recursively**. |
 
-You can also type or paste a path directly into the path box.
+You can also type or paste a path directly into the path box, or **drag and drop** a file or folder onto it. Dropping a folder automatically enables the **Scan all file types** checkbox; dropping a file disables it (matching the Browse buttons' behaviour).
 
 **Scan all file types** — when scanning a folder, this checkbox controls which files are included:
 
@@ -103,6 +104,31 @@ Writes a small text file next to each hashed file. For example, hashing `setup.e
 
 Writing sidecars to protected locations (e.g. `C:\Program Files`) requires Administrator rights — see [UAC elevation](#uac-elevation).
 
+##### Sidecar conflict handling
+
+When a sidecar file already exists for a target file, FileHasher pauses before hashing begins and shows a per-file conflict dialog. The dialog displays:
+
+- **File** — full path of the source file
+- **Size** — file size in bytes
+- **Modified** — last-modified timestamp (UTC)
+- **Existing sidecar** — name of the sidecar that is already on disk
+- **Sidecar written** — timestamp when the existing sidecar was last written
+
+Four buttons let you choose what to do:
+
+| Button | Behaviour |
+| --- | --- |
+| **Overwrite** | Replace the existing sidecar for this file only. |
+| **Overwrite All** | Replace existing sidecars for all remaining conflicts without further prompts. |
+| **Skip** | Leave the existing sidecar for this file; the file is excluded from hashing. |
+| **Skip All** | Leave existing sidecars for all remaining conflicts; those files are excluded from hashing. |
+
+All conflict decisions are collected **before** any file is hashed, so no file is touched until every dialog has been answered.
+
+The completion summary (see [Running and stopping](#running-and-stopping)) includes **Sidecars skipped** and **Sidecars overwritten** counts when at least one conflict was resolved.
+
+Sidecar files are never themselves treated as hash targets — FileHasher automatically excludes any file whose path ends with the configured sidecar extension, preventing `.sha256.sha256` chains on repeated runs.
+
 ---
 
 **Export results to CSV**
@@ -121,8 +147,17 @@ When checked, a CSV file is written after all files have been hashed. Click **Br
 | --- | --- |
 | **▶ Run** | Starts enumeration then hashing. Most controls are disabled while a run is in progress. |
 | **Stop** | Cancels the current run cleanly. Files already hashed are retained in the results list. |
+| **Clear Results** | Clears all rows from the results list, resets the progress bar, and returns the status to "Ready." Available before and after a run. |
 
-The progress bar shows indeterminate (marquee) progress during folder enumeration, then switches to a standard percentage bar during hashing.
+The progress bar shows indeterminate (marquee) progress during folder enumeration, then switches to a percentage bar during hashing. When hashing completes successfully the bar turns **blue**.
+
+A completion dialog is shown at the end of every run summarising:
+
+- **Files hashed** — count of successfully hashed files
+- **Errors** — count of files that failed
+- **Sidecars skipped** — shown only when at least one existing sidecar was left in place
+- **Sidecars overwritten** — shown only when at least one existing sidecar was replaced
+- **Log** — path to the current log file
 
 ---
 
@@ -168,6 +203,12 @@ To elevate:
 - If a run encounters an access-denied error mid-way, a dialog will offer to relaunch as Administrator automatically.
 
 When already running as Administrator, the button is disabled and the status bar shows **● Administrator**.
+
+---
+
+#### About dialog
+
+Open **Help → About FileHasher…** from the menu bar to view the application version, author, and copyright information.
 
 ---
 
