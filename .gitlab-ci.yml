@@ -1,0 +1,85 @@
+# .gitlab-ci.yml
+#
+# Nightly Windows build — publishes a self-contained FileHasher.exe.
+#
+# The nightly job skips itself automatically when no new commits have landed
+# on the default branch since the last successful pipeline run.
+#
+# Prerequisites
+# ─────────────
+# 1. A Windows runner registered to this project, tagged "windows", using the
+#    "shell" executor (PowerShell).  .NET 8 SDK must be installed on that runner.
+#    Register with:
+#      gitlab-runner register \
+#        --url https://<your-gitlab-host> \
+#        --registration-token <token> \
+#        --executor shell \
+#        --shell powershell \
+#        --tag-list windows \
+#        --description "Windows build runner"
+#
+# 2. A pipeline schedule set to a nightly cadence:
+#      GitLab UI → your project → Build → Pipeline schedules → New schedule
+#      Interval: 0 1 * * *   (01:00 UTC daily)
+#      Target branch: main (or your default branch)
+#
+# No extra CI/CD variables are required — the built-in CI_JOB_TOKEN is used
+# to query the pipelines API for the commit-check.
+
+variables:
+  DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+  # Redirect the NuGet package cache into the repo tree so GitLab can cache it.
+  NUGET_PACKAGES: "$CI_PROJECT_DIR/.nuget/packages"
+
+stages:
+  - build
+
+# ── Nightly / on-demand build ────────────────────────────────────────────────
+
+build:
+  stage: build
+  tags:
+    - windows
+  rules:
+    # Scheduled run — only on the default branch; skips when no new commits.
+    - if: '$CI_PIPELINE_SOURCE == "schedule" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+    # "Run pipeline" button in the GitLab UI — always builds, skips commit check.
+    - if: '$CI_PIPELINE_SOURCE == "web"'
+  cache:
+    key: nuget-$CI_PROJECT_ID
+    paths:
+      - .nuget/packages/
+  script:
+    - |
+      # ── Commit check (schedule only) ────────────────────────────────────────
+      if ($env:CI_PIPELINE_SOURCE -eq "schedule") {
+        $headers = @{ "JOB-TOKEN" = $env:CI_JOB_TOKEN }
+        $url     = "$env:CI_API_V4_URL/projects/$env:CI_PROJECT_ID/pipelines" +
+                   "?ref=$env:CI_COMMIT_BRANCH&status=success&per_page=1"
+        $last    = Invoke-RestMethod -Uri $url -Headers $headers -ErrorAction SilentlyContinue
+
+        if ($last -and $last[0].sha -eq $env:CI_COMMIT_SHA) {
+          Write-Host "No new commits since last successful build ($($last[0].sha)). Skipping."
+          exit 0
+        }
+
+        Write-Host "New commits detected. Last build: $($last[0].sha). Building $($env:CI_COMMIT_SHORT_SHA)..."
+      }
+
+      # ── Build ────────────────────────────────────────────────────────────────
+      Set-Location FileHasherApp
+      dotnet publish `
+        -c Release `
+        -r win-x64 `
+        --self-contained true `
+        -p:PublishSingleFile=true `
+        -p:EnableCompressionInSingleFile=true `
+        -p:DebugType=embedded
+
+      if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+  artifacts:
+    name: "FileHasher-$CI_COMMIT_SHORT_SHA"
+    paths:
+      - FileHasherApp/bin/Release/net8.0-windows/win-x64/publish/FileHasher.exe
+    expire_in: 30 days
+    when: on_success
