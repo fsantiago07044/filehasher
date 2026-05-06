@@ -18,6 +18,12 @@ A simple utility to hash files and folders, write sidecar hash files, and export
     - [Logs](#logs)
     - [UAC elevation](#uac-elevation)
     - [About dialog](#about-dialog)
+- [Automated Testing](#automated-testing)
+  - [Test project overview](#test-project-overview)
+  - [Running the tests](#running-the-tests)
+  - [AutomationId reference](#automationid-reference)
+  - [Test classes](#test-classes)
+  - [CI / custom exe path](#ci--custom-exe-path)
 - [PowerShell Script](#powershell-script)
   - [Parameters](#parameters)
   - [Examples](#examples)
@@ -209,6 +215,122 @@ When already running as Administrator, the button is disabled and the status bar
 #### About dialog
 
 Open **Help → About FileHasher…** from the menu bar to view the application version, author, and copyright information.
+
+---
+
+## Automated Testing
+
+FileHasher's GUI is covered by a UI automation test suite built on [FlaUI](https://github.com/FlaUI/FlaUI) and [xUnit](https://xunit.net/). The tests launch the real `FileHasher.exe`, interact with it through the Windows UI Automation (UIA3) accessibility tree, and assert on observable behaviour — no mocking.
+
+### Test project overview
+
+| Item | Value |
+| --- | --- |
+| Project | `FileHasherApp.Tests\FileHasherApp.Tests.csproj` |
+| Target framework | `net8.0-windows` |
+| Test runner | xUnit 2.8 |
+| Automation library | FlaUI.UIA3 4.0 |
+
+Key packages:
+
+```xml
+<PackageReference Include="FlaUI.Core"                Version="4.0.0" />
+<PackageReference Include="FlaUI.UIA3"                Version="4.0.0" />
+<PackageReference Include="xunit"                     Version="2.8.1" />
+<PackageReference Include="xunit.runner.visualstudio" Version="2.8.1" />
+```
+
+---
+
+### Running the tests
+
+Build `FileHasherApp` first (the tests locate the compiled executable automatically):
+
+```powershell
+# From the solution root
+dotnet build FileHasherApp\FileHasherApp.csproj -c Debug
+
+dotnet test FileHasherApp.Tests\FileHasherApp.Tests.csproj
+```
+
+All tests run serially (via xUnit's `[Collection("Serial")]`) because they interact with real application windows on the Windows desktop.
+
+---
+
+### AutomationId reference
+
+Every interactive control in `MainForm.cs` is assigned a `Name` property, which WinForms surfaces as the UIAutomation `AutomationId`. FlaUI locates controls with:
+
+```csharp
+window.FindFirstDescendant(cf => cf.ByAutomationId("RunBtn")).AsButton()
+```
+
+| AutomationId | Control type | Description |
+| --- | --- | --- |
+| `PathBox` | TextBox | Target file / folder path |
+| `BrowseFileBtn` | Button | Opens file picker |
+| `BrowseFolderBtn` | Button | Opens folder picker |
+| `AllTypesChk` | CheckBox | Scan all file types |
+| `AlgoMd5` | RadioButton | MD5 algorithm |
+| `AlgoSha1` | RadioButton | SHA1 algorithm |
+| `AlgoSha256` | RadioButton | SHA256 algorithm (default) |
+| `AlgoSha512` | RadioButton | SHA512 algorithm |
+| `MetadataChk` | CheckBox | Include file metadata |
+| `SidecarChk` | CheckBox | Write sidecar hash files |
+| `SidecarExtBox` | TextBox | Sidecar file extension |
+| `SidecarFmtSha256Sum` | RadioButton | sha256sum sidecar format (default) |
+| `SidecarFmtHashOnly` | RadioButton | Hash-only sidecar format |
+| `CsvChk` | CheckBox | Export results to CSV |
+| `CsvPathBox` | TextBox | CSV output path |
+| `CsvBrowseBtn` | Button | Opens CSV save dialog |
+| `RunAsAdminBtn` | Button | Relaunches as Administrator |
+| `ClearBtn` | Button | Clears results list |
+| `StopBtn` | Button | Cancels active run |
+| `RunBtn` | Button | Starts hashing |
+| `StatusLabel` | Label | Status text (accessible name = label text) |
+| `ResultsView` | ListView | Results list |
+
+---
+
+### Test classes
+
+**`MainFormStateTests`** — read-only assertions about the form's initial state. All nine tests share one app instance (`IClassFixture<AppFixture>`) so none of them modify UI state.
+
+| Test | What it asserts |
+| --- | --- |
+| `Title_StartsWithFileHasher` | Window title begins with "FileHasher" |
+| `DefaultAlgorithm_IsSha256` | SHA256 radio button is checked on launch |
+| `OtherAlgorithms_NotSelectedByDefault` | MD5, SHA1, SHA512 are unchecked |
+| `RunButton_EnabledAtStart` | Run button is enabled |
+| `StopButton_DisabledAtStart` | Stop button is disabled |
+| `StatusLabel_ShowsReadyAtStart` | Status label reads "Ready." |
+| `PathBox_EmptyAtStart` | Path box is empty |
+| `SidecarCheckbox_UncheckedByDefault_AndOptionsDisabled` | Sidecar checkbox is off; extension box is disabled |
+| `CsvCheckbox_UncheckedByDefault_AndOptionsDisabled` | CSV checkbox is off; path box is disabled |
+| `SidecarExtBox_DefaultExtension_IsSha256` | Default extension value is `.sha256` |
+
+**`MainFormInteractionTests`** — tests that click controls and observe state changes. Each test method gets its own `AppFixture` (fresh process) so there is no state leakage between tests.
+
+| Test | What it covers |
+| --- | --- |
+| `RunWithNoPath_ShowsWarningDialog` | Clicking Run with an empty path shows a warning dialog |
+| `AlgorithmSelection_CanSwitchToMd5` | Selecting MD5 checks it and unchecks SHA256 |
+| `AlgorithmSelection_CanSwitchToSha512` | Selecting SHA512 checks it |
+| `SidecarCheckbox_TogglesOptionsPanel` | Toggling the sidecar checkbox enables/disables the extension box |
+| `CsvCheckbox_TogglesOptionsPanel` | Toggling the CSV checkbox enables/disables the path box |
+| `ClearButton_ResetsStatusLabel` | Clear button returns the status label to "Ready." |
+| `HashSingleFile_AppearsInResultsAndCompletionDialogShows` | Hashing a temp file produces a result row and shows the completion dialog |
+
+---
+
+### CI / custom exe path
+
+`AppFixture` locates the executable by walking up from the test assembly's output directory, trying `Debug` then `Release` configurations. To override this (e.g. in a CI pipeline that publishes to a specific location), set the `FILEHASHER_EXE` environment variable to the full path of `FileHasher.exe`:
+
+```powershell
+$env:FILEHASHER_EXE = "C:\build\output\FileHasher.exe"
+dotnet test FileHasherApp.Tests\FileHasherApp.Tests.csproj
+```
 
 ---
 

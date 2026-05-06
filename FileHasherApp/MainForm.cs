@@ -114,6 +114,7 @@ public sealed class MainForm : Form
 
         _pathBox = new TextBox
         {
+            Name   = "PathBox",
             Left   = M,
             Top    = 26,
             Height = 23,
@@ -121,6 +122,7 @@ public sealed class MainForm : Form
         };
         _browseFolderBtn = new Button
         {
+            Name   = "BrowseFolderBtn",
             Text   = "Browse Folder…",
             Top    = 25,
             Width  = 114,
@@ -129,6 +131,7 @@ public sealed class MainForm : Form
         };
         _browseFileBtn = new Button
         {
+            Name   = "BrowseFileBtn",
             Text   = "Browse File…",
             Top    = 25,
             Width  = 96,
@@ -137,6 +140,7 @@ public sealed class MainForm : Form
         };
         _allTypesChk = new CheckBox
         {
+            Name    = "AllTypesChk",
             Text    = "Scan all file types  (default: .exe and .msi only)",
             Left    = M,
             Top     = 58,
@@ -164,10 +168,10 @@ public sealed class MainForm : Form
             Anchor = AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Top
         };
 
-        _rdMd5    = new RadioButton { Text = "MD5",    Left = 10,  Top = 24, AutoSize = true };
-        _rdSha1   = new RadioButton { Text = "SHA1",   Left = 80,  Top = 24, AutoSize = true };
-        _rdSha256 = new RadioButton { Text = "SHA256", Left = 158, Top = 24, AutoSize = true, Checked = true };
-        _rdSha512 = new RadioButton { Text = "SHA512", Left = 248, Top = 24, AutoSize = true };
+        _rdMd5    = new RadioButton { Name = "AlgoMd5",    Text = "MD5",    Left = 10,  Top = 24, AutoSize = true };
+        _rdSha1   = new RadioButton { Name = "AlgoSha1",   Text = "SHA1",   Left = 80,  Top = 24, AutoSize = true };
+        _rdSha256 = new RadioButton { Name = "AlgoSha256", Text = "SHA256", Left = 158, Top = 24, AutoSize = true, Checked = true };
+        _rdSha512 = new RadioButton { Name = "AlgoSha512", Text = "SHA512", Left = 248, Top = 24, AutoSize = true };
 
         gbAlgo.Controls.AddRange(new Control[] { _rdMd5, _rdSha1, _rdSha256, _rdSha512 });
 
@@ -183,6 +187,7 @@ public sealed class MainForm : Form
 
         _metadataChk = new CheckBox
         {
+            Name  = "MetadataChk",
             Text  = "Include file metadata  (size and last modified date)",
             Left  = M,
             Top   = 24,
@@ -191,6 +196,7 @@ public sealed class MainForm : Form
 
         _sidecarChk = new CheckBox
         {
+            Name  = "SidecarChk",
             Text  = "Write sidecar hash files next to each file",
             Left  = M,
             Top   = 50,
@@ -214,13 +220,14 @@ public sealed class MainForm : Form
             Width     = 68,
             TextAlign = ContentAlignment.MiddleLeft
         };
-        _sidecarExtBox  = new TextBox { Text = ".sha256", Left = 72, Top = 3, Width = 80 };
-        _rdSha256Sum    = new RadioButton { Text = "sha256sum format  (HASH *filename)", Left = 0,   Top = 30, AutoSize = true, Checked = true };
-        _rdHashOnly     = new RadioButton { Text = "Hash only",                          Left = 248, Top = 30, AutoSize = true };
+        _sidecarExtBox  = new TextBox    { Name = "SidecarExtBox",        Text = ".sha256",                               Left = 72,  Top = 3,  Width = 80 };
+        _rdSha256Sum    = new RadioButton { Name = "SidecarFmtSha256Sum", Text = "sha256sum format  (HASH *filename)", Left = 0,   Top = 30, AutoSize = true, Checked = true };
+        _rdHashOnly     = new RadioButton { Name = "SidecarFmtHashOnly",  Text = "Hash only",                          Left = 248, Top = 30, AutoSize = true };
         _sidecarOptsPanel.Controls.AddRange(new Control[] { lblExt, _sidecarExtBox, _rdSha256Sum, _rdHashOnly });
 
         _csvChk = new CheckBox
         {
+            Name  = "CsvChk",
             Text  = "Export results to CSV",
             Left  = M,
             Top   = 136,
@@ -238,12 +245,14 @@ public sealed class MainForm : Form
         };
         _csvPathBox = new TextBox
         {
+            Name   = "CsvPathBox",
             Left   = 0,
             Top    = 3,
             Anchor = AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Top
         };
         _csvBrowseBtn = new Button
         {
+            Name   = "CsvBrowseBtn",
             Text   = "Browse…",
             Top    = 2,
             Width  = 72,
@@ -267,6 +276,7 @@ public sealed class MainForm : Form
 
         _runAsAdminBtn = new Button
         {
+            Name    = "RunAsAdminBtn",
             Text    = IsAdmin() ? "Running as Administrator" : "Run as Administrator…",
             Left    = 0,
             Top     = 0,
@@ -278,6 +288,7 @@ public sealed class MainForm : Form
 
         _clearBtn = new Button
         {
+            Name   = "ClearBtn",
             Text   = "Clear Results",
             Top    = 0,
             Width  = 110,
@@ -285,6 +296,7 @@ public sealed class MainForm : Form
         };
         _stopBtn = new Button
         {
+            Name    = "StopBtn",
             Text    = "Stop",
             Top     = 0,
             Width   = 72,
@@ -294,6 +306,7 @@ public sealed class MainForm : Form
         };
         _runBtn = new Button
         {
+            Name   = "RunBtn",
             Text   = "▶  Run",
             Top    = 0,
             Width  = 90,
@@ -319,6 +332,7 @@ public sealed class MainForm : Form
         // --- Status label ---
         _statusLabel = new Label
         {
+            Name      = "StatusLabel",
             Left      = M,
             Top       = _progressBar.Bottom + 4,
             Height    = 20,
@@ -340,6 +354,7 @@ public sealed class MainForm : Form
 
         _resultsView = new ListView
         {
+            Name          = "ResultsView",
             Dock          = DockStyle.Fill,
             View          = View.Details,
             FullRowSelect = true,
