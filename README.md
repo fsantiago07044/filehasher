@@ -294,7 +294,7 @@ window.FindFirstDescendant(cf => cf.ByAutomationId("RunBtn")).AsButton()
 
 ### Test classes
 
-**`MainFormStateTests`** — read-only assertions about the form's initial state. All nine tests share one app instance (`IClassFixture<AppFixture>`) so none of them modify UI state.
+**`MainFormStateTests`** — read-only assertions about the form's initial state. All tests share one app instance (`IClassFixture<AppFixture>`) so none of them modify UI state.
 
 | Test | What it asserts |
 | --- | --- |
@@ -309,7 +309,7 @@ window.FindFirstDescendant(cf => cf.ByAutomationId("RunBtn")).AsButton()
 | `CsvCheckbox_UncheckedByDefault_AndOptionsDisabled` | CSV checkbox is off; path box is disabled |
 | `SidecarExtBox_DefaultExtension_IsSha256` | Default extension value is `.sha256` |
 
-**`MainFormInteractionTests`** — tests that click controls and observe state changes. Each test method gets its own `AppFixture` (fresh process) so there is no state leakage between tests.
+**`MainFormInteractionTests`** — basic interaction tests. Each test gets its own app process.
 
 | Test | What it covers |
 | --- | --- |
@@ -320,6 +320,74 @@ window.FindFirstDescendant(cf => cf.ByAutomationId("RunBtn")).AsButton()
 | `CsvCheckbox_TogglesOptionsPanel` | Toggling the CSV checkbox enables/disables the path box |
 | `ClearButton_ResetsStatusLabel` | Clear button returns the status label to "Ready." |
 | `HashSingleFile_AppearsInResultsAndCompletionDialogShows` | Hashing a temp file produces a result row and shows the completion dialog |
+
+**`MainFormAlgorithmTests`** — algorithm selection completeness and hash-value accuracy. Hash output is verified by writing a sidecar in hash-only format and comparing it against the .NET `HashAlgorithm` provider for the same bytes.
+
+| Test | What it covers |
+| --- | --- |
+| `AlgorithmSelection_CanSwitchToSha1` | SHA1 radio button can be selected |
+| `AlgorithmSelection_OnlyOneCanBeCheckedAtATime` | Switching algorithms unchecks the previous one |
+| `HashAccuracy_MatchesDotNetCrypto (MD5)` | MD5 hash produced by the app matches `MD5.HashData` |
+| `HashAccuracy_MatchesDotNetCrypto (SHA1)` | SHA1 hash matches `SHA1.HashData` |
+| `HashAccuracy_MatchesDotNetCrypto (SHA256)` | SHA256 hash matches `SHA256.HashData` |
+| `HashAccuracy_MatchesDotNetCrypto (SHA512)` | SHA512 hash matches `SHA512.HashData` |
+
+**`MainFormFolderTests`** — folder scanning, file filters, recursive subdirectories, and the Stop button.
+
+| Test | What it covers |
+| --- | --- |
+| `FolderScan_DefaultFilter_OnlyHashesExeAndMsi` | Mixed folder: only .exe and .msi files counted in results |
+| `FolderScan_AllTypes_HashesEveryFile` | "Scan all file types" hashes every file regardless of extension |
+| `FolderScan_NoMatchingFiles_ShowsStatusMessage` | Folder with no .exe/.msi shows "No matching files found" status |
+| `FolderScan_MultipleExe_CorrectRowCount` | Three .exe files produce three result rows |
+| `FolderScan_RecursiveSubfolders_HashesAllMatchingFiles` | Files in nested subfolders are found and hashed |
+| `FolderScan_EmptyFolder_ShowsNoFilesStatus` | Completely empty folder shows "No matching files found" |
+| `StopDuringRun_ButtonStatesReset` | Stop re-enables Run and disables itself |
+| `StopDuringRun_StatusIndicatesCancellation` | Status label contains "Cancelled" or "Stopping" after Stop |
+| `RunButton_IsDisabledWhileRunning` | Run button is disabled for the duration of a run |
+
+**`MainFormSidecarTests`** — sidecar file creation, content formats, custom extensions, and the full conflict-resolution dialog.
+
+| Test | What it covers |
+| --- | --- |
+| `SidecarWrite_CreatesFileNextToTarget` | `.sha256` sidecar is created alongside the source file |
+| `SidecarWrite_Sha256SumFormat_ContainsHashAndFilename` | sha256sum format: `HASH *filename` |
+| `SidecarWrite_HashOnlyFormat_ContainsHashOnly` | Hash-only format: bare hash string, no filename or `*` |
+| `SidecarWrite_CustomExtension_UsesCorrectExtension` | Custom extension is respected; default `.sha256` is not created |
+| `SidecarWrite_NeverCreatesSidecarOfSidecar` | Second run does not create `.sha256.sha256` |
+| `SidecarConflict_Overwrite_UpdatesSidecarContent` | Overwrite: existing sidecar is replaced |
+| `SidecarConflict_Skip_LeavesExistingSidecarUnchanged` | Skip: existing sidecar is preserved |
+| `SidecarConflict_OverwriteAll_UpdatesAllSidecarsWithOnlyOneDialog` | Overwrite All: all sidecars replaced after a single dialog |
+| `SidecarConflict_SkipAll_PreservesAllSidecarsWithOnlyOneDialog` | Skip All: all sidecars preserved after a single dialog |
+| `SidecarConflict_SkipAll_ResultsViewIsEmpty` | When all files are skipped, zero rows appear in the results list |
+
+**`MainFormCsvTests`** — CSV export file creation, content verification, metadata columns, and missing-path validation.
+
+| Test | What it covers |
+| --- | --- |
+| `CsvMissingPath_ShowsValidationWarning` | Run with CSV enabled but no path shows a warning |
+| `CsvExport_CreatesFile` | CSV file is written to the specified path |
+| `CsvExport_ContainsHeaderRow` | First line is `Path,SHA256` (or selected algorithm) |
+| `CsvExport_DataRowContainsCorrectHashAndPath` | Data row contains the correct hash and file name |
+| `CsvExport_WithMetadata_HeaderContainsMetadataColumns` | Metadata mode adds `LengthBytes` and `LastWriteUtc` columns |
+| `CsvExport_WithMetadata_DataRowContainsSizeAndDate` | Metadata data row contains file size and modification date |
+| `CsvExport_Algorithm_HeaderReflectsSelectedAlgorithm` | Column header updates when algorithm changes (e.g. MD5) |
+| `CsvExport_OnlySuccessfulRowsIncluded` | Only hashed files appear in CSV; errors are excluded |
+
+**`MainFormEdgeCaseTests`** — edge cases, error paths, and miscellaneous UI invariants.
+
+| Test | What it covers |
+| --- | --- |
+| `InvalidPath_ShowsWarningDialog` | Non-existent path shows a warning dialog |
+| `ClearAfterHash_EmptiesResultsList` | Clear removes all rows from the results list |
+| `ClearAfterHash_ResetsStatusToReady` | Clear resets the status label to "Ready." |
+| `SecondRun_ClearsAndReplacesPreviousResults` | A second run replaces (not appends to) previous results |
+| `AboutDialog_OpensAndCanBeDismissed` | Help → About opens a dialog that can be dismissed |
+| `HashWithMetadata_RunCompletesAndShowsResult` | Metadata mode still produces a result row |
+| `PathBox_AcceptsTypedPath` | Typing a path into the path box sets it correctly |
+| `CompletionDialog_ShowsAfterSuccessfulRun` | Completion dialog title contains "Complete" |
+| `StatusLabel_UpdatesDuringAndAfterRun` | Status changes to "Hashing…" during a run, "Done" after |
+| `AllTypesCheckbox_EnabledAfterFolderDropped_DisabledAfterFileSelected` | AllTypesChk is unchecked at launch |
 
 ---
 
