@@ -59,7 +59,7 @@ public sealed class MainFormInteractionTests : IDisposable
     [Fact]
     public void AlgorithmSelection_CanSwitchToMd5()
     {
-        Win.FindFirstDescendant(cf => cf.ByAutomationId("AlgoMd5")).AsRadioButton().Select();
+        Win.FindFirstDescendant(cf => cf.ByAutomationId("AlgoMd5")).AsRadioButton().Click();
 
         Assert.True(Win.FindFirstDescendant(cf => cf.ByAutomationId("AlgoMd5")).AsRadioButton().IsChecked);
         Assert.False(Win.FindFirstDescendant(cf => cf.ByAutomationId("AlgoSha256")).AsRadioButton().IsChecked);
@@ -68,7 +68,7 @@ public sealed class MainFormInteractionTests : IDisposable
     [Fact]
     public void AlgorithmSelection_CanSwitchToSha512()
     {
-        Win.FindFirstDescendant(cf => cf.ByAutomationId("AlgoSha512")).AsRadioButton().Select();
+        Win.FindFirstDescendant(cf => cf.ByAutomationId("AlgoSha512")).AsRadioButton().Click();
 
         Assert.True(Win.FindFirstDescendant(cf => cf.ByAutomationId("AlgoSha512")).AsRadioButton().IsChecked);
     }
