@@ -1,6 +1,8 @@
-using FlaUI.Core;
 using FlaUI.Core.AutomationElements;
 using FlaUI.UIA3;
+using Xunit;
+
+using FlaUIApp = FlaUI.Core.Application;
 
 namespace FileHasher.Tests;
 
@@ -12,7 +14,7 @@ namespace FileHasher.Tests;
 /// </summary>
 public sealed class AppFixture : IDisposable
 {
-    private readonly Application    _app;
+    private readonly FlaUIApp       _app;
     private readonly UIA3Automation _automation;
 
     public Window MainWindow { get; }
@@ -20,7 +22,7 @@ public sealed class AppFixture : IDisposable
     public AppFixture()
     {
         _automation = new UIA3Automation();
-        _app        = Application.Launch(FindExe());
+        _app        = FlaUIApp.Launch(FindExe());
         MainWindow  = _app.GetMainWindow(_automation, TimeSpan.FromSeconds(10));
     }
 
