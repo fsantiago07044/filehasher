@@ -40,7 +40,7 @@ public sealed class MainFormInteractionTests : IDisposable
     private static void DismissFirstButton(Window dialog)
     {
         var btn = dialog.FindFirstDescendant(cf => cf.ByControlType(ControlType.Button));
-        btn.AsButton().Invoke();
+        btn.AsButton().Click();
     }
 
     // ── tests ────────────────────────────────────────────────────────────────
@@ -48,7 +48,7 @@ public sealed class MainFormInteractionTests : IDisposable
     [Fact]
     public void RunWithNoPath_ShowsWarningDialog()
     {
-        Win.FindFirstDescendant(cf => cf.ByAutomationId("RunBtn")).AsButton().Invoke();
+        Win.FindFirstDescendant(cf => cf.ByAutomationId("RunBtn")).AsButton().Click();
 
         var dialog = WaitForModal(TimeSpan.FromSeconds(5));
         Assert.NotNull(dialog);
@@ -109,7 +109,7 @@ public sealed class MainFormInteractionTests : IDisposable
     public void ClearButton_ResetsStatusLabel()
     {
         // Clear with no results should reset status to "Ready."
-        Win.FindFirstDescendant(cf => cf.ByAutomationId("ClearBtn")).AsButton().Invoke();
+        Win.FindFirstDescendant(cf => cf.ByAutomationId("ClearBtn")).AsButton().Click();
         var lbl = FindStatusLabel();
         Assert.Equal("Ready.", lbl.Name);
     }
@@ -127,7 +127,7 @@ public sealed class MainFormInteractionTests : IDisposable
             pathBox.Text = tmp;
 
             // Run
-            Win.FindFirstDescendant(cf => cf.ByAutomationId("RunBtn")).AsButton().Invoke();
+            Win.FindFirstDescendant(cf => cf.ByAutomationId("RunBtn")).AsButton().Click();
 
             // Wait for the completion MessageBox (up to 15 s for slow CI machines)
             var dialog = WaitForModal(TimeSpan.FromSeconds(15));
