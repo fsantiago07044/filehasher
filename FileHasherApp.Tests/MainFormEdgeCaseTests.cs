@@ -134,24 +134,23 @@ public sealed class MainFormEdgeCaseTests : IDisposable
     }
 
     [Fact]
-    public void StatusLabel_UpdatesDuringAndAfterRun()
+    public void StatusLabel_ShowsDoneWhenCompletionDialogAppears()
     {
+        // SetStatus("Done…") is called before MessageBox.Show, so the label must read
+        // "Done" while the completion dialog is still visible — read it before dismissing.
         var tmp = TestHelpers.CreateTempFile(new byte[] { 1, 2, 3 });
         try
         {
             Win.FindFirstDescendant(cf => cf.ByAutomationId("PathBox")).AsTextBox().Text = tmp;
             Win.FindFirstDescendant(cf => cf.ByAutomationId("RunBtn")).AsButton().Click();
 
-            // During the run the status changes from "Ready."
-            Assert.True(
-                TestHelpers.WaitUntilStatusContains(Win, "Hashing", TimeSpan.FromSeconds(10)) ||
-                TestHelpers.WaitUntilStatusContains(Win, "Done",    TimeSpan.FromSeconds(10)),
-                "Status should change to 'Hashing…' or 'Done' during a run.");
+            var dialog = TestHelpers.WaitForModal(Win, TimeSpan.FromSeconds(15));
 
-            TestHelpers.DismissFirstButton(TestHelpers.WaitForModal(Win, TimeSpan.FromSeconds(15)));
+            // Read status while the dialog is still open (before dismissing)
+            var statusWhileOpen = TestHelpers.GetStatusText(Win);
+            Assert.Contains("Done", statusWhileOpen, StringComparison.OrdinalIgnoreCase);
 
-            var finalStatus = TestHelpers.GetStatusText(Win);
-            Assert.Contains("Done", finalStatus, StringComparison.OrdinalIgnoreCase);
+            TestHelpers.DismissFirstButton(dialog);
         }
         finally { File.Delete(tmp); }
     }

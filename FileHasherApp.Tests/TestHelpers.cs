@@ -49,7 +49,9 @@ internal static class TestHelpers
             ?? throw new InvalidOperationException(
                 $"Button '{name}' not found in dialog '{dialog.Title}'. " +
                 $"Available: [{string.Join(", ", buttons.Select(b => b.Name))}]");
-        btn.AsButton().Click();
+        // Invoke (not Click) for dialog buttons: mouse-simulation coords can miss native
+        // Win32 TaskDialog custom buttons, while IInvokePattern is coordinate-independent.
+        btn.AsButton().Invoke();
     }
 
     // ── Polling helpers ──────────────────────────────────────────────────────

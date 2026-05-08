@@ -127,7 +127,7 @@ public sealed class MainFormSidecarTests : IDisposable
             var conflict = TestHelpers.WaitForModal(Win, TimeSpan.FromSeconds(5));
             TestHelpers.ClickDialogButton(conflict, "Overwrite");
 
-            var completion = TestHelpers.WaitForNextModal(Win, TimeSpan.FromSeconds(15));
+            var completion = TestHelpers.WaitForModal(Win, TimeSpan.FromSeconds(15));
             TestHelpers.DismissFirstButton(completion);
 
             Assert.DoesNotContain("ORIGINAL_PLACEHOLDER", File.ReadAllText(sidecar));
@@ -151,7 +151,7 @@ public sealed class MainFormSidecarTests : IDisposable
             var conflict = TestHelpers.WaitForModal(Win, TimeSpan.FromSeconds(5));
             TestHelpers.ClickDialogButton(conflict, "Skip");
 
-            var completion = TestHelpers.WaitForNextModal(Win, TimeSpan.FromSeconds(15));
+            var completion = TestHelpers.WaitForModal(Win, TimeSpan.FromSeconds(15));
             TestHelpers.DismissFirstButton(completion);
 
             Assert.Equal(original, File.ReadAllText(sidecar));
@@ -173,7 +173,7 @@ public sealed class MainFormSidecarTests : IDisposable
             var conflict = TestHelpers.WaitForModal(Win, TimeSpan.FromSeconds(5));
             TestHelpers.ClickDialogButton(conflict, "Overwrite All");
 
-            var completion = TestHelpers.WaitForNextModal(Win, TimeSpan.FromSeconds(20));
+            var completion = TestHelpers.WaitForModal(Win, TimeSpan.FromSeconds(20));
             TestHelpers.DismissFirstButton(completion);
 
             Assert.DoesNotContain("OLD1", File.ReadAllText(sc1));
@@ -196,7 +196,7 @@ public sealed class MainFormSidecarTests : IDisposable
             TestHelpers.ClickDialogButton(conflict, "Skip All");
 
             // Completion dialog still appears (0 files hashed, N skipped)
-            var completion = TestHelpers.WaitForNextModal(Win, TimeSpan.FromSeconds(15));
+            var completion = TestHelpers.WaitForModal(Win, TimeSpan.FromSeconds(15));
             TestHelpers.DismissFirstButton(completion);
 
             Assert.Equal("KEEP1", File.ReadAllText(sc1));
@@ -216,7 +216,7 @@ public sealed class MainFormSidecarTests : IDisposable
             Win.FindFirstDescendant(cf => cf.ByAutomationId("RunBtn")).AsButton().Click();
 
             TestHelpers.ClickDialogButton(TestHelpers.WaitForModal(Win, TimeSpan.FromSeconds(5)), "Skip All");
-            TestHelpers.DismissFirstButton(TestHelpers.WaitForNextModal(Win, TimeSpan.FromSeconds(15)));
+            TestHelpers.DismissFirstButton(TestHelpers.WaitForModal(Win, TimeSpan.FromSeconds(15)));
 
             Assert.Equal(0, TestHelpers.GetResultsRowCount(Win));
         }
