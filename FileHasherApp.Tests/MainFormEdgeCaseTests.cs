@@ -146,9 +146,11 @@ public sealed class MainFormEdgeCaseTests : IDisposable
 
             var dialog = TestHelpers.WaitForModal(Win, TimeSpan.FromSeconds(15));
 
-            // Read status while the dialog is still open (before dismissing)
-            var statusWhileOpen = TestHelpers.GetStatusText(Win);
-            Assert.Contains("Done", statusWhileOpen, StringComparison.OrdinalIgnoreCase);
+            // Poll briefly — UIAutomation may lag behind the Label.Text update that
+            // SetStatus("Done…") made immediately before MessageBox.Show().
+            Assert.True(
+                TestHelpers.WaitUntilStatusContains(Win, "Done", TimeSpan.FromSeconds(3)),
+                $"Expected status to contain 'Done' while dialog is open, got: '{TestHelpers.GetStatusText(Win)}'");
 
             TestHelpers.DismissFirstButton(dialog);
         }
