@@ -195,8 +195,7 @@ public sealed class MainFormFolderTests : IDisposable
     private void RunFolder(string dir)
     {
         Win.FindFirstDescendant(cf => cf.ByAutomationId("PathBox")).AsTextBox().Text = dir;
-        Win.FindFirstDescendant(cf => cf.ByAutomationId("RunBtn")).AsButton().Click();
-        TestHelpers.DismissFirstButton(TestHelpers.WaitForModal(Win, TimeSpan.FromSeconds(20)));
+        TestHelpers.ClickRunAndWaitForModal(Win, TimeSpan.FromSeconds(25));
     }
 
     private static string BuildLargeFolder(int count)

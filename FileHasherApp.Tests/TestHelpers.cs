@@ -129,12 +129,38 @@ internal static class TestHelpers
 
     // ── Common run sequence ──────────────────────────────────────────────────
 
+    /// <summary>
+    /// Clicks Run and waits for the completion modal, retrying the click once if
+    /// neither the run-started signals (button disabled OR modal up) appear within
+    /// 3s. The first click sometimes silently misses on a freshly-launched app
+    /// (focus/timing race), and the only way to recover is to click again.
+    /// </summary>
+    internal static void ClickRunAndWaitForModal(Window win, TimeSpan modalTimeout)
+    {
+        var runBtn = win.FindFirstDescendant(cf => cf.ByAutomationId("RunBtn")).AsButton();
+        runBtn.Click();
+
+        bool runStarted   = false;
+        var  startDeadline = DateTime.UtcNow.AddSeconds(3);
+        while (DateTime.UtcNow < startDeadline)
+        {
+            if (!runBtn.IsEnabled || win.ModalWindows.Length > 0)
+            {
+                runStarted = true;
+                break;
+            }
+            Thread.Sleep(100);
+        }
+        if (!runStarted) runBtn.Click();
+
+        DismissFirstButton(WaitForModal(win, modalTimeout));
+    }
+
     /// <summary>Sets the path box, clicks Run, waits for the completion dialog, dismisses it.</summary>
     internal static void RunHashOnFile(Window win, string filePath)
     {
         win.FindFirstDescendant(cf => cf.ByAutomationId("PathBox")).AsTextBox().Text = filePath;
-        win.FindFirstDescendant(cf => cf.ByAutomationId("RunBtn")).AsButton().Click();
-        DismissFirstButton(WaitForModal(win, TimeSpan.FromSeconds(30)));
+        ClickRunAndWaitForModal(win, TimeSpan.FromSeconds(30));
     }
 
     // ── Temp file / folder factories ─────────────────────────────────────────
