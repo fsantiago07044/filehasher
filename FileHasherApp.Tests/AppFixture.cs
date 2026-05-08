@@ -28,7 +28,18 @@ public sealed class AppFixture : IDisposable
 
     public void Dispose()
     {
-        try { _app.Close(); } catch { /* best-effort */ }
+        // Try a graceful close first; if the app doesn't respond within a short
+        // window, force-kill so we don't leave orphan FileHasher.exe processes
+        // accumulating across tests.
+        try
+        {
+            _app.Close();
+            var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(2);
+            while (DateTime.UtcNow < deadline && !_app.HasExited)
+                Thread.Sleep(50);
+            if (!_app.HasExited) _app.Kill();
+        }
+        catch { /* best-effort */ }
         _automation.Dispose();
     }
 
