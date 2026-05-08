@@ -669,6 +669,11 @@ public sealed class MainForm : Form
             int overwritten = sidecarOverwritten;
 
             _logger.LogSessionEnd(successes, errors);
+
+            // Drain any queued Progress<int> callbacks before setting the final
+            // status — otherwise MessageBox.Show()'s modal pump can run a stale
+            // "Hashing N/N…" callback after we've already written "Done…".
+            Application.DoEvents();
             SetStatus($"Done — {successes:N0} hashed, {errors:N0} error(s).  Log: {_logger.LogPath}");
 
             _progressBar.State = ColorProgressBar.BarState.Complete;
