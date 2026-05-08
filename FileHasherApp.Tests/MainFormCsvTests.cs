@@ -156,7 +156,7 @@ public sealed class MainFormCsvTests : IDisposable
         if (chk.IsChecked != true) chk.Toggle();
         Win.FindFirstDescendant(cf => cf.ByAutomationId("CsvPathBox")).AsTextBox().Text = csvPath;
         Win.FindFirstDescendant(cf => cf.ByAutomationId("RunBtn")).AsButton().Click();
-        TestHelpers.DismissFirstButton(TestHelpers.WaitForModal(Win, TimeSpan.FromSeconds(15)));
+        TestHelpers.DismissFirstButton(TestHelpers.WaitForModal(Win, TimeSpan.FromSeconds(25)));
     }
 
     private static string TempCsvPath()

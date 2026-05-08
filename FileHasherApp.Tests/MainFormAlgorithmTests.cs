@@ -24,8 +24,13 @@ public sealed class MainFormAlgorithmTests : IDisposable
     public void AlgorithmSelection_CanSwitchToSha1()
     {
         Win.FindFirstDescendant(cf => cf.ByAutomationId("AlgoSha1")).AsRadioButton().Click();
-        Assert.True(Win.FindFirstDescendant(cf => cf.ByAutomationId("AlgoSha1")).AsRadioButton().IsChecked);
-        Assert.False(Win.FindFirstDescendant(cf => cf.ByAutomationId("AlgoSha256")).AsRadioButton().IsChecked);
+        // Poll: UIAutomation may lag behind the click before reflecting the new state.
+        Assert.True(
+            TestHelpers.WaitUntilRadioChecked(Win, "AlgoSha1", TimeSpan.FromSeconds(2)),
+            "SHA1 radio button was not checked after click.");
+        Assert.True(
+            TestHelpers.WaitUntilRadioUnchecked(Win, "AlgoSha256", TimeSpan.FromSeconds(2)),
+            "SHA256 radio button should be unchecked after selecting SHA1.");
     }
 
     [Fact]
@@ -34,10 +39,11 @@ public sealed class MainFormAlgorithmTests : IDisposable
         Win.FindFirstDescendant(cf => cf.ByAutomationId("AlgoMd5")).AsRadioButton().Click();
         Win.FindFirstDescendant(cf => cf.ByAutomationId("AlgoSha512")).AsRadioButton().Click();
 
-        Assert.False(Win.FindFirstDescendant(cf => cf.ByAutomationId("AlgoMd5")).AsRadioButton().IsChecked);
-        Assert.False(Win.FindFirstDescendant(cf => cf.ByAutomationId("AlgoSha1")).AsRadioButton().IsChecked);
-        Assert.False(Win.FindFirstDescendant(cf => cf.ByAutomationId("AlgoSha256")).AsRadioButton().IsChecked);
-        Assert.True(Win.FindFirstDescendant(cf => cf.ByAutomationId("AlgoSha512")).AsRadioButton().IsChecked);
+        // Poll each: UIAutomation state may not reflect clicks immediately.
+        Assert.True(TestHelpers.WaitUntilRadioChecked(Win,   "AlgoSha512", TimeSpan.FromSeconds(2)), "SHA512 should be checked.");
+        Assert.True(TestHelpers.WaitUntilRadioUnchecked(Win, "AlgoMd5",    TimeSpan.FromSeconds(2)), "MD5 should be unchecked.");
+        Assert.True(TestHelpers.WaitUntilRadioUnchecked(Win, "AlgoSha1",   TimeSpan.FromSeconds(2)), "SHA1 should be unchecked.");
+        Assert.True(TestHelpers.WaitUntilRadioUnchecked(Win, "AlgoSha256", TimeSpan.FromSeconds(2)), "SHA256 should be unchecked.");
     }
 
     // ── Hash accuracy (verified via sidecar output) ──────────────────────────
@@ -86,6 +92,8 @@ public sealed class MainFormAlgorithmTests : IDisposable
         Win.FindFirstDescendant(cf => cf.ByAutomationId("SidecarExtBox")).AsTextBox().Text = ext;
         var fmtId = hashOnly ? "SidecarFmtHashOnly" : "SidecarFmtSha256Sum";
         Win.FindFirstDescendant(cf => cf.ByAutomationId(fmtId)).AsRadioButton().Click();
+        // Wait for the format selection to register before hashing begins.
+        TestHelpers.WaitUntilRadioChecked(Win, fmtId, TimeSpan.FromSeconds(2));
     }
 
     private static string ComputeExpected(string algorithm, byte[] data)

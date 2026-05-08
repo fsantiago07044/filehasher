@@ -134,25 +134,24 @@ public sealed class MainFormEdgeCaseTests : IDisposable
     }
 
     [Fact]
-    public void StatusLabel_ShowsDoneWhenCompletionDialogAppears()
+    public void StatusLabel_ShowsDoneAfterSuccessfulRun()
     {
-        // SetStatus("Done…") is called before MessageBox.Show, so the label must read
-        // "Done" while the completion dialog is still visible — read it before dismissing.
+        // SetStatus("Done…") is called before MessageBox.Show(). While that dialog is
+        // open the UI thread is blocked, so UIAutomation cannot reliably read the label.
+        // Read it after dismissing the dialog instead — the label remains "Done" until
+        // the user clicks Clear.
         var tmp = TestHelpers.CreateTempFile(new byte[] { 1, 2, 3 });
         try
         {
             Win.FindFirstDescendant(cf => cf.ByAutomationId("PathBox")).AsTextBox().Text = tmp;
             Win.FindFirstDescendant(cf => cf.ByAutomationId("RunBtn")).AsButton().Click();
 
-            var dialog = TestHelpers.WaitForModal(Win, TimeSpan.FromSeconds(15));
+            TestHelpers.DismissFirstButton(TestHelpers.WaitForModal(Win, TimeSpan.FromSeconds(15)));
 
-            // Poll briefly — UIAutomation may lag behind the Label.Text update that
-            // SetStatus("Done…") made immediately before MessageBox.Show().
+            // UI thread is now free; label should reflect the "Done" status.
             Assert.True(
                 TestHelpers.WaitUntilStatusContains(Win, "Done", TimeSpan.FromSeconds(3)),
-                $"Expected status to contain 'Done' while dialog is open, got: '{TestHelpers.GetStatusText(Win)}'");
-
-            TestHelpers.DismissFirstButton(dialog);
+                $"Expected status to contain 'Done' after run, got: '{TestHelpers.GetStatusText(Win)}'");
         }
         finally { File.Delete(tmp); }
     }

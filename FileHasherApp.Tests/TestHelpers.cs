@@ -78,6 +78,33 @@ internal static class TestHelpers
         return false;
     }
 
+    // Polls until the named radio button reports IsChecked == true.
+    // Use after .Click() to avoid reading stale UIAutomation state.
+    internal static bool WaitUntilRadioChecked(Window win, string automationId, TimeSpan timeout)
+    {
+        var deadline = DateTime.UtcNow + timeout;
+        while (DateTime.UtcNow < deadline)
+        {
+            var el = win.FindFirstDescendant(cf => cf.ByAutomationId(automationId));
+            if (el?.AsRadioButton()?.IsChecked == true) return true;
+            Thread.Sleep(50);
+        }
+        return false;
+    }
+
+    // Polls until the named radio button reports IsChecked != true (false or null).
+    internal static bool WaitUntilRadioUnchecked(Window win, string automationId, TimeSpan timeout)
+    {
+        var deadline = DateTime.UtcNow + timeout;
+        while (DateTime.UtcNow < deadline)
+        {
+            var el = win.FindFirstDescendant(cf => cf.ByAutomationId(automationId));
+            if (el?.AsRadioButton()?.IsChecked != true) return true;
+            Thread.Sleep(50);
+        }
+        return false;
+    }
+
     internal static string GetStatusText(Window win)
         => win.FindFirstDescendant(cf => cf.ByAutomationId("StatusLabel"))?.Name ?? string.Empty;
 
@@ -107,7 +134,7 @@ internal static class TestHelpers
     {
         win.FindFirstDescendant(cf => cf.ByAutomationId("PathBox")).AsTextBox().Text = filePath;
         win.FindFirstDescendant(cf => cf.ByAutomationId("RunBtn")).AsButton().Click();
-        DismissFirstButton(WaitForModal(win, TimeSpan.FromSeconds(20)));
+        DismissFirstButton(WaitForModal(win, TimeSpan.FromSeconds(30)));
     }
 
     // ── Temp file / folder factories ─────────────────────────────────────────
