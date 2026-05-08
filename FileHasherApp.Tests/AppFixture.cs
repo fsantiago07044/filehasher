@@ -28,15 +28,11 @@ public sealed class AppFixture : IDisposable
 
     public void Dispose()
     {
-        // Try a graceful close first; if the app doesn't respond within a short
-        // window, force-kill so we don't leave orphan FileHasher.exe processes
-        // accumulating across tests.
+        // Test fixture has no persistent state to flush — kill outright instead
+        // of FlaUI's Close() (which logs "Application failed to exit" whenever
+        // its internal wait times out, even if we'd kill the process anyway).
         try
         {
-            _app.Close();
-            var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(2);
-            while (DateTime.UtcNow < deadline && !_app.HasExited)
-                Thread.Sleep(50);
             if (!_app.HasExited) _app.Kill();
         }
         catch { /* best-effort */ }
