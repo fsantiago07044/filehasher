@@ -1,85 +1,173 @@
 # .gitlab-ci.yml
 #
-# Nightly Windows build — publishes a self-contained FileHasher.exe.
+# Tag-driven build, sign, and release pipeline for FileHasher.
 #
-# The nightly job skips itself automatically when no new commits have landed
-# on the default branch since the last successful pipeline run.
+# Triggers
+# ────────
+#   • A pushed tag matching   vMAJOR.MINOR.PATCH   → full pipeline
+#       test → build → sign → release
+#     Produces signed deliverables under /src/filehasher/signed-builds/ on the
+#     Linux signer host AND a GitLab Release with package assets attached.
 #
-# Prerequisites
-# ─────────────
-# 1. A Windows runner registered to this project, tagged "windows", using the
-#    "shell" executor (PowerShell).  .NET 8 SDK must be installed on that runner.
-#    Register with:
-#      gitlab-runner register \
-#        --url https://<your-gitlab-host> \
-#        --registration-token <token> \
-#        --executor shell \
-#        --shell powershell \
-#        --tag-list windows \
-#        --description "Windows build runner"
+#   • The "Run pipeline" web button (any ref) → test → build → sign
+#     Useful for re-signing or ad-hoc builds. The output filename is suffixed
+#     with -build.<short_sha>, the FileHasher-latest.* symlinks are NOT touched,
+#     and no GitLab Release is created.
 #
-# 2. A pipeline schedule set to a nightly cadence:
-#      GitLab UI → your project → Build → Pipeline schedules → New schedule
-#      Interval: 0 1 * * *   (01:00 UTC daily)
-#      Target branch: main (or your default branch)
+# Runners required
+# ────────────────
+#   • Tag "windows"      — Windows Server runner, shell/powershell executor,
+#                          .NET 8 SDK, interactive desktop session for FlaUI.
+#   • Tag "linux-signer" — Ubuntu host with HSM token, osslsigncode, the cert
+#                          chain at /root/signing-directory/signing-dir,
+#                          release-cli, zip. Runs as root.
 #
-# No extra CI/CD variables are required — the built-in CI_JOB_TOKEN is used
-# to query the pipelines API for the commit-check.
+# Required CI/CD variables (Settings → CI/CD → Variables)
+# ───────────────────────────────────────────────────────
+#   HSM_PIN — the PKCS#11 token PIN. Mark Masked AND Protected. Protect tag
+#             refs matching v* so this variable is only injected into release
+#             pipelines.
+#
+# See ci/README.md for one-time runner setup instructions.
 
 variables:
   DOTNET_CLI_TELEMETRY_OPTOUT: "1"
-  # Redirect the NuGet package cache into the repo tree so GitLab can cache it.
   NUGET_PACKAGES: "$CI_PROJECT_DIR/.nuget/packages"
+  PUBLISH_DIR: "FileHasherApp/bin/Release/net8.0-windows/win-x64/publish"
+  SIGNED_DIR: "/src/filehasher/signed-builds"
 
 stages:
+  - test
   - build
+  - sign
+  - release
 
-# ── Nightly / on-demand build ────────────────────────────────────────────────
+workflow:
+  rules:
+    # Tag pipeline (release).
+    - if: '$CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+\.[0-9]+$/'
+    # Manual run via the GitLab UI "Run pipeline" button.
+    - if: '$CI_PIPELINE_SOURCE == "web"'
 
-build:
-  stage: build
+# ── TEST ─────────────────────────────────────────────────────────────────────
+
+test:
+  stage: test
   tags:
     - windows
-  rules:
-    # Scheduled run — only on the default branch; skips when no new commits.
-    - if: '$CI_PIPELINE_SOURCE == "schedule" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
-    # "Run pipeline" button in the GitLab UI — always builds, skips commit check.
-    - if: '$CI_PIPELINE_SOURCE == "web"'
   cache:
     key: nuget-$CI_PROJECT_ID
     paths:
       - .nuget/packages/
   script:
     - |
-      # ── Commit check (schedule only) ────────────────────────────────────────
-      if ($env:CI_PIPELINE_SOURCE -eq "schedule") {
-        $headers = @{ "JOB-TOKEN" = $env:CI_JOB_TOKEN }
-        $url     = "$env:CI_API_V4_URL/projects/$env:CI_PROJECT_ID/pipelines" +
-                   "?ref=$env:CI_COMMIT_BRANCH&status=success&per_page=1"
-        $last    = Invoke-RestMethod -Uri $url -Headers $headers -ErrorAction SilentlyContinue
-
-        if ($last -and $last[0].sha -eq $env:CI_COMMIT_SHA) {
-          Write-Host "No new commits since last successful build ($($last[0].sha)). Skipping."
-          exit 0
+      # Validate the tag matches <Version> in the csproj (tag pipelines only).
+      if ($env:CI_COMMIT_TAG) {
+        $tagVersion = $env:CI_COMMIT_TAG -replace '^v', ''
+        $csproj     = Get-Content FileHasherApp/FileHasherApp.csproj -Raw
+        $needle     = "<Version>$([regex]::Escape($tagVersion))</Version>"
+        if ($csproj -notmatch $needle) {
+          Write-Error ("Tag '{0}' (version '{1}') does not match <Version> in FileHasherApp.csproj. Bump the csproj <Version>, commit, then re-tag." -f $env:CI_COMMIT_TAG, $tagVersion)
+          exit 1
         }
-
-        Write-Host "New commits detected. Last build: $($last[0].sha). Building $($env:CI_COMMIT_SHORT_SHA)..."
+        Write-Host "Tag/csproj version match: $tagVersion"
       }
+    - dotnet test FileHasherApp.Tests/FileHasherApp.Tests.csproj `
+        -c Release `
+        --logger "console;verbosity=normal" `
+        --logger "trx;LogFileName=test-results.trx" `
+        --results-directory TestResults
+  artifacts:
+    when: always
+    paths:
+      - TestResults/
+    expire_in: 7 days
 
-      # ── Build ────────────────────────────────────────────────────────────────
-      Set-Location FileHasherApp
+# ── BUILD ────────────────────────────────────────────────────────────────────
+
+build:
+  stage: build
+  tags:
+    - windows
+  needs:
+    - test
+  cache:
+    key: nuget-$CI_PROJECT_ID
+    paths:
+      - .nuget/packages/
+  script:
+    - |
+      if ($env:CI_COMMIT_TAG) {
+        $version = $env:CI_COMMIT_TAG -replace '^v', ''
+      } else {
+        $csproj = Get-Content FileHasherApp/FileHasherApp.csproj -Raw
+        if ($csproj -match '<Version>([^<]+)</Version>') {
+          $version = $matches[1]
+        } else {
+          Write-Error 'Could not read <Version> from FileHasherApp/FileHasherApp.csproj'
+          exit 1
+        }
+      }
+      "VERSION=$version" | Out-File -FilePath build.env -Encoding ascii
+      Write-Host "Building FileHasher version: $version"
+
+      Push-Location FileHasherApp
       dotnet publish `
         -c Release `
         -r win-x64 `
         --self-contained true `
         -p:PublishSingleFile=true `
         -p:EnableCompressionInSingleFile=true `
-        -p:DebugType=embedded
-
-      if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        -p:DebugType=embedded `
+        -p:Version=$version
+      $code = $LASTEXITCODE
+      Pop-Location
+      if ($code -ne 0) { exit $code }
   artifacts:
-    name: "FileHasher-$CI_COMMIT_SHORT_SHA"
+    name: "FileHasher-$CI_COMMIT_SHORT_SHA-publish"
     paths:
-      - FileHasherApp/bin/Release/net8.0-windows/win-x64/publish/FileHasher.exe
+      - $PUBLISH_DIR/
+    reports:
+      dotenv: build.env
     expire_in: 30 days
-    when: on_success
+
+# ── SIGN ─────────────────────────────────────────────────────────────────────
+
+sign:
+  stage: sign
+  tags:
+    - linux-signer
+  needs:
+    - job: build
+      artifacts: true
+  variables:
+    OSSLSIGNCODE:  "/usr/local/bin/osslsigncode"
+    SIGNING_BASE:  "/root/signing-directory/signing-dir"
+    PKCS11_ENGINE: "/usr/lib/x86_64-linux-gnu/engines-3/pkcs11.so"
+    PKCS11_MODULE: "/usr/lib/x86_64-linux-gnu/opensc-pkcs11.so"
+    TIMESTAMP_URL: "http://timestamp.digicert.com"
+    SIGN_NAME:     "FSP Productions LLC"
+    SIGN_URL:      "https://www.fspproductions.com/software-projects"
+  script:
+    - bash ci/sign.sh
+  artifacts:
+    name: "FileHasher-${VERSION}-signed"
+    paths:
+      - signed-out/
+    expire_in: 30 days
+
+# ── RELEASE ──────────────────────────────────────────────────────────────────
+
+release:
+  stage: release
+  tags:
+    - linux-signer
+  rules:
+    - if: '$CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+\.[0-9]+$/'
+  needs:
+    - job: build
+      artifacts: true
+    - job: sign
+      artifacts: true
+  script:
+    - bash ci/release.sh
