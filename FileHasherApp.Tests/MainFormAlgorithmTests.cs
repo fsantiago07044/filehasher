@@ -82,7 +82,7 @@ public sealed class MainFormAlgorithmTests : IDisposable
     private void EnableSidecar(string ext, bool hashOnly)
     {
         var chk = Win.FindFirstDescendant(cf => cf.ByAutomationId("SidecarChk")).AsCheckBox();
-        if (!chk.IsChecked) chk.Toggle();
+        if (chk.IsChecked != true) chk.Toggle();
         Win.FindFirstDescendant(cf => cf.ByAutomationId("SidecarExtBox")).AsTextBox().Text = ext;
         var fmtId = hashOnly ? "SidecarFmtHashOnly" : "SidecarFmtSha256Sum";
         Win.FindFirstDescendant(cf => cf.ByAutomationId(fmtId)).AsRadioButton().Click();

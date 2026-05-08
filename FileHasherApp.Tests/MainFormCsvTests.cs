@@ -153,7 +153,7 @@ public sealed class MainFormCsvTests : IDisposable
     {
         Win.FindFirstDescendant(cf => cf.ByAutomationId("PathBox")).AsTextBox().Text = filePath;
         var chk = Win.FindFirstDescendant(cf => cf.ByAutomationId("CsvChk")).AsCheckBox();
-        if (!chk.IsChecked) chk.Toggle();
+        if (chk.IsChecked != true) chk.Toggle();
         Win.FindFirstDescendant(cf => cf.ByAutomationId("CsvPathBox")).AsTextBox().Text = csvPath;
         Win.FindFirstDescendant(cf => cf.ByAutomationId("RunBtn")).AsButton().Click();
         TestHelpers.DismissFirstButton(TestHelpers.WaitForModal(Win, TimeSpan.FromSeconds(15)));
