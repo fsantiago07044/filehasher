@@ -25,18 +25,169 @@ overwrite an official release artifact.
 
 ## One-time prerequisites
 
-### Windows runner (already in place from the previous nightly setup)
+### Windows runner (Windows Server 2025 with Desktop Experience, from scratch)
 
-Confirm:
+The runner runs jobs as a logged-in interactive user, **not** as a Windows service.
+Windows services run in Session 0 with no access to the interactive desktop, which
+breaks the FlaUI UI tests — they drive a real WinForms window via UI Automation and
+need a real desktop to render on. The supported pattern is: auto-login a dedicated
+user, then auto-start `gitlab-runner.exe run` from that user's Startup folder. Do
+**not** run `gitlab-runner install`.
 
-- `gitlab-runner` registered with executor `shell`, shell `powershell`, tag `windows`.
-- .NET 8 SDK on `PATH`.
-- An interactive desktop session is available to the runner so the FlaUI UI tests in
-  `FileHasherApp.Tests` can drive a real WinForms window. Typical setup is auto-login
-  for the runner user with the runner started as that user (not as `LocalSystem`).
+Prerequisite: the host is Windows Server 2025 with the Desktop Experience role
+(Server Core does not work — UI Automation against WinForms is not reliable there).
 
-If the runner is currently registered for nightly-only operation, no changes are needed —
-the new pipeline reuses the same runner via the `windows` tag.
+Run all commands from an elevated (Administrator) PowerShell session unless a step
+is explicitly tagged `[as gitlab-runner]`.
+
+#### 1. Install .NET 8 SDK
+
+```powershell
+winget install --id Microsoft.DotNet.SDK.8 --silent --accept-package-agreements --accept-source-agreements
+# Open a fresh PowerShell window so PATH picks up dotnet, then verify:
+dotnet --version
+```
+
+If `winget` is unavailable on the freshly installed Server 2025, download the
+.NET 8 SDK x64 installer from <https://dotnet.microsoft.com/download/dotnet/8.0>
+and run it interactively.
+
+#### 2. Create the runner user account
+
+The user is non-administrative; FileHasher does not require elevation, and running
+the runner as a standard user matches end-user reality.
+
+```powershell
+$password = Read-Host -AsSecureString "Password for the new gitlab-runner local user"
+New-LocalUser -Name "gitlab-runner" `
+              -Password $password `
+              -PasswordNeverExpires `
+              -UserMayNotChangePassword `
+              -FullName "GitLab Runner"
+Add-LocalGroupMember -Group "Users" -Member "gitlab-runner"
+```
+
+Sign in once interactively as `gitlab-runner` (Switch User → gitlab-runner) so the
+user profile is created at `C:\Users\gitlab-runner`, then sign back out.
+
+#### 3. Configure auto-login
+
+Use Microsoft Sysinternals Autologon — it stores the password in the LSA secret store
+rather than the registry in plaintext (the legacy method).
+
+```powershell
+Invoke-WebRequest -Uri "https://download.sysinternals.com/files/AutoLogon.zip" `
+                  -OutFile "$env:TEMP\AutoLogon.zip"
+Expand-Archive "$env:TEMP\AutoLogon.zip" -DestinationPath "$env:TEMP\AutoLogon" -Force
+Start-Process "$env:TEMP\AutoLogon\Autologon64.exe" -Verb RunAs
+```
+
+In the Autologon dialog: enter the local machine name as the domain (or `.`),
+`gitlab-runner` as the username, the password from step 2, then click **Enable**.
+Reboot once and verify the box auto-logs in to the `gitlab-runner` desktop.
+
+#### 4. Disable lock screen, screen saver, and sleep
+
+If the desktop locks or blanks while a UI test is running, FlaUI's UI Automation
+queries fail or hang.
+
+```powershell
+# [as gitlab-runner] — disable screen saver under this user.
+New-ItemProperty -Path "HKCU:\Control Panel\Desktop" -Name ScreenSaveActive  -Value 0 -PropertyType String -Force | Out-Null
+New-ItemProperty -Path "HKCU:\Control Panel\Desktop" -Name ScreenSaveTimeOut -Value 0 -PropertyType String -Force | Out-Null
+```
+
+```powershell
+# [as Admin] — never sleep, never blank the display, never lock.
+powercfg /change standby-timeout-ac 0
+powercfg /change standby-timeout-dc 0
+powercfg /change monitor-timeout-ac 0
+powercfg /change monitor-timeout-dc 0
+New-Item -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Personalization" -Force | Out-Null
+New-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Personalization" `
+                 -Name NoLockScreen -Value 1 -PropertyType DWord -Force | Out-Null
+```
+
+#### 5. Allow PowerShell to run scripts
+
+```powershell
+Set-ExecutionPolicy -Scope LocalMachine -ExecutionPolicy RemoteSigned -Force
+```
+
+#### 6. Install GitLab Runner
+
+```powershell
+New-Item -ItemType Directory -Path "C:\GitLab-Runner" -Force | Out-Null
+Invoke-WebRequest `
+  -Uri    "https://gitlab-runner-downloads.s3.amazonaws.com/latest/binaries/gitlab-runner-windows-amd64.exe" `
+  -OutFile "C:\GitLab-Runner\gitlab-runner.exe"
+# Let the runner user write its config.toml, build dirs, and NuGet cache.
+icacls "C:\GitLab-Runner" /grant "gitlab-runner:(OI)(CI)M" /T
+```
+
+#### 7. Create a runner in the GitLab UI and capture its token
+
+In the GitLab project: **Settings → CI/CD → Runners → New project runner**. Set:
+
+- Operating systems: Windows
+- Tags: `windows` (and check "Run untagged jobs" off)
+- Description: `Windows build runner (Server 2025 + Desktop Experience)`
+
+Click **Create runner**. GitLab shows a runner authentication token starting with
+`glrt-…` — copy it; you will not be able to see it again.
+
+#### 8. Register the runner
+
+```powershell
+cd C:\GitLab-Runner
+.\gitlab-runner.exe register `
+  --non-interactive `
+  --url         "https://internal-host/" `
+  --token       "glrt-paste-the-token-from-step-7" `
+  --executor    "shell" `
+  --shell       "powershell" `
+  --description "Windows build runner (Server 2025 + Desktop Experience)"
+```
+
+This writes `C:\GitLab-Runner\config.toml`. Do **not** run `gitlab-runner install`
+— installing as a service runs jobs in Session 0 without desktop access.
+
+#### 9. Auto-start the runner at login
+
+Drop a Startup-folder shortcut so the runner launches when `gitlab-runner` auto-logs
+in. Run as Admin:
+
+```powershell
+$startupDir = "C:\Users\gitlab-runner\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Startup"
+$shortcut   = Join-Path $startupDir "gitlab-runner.lnk"
+$wsh        = New-Object -ComObject WScript.Shell
+$lnk        = $wsh.CreateShortcut($shortcut)
+$lnk.TargetPath       = "C:\GitLab-Runner\gitlab-runner.exe"
+$lnk.Arguments        = "run"
+$lnk.WorkingDirectory = "C:\GitLab-Runner"
+$lnk.WindowStyle      = 7   # minimized
+$lnk.Save()
+```
+
+#### 10. Reboot and verify
+
+```powershell
+Restart-Computer
+```
+
+After the reboot the machine should auto-log in as `gitlab-runner`, and a minimized
+`gitlab-runner.exe` window should appear in the taskbar within ~30 seconds. The
+runner row in **Settings → CI/CD → Runners** in the GitLab UI should turn green.
+
+To smoke-test the job side, trigger a pipeline manually: **Build → Pipelines →
+Run pipeline** on `main`. The `test` job should pick up on the `windows` runner and
+exercise the FlaUI tests against a real WinForms window. If the FlaUI tests time
+out waiting for windows or controls:
+
+- RDP into the host and confirm the desktop is unlocked and showing the
+  `gitlab-runner` session — not a lock screen.
+- From a `gitlab-runner` PowerShell window, confirm `dotnet --version` returns 8.x
+  and that `C:\GitLab-Runner\gitlab-runner.exe verify` reports the runner online.
 
 ### Linux signer runner (Ubuntu 24.04 host)
 
@@ -65,16 +216,17 @@ test -f /root/signing-directory/signing-dir/chain.pem
 # 5. Create the kept-forever deliverable directory (root-owned).
 install -d -m 0755 /src/filehasher/signed-builds
 
-# 6. Register the runner against the FileHasher project.
-#    Get the registration token from Settings → CI/CD → Runners in the GitLab UI.
+# 6. Create a runner in the GitLab UI and register it.
+#    In the project: Settings → CI/CD → Runners → New project runner.
+#    OS: Linux. Tags: linux-signer. Run untagged: off. Click "Create runner".
+#    GitLab will show a runner authentication token starting with `glrt-…` —
+#    copy it; it is shown only once.
 gitlab-runner register \
   --non-interactive \
-  --url             "https://internal-host/" \
-  --registration-token "<paste-project-runner-token>" \
-  --executor        "shell" \
-  --description     "Ubuntu signing runner (HSM)" \
-  --tag-list        "linux-signer" \
-  --run-untagged    "false"
+  --url         "https://internal-host/" \
+  --token       "glrt-paste-the-token-from-the-ui" \
+  --executor    "shell" \
+  --description "Ubuntu signing runner (HSM)"
 
 # 7. Switch the gitlab-runner service to run as root so it can access the HSM
 #    USB device and read /root/signing-directory/.
