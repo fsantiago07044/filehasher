@@ -6,9 +6,15 @@
 # and creates a GitLab Release for ${CI_COMMIT_TAG} with those packages
 # attached as assets. Release notes are extracted from CHANGELOG.md.
 #
+# Reads the signed deliverables from $SIGNED_DIR on the linux-signer host
+# directly. We do not pass them through GitLab artifacts — they would exceed
+# the GitLab server's 100 MB artifact upload limit and they are already on
+# disk on this host (sign.sh wrote them there).
+#
 # Inputs:
 #   VERSION              - e.g. 0.1.2 (from build.env)
 #   CI_COMMIT_TAG        - e.g. v0.1.2 (release stage only runs on tag pipelines)
+#   SIGNED_DIR           - persistent deliverable dir, e.g. /src/filehasher/signed-builds
 #   CI_API_V4_URL
 #   CI_PROJECT_ID
 #   CI_PROJECT_URL
@@ -26,6 +32,7 @@ require() {
 
 require VERSION
 require CI_COMMIT_TAG
+require SIGNED_DIR
 require CI_API_V4_URL
 require CI_PROJECT_ID
 require CI_PROJECT_URL
@@ -36,10 +43,10 @@ ZIP_SHA="FileHasher-${VERSION}.zip.sha256"
 EXE_NAME="FileHasher-${VERSION}.exe"
 EXE_SHA="FileHasher-${VERSION}.exe.sha256"
 
-ZIP_PATH="signed-out/${ZIP_NAME}"
-ZIP_SHA_PATH="signed-out/${ZIP_SHA}"
-EXE_PATH="signed-out/${EXE_NAME}"
-EXE_SHA_PATH="signed-out/${EXE_SHA}"
+ZIP_PATH="${SIGNED_DIR}/${ZIP_NAME}"
+ZIP_SHA_PATH="${SIGNED_DIR}/${ZIP_SHA}"
+EXE_PATH="${SIGNED_DIR}/${EXE_NAME}"
+EXE_SHA_PATH="${SIGNED_DIR}/${EXE_SHA}"
 
 for f in "$ZIP_PATH" "$ZIP_SHA_PATH" "$EXE_PATH" "$EXE_SHA_PATH"; do
   [[ -f "$f" ]] || { echo "Missing release input: $f" >&2; exit 1; }

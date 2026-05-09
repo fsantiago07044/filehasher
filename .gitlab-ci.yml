@@ -160,13 +160,14 @@ sign:
     SIGN_URL:      "https://www.fspproductions.com/software-projects"
   script:
     - bash ci/sign.sh
-  artifacts:
-    name: "FileHasher-${VERSION}-signed"
-    paths:
-      - signed-out/
-    expire_in: 30 days
 
 # ── RELEASE ──────────────────────────────────────────────────────────────────
+#
+# Note: release reads the signed deliverables from $SIGNED_DIR on the linux-signer
+# host directly. We deliberately do NOT pass them through GitLab artifacts — they
+# total ~135 MB and the round-trip would hit the GitLab server's 100 MB artifact
+# size limit, but more importantly they're already on disk on the same host where
+# this stage runs, so the upload/download would be pure waste.
 
 release:
   stage: release
@@ -178,6 +179,5 @@ release:
     - job: build
       artifacts: true
     - job: sign
-      artifacts: true
   script:
     - bash ci/release.sh
