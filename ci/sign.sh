@@ -96,10 +96,13 @@ echo "Signing ${UNSIGNED_EXE}"
 echo "Verifying signature on ${SIGNED_EXE}"
 "${OSSLSIGNCODE}" verify -in "${SIGNED_EXE}"
 
-# Build the release zip: copy publish dir contents, replace unsigned exe with signed one.
+# Build the release zip with a slim folder layout: only the signed exe and its
+# sidecar. We deliberately do NOT copy the whole publish dir wholesale — that
+# would silently include any build artifact a future csproj change drops in
+# there (loose icons, runtimeconfig files, etc.). Self-contained single-file
+# publish puts everything the app needs into FileHasher.exe itself.
 ZIP_STAGE="${WORKDIR}/${BASENAME}"
 mkdir -p "$ZIP_STAGE"
-cp -r "${PUBLISH_DIR}/." "${ZIP_STAGE}/"
 cp -f "${SIGNED_EXE}" "${ZIP_STAGE}/FileHasher.exe"
 ( cd "$ZIP_STAGE" && sha256sum -b FileHasher.exe > FileHasher.exe.sha256 )
 

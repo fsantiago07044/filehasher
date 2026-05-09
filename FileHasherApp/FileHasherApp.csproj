@@ -19,9 +19,16 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Content Include="assets\app-icon\hash-icon.ico">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
+    <!--
+      The .ico is embedded into the assembly so MainForm can load it via
+      GetManifestResourceStream("hash-icon.ico") at runtime. <ApplicationIcon>
+      above embeds the same file as the PE Win32 resource (Explorer / taskbar
+      / alt-tab); this entry covers Form.Icon, which WinForms does not derive
+      from <ApplicationIcon> automatically.
+    -->
+    <EmbeddedResource Include="assets\app-icon\hash-icon.ico">
+      <LogicalName>hash-icon.ico</LogicalName>
+    </EmbeddedResource>
   </ItemGroup>
 
   <!--

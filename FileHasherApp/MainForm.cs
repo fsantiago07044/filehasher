@@ -60,9 +60,11 @@ public sealed class MainForm : Form
     {
         SuspendLayout();
 
-        var iconPath = Path.Combine(AppContext.BaseDirectory, "assets", "app-icon", "hash-icon.ico");
-        if (File.Exists(iconPath))
-            Icon = new Icon(iconPath);
+        using (var iconStream = typeof(MainForm).Assembly.GetManifestResourceStream("hash-icon.ico"))
+        {
+            if (iconStream != null)
+                Icon = new Icon(iconStream);
+        }
 
         Text            = IsAdmin() ? "FileHasher  [Administrator]" : "FileHasher";
         Width           = 860;
