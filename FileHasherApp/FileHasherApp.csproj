@@ -16,6 +16,13 @@
     <Copyright>Copyright © 2026 FSP Productions, LLC</Copyright>
     <ApplicationIcon>assets\app-icon\hash-icon.ico</ApplicationIcon>
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <!--
+      Bundle native libraries (wpfgfx_cor3.dll, D3DCompiler_47_cor3.dll, etc.)
+      inside FileHasher.exe instead of shipping them as sidecars. Only takes
+      effect when PublishSingleFile=true; harmless for regular Build. Without
+      this, "single-file" publish leaves ~5 native DLLs alongside the exe.
+    -->
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
   </PropertyGroup>
 
   <ItemGroup>
