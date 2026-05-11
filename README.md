@@ -1,6 +1,6 @@
 # FileHasher
 
-A simple utility to hash files and folders, write sidecar hash files, and export results to CSV. Available as a PowerShell script and a compiled Windows GUI application.
+A utility to hash files and folders, write sidecar hash files, and export results to CSV. The original implementation is a PowerShell script; the compiled Windows GUI application started from that script's design but has been iterated on extensively since and now offers significantly more functionality than the script.
 
 ---
 
