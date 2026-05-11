@@ -72,7 +72,7 @@ The CI pipeline passes `-p:Deterministic=true -p:ContinuousIntegrationBuild=true
    git fetch --tags
    git checkout vX.Y.Z
    ```
-2. Install the same .NET SDK patch level the CI used to produce that release. The version appears in the CI `build` job's log header as `SDK Version: 8.0.NNN`. To pin it, drop a `global.json` at the repo root before building:
+2. Install the .NET SDK version pinned by the repo's `global.json` at the root, for example:
    ```json
    {
      "sdk": {
@@ -81,6 +81,7 @@ The CI pipeline passes `-p:Deterministic=true -p:ContinuousIntegrationBuild=true
      }
    }
    ```
+   `rollForward: "disable"` means `dotnet` will refuse to build if that exact patch isn't installed, so you can't accidentally use a different SDK. Each release tag carries the `global.json` content the CI used at that time; checking out the tag and installing the SDK it names is all the version-matching you need.
 3. Build from `FileHasherApp\`:
    ```powershell
    dotnet publish -c Release -r win-x64 `
