@@ -9,6 +9,7 @@ A simple utility to hash files and folders, write sidecar hash files, and export
 - [Windows GUI Application](#windows-gui-application)
   - [Requirements](#requirements)
   - [Building](#building)
+  - [Reproducible builds](#reproducible-builds)
   - [Usage](#usage)
     - [Selecting a target](#selecting-a-target)
     - [Choosing a hash algorithm](#choosing-a-hash-algorithm)
@@ -55,6 +56,56 @@ dotnet publish -c Release -r win-x64 `
 Output: `bin\Release\net8.0-windows\win-x64\publish\FileHasher.exe`
 
 Copy `FileHasher.exe` anywhere you like — it has no external dependencies.
+
+---
+
+### Reproducible builds
+
+This section is for anyone who wants to independently verify that the published binaries match the source in this repository — useful for security review, downstream packaging, or peace of mind.
+
+The CI pipeline passes `-p:Deterministic=true -p:ContinuousIntegrationBuild=true` to `dotnet publish` so the unsigned executable content can be reproduced byte-for-byte from a clean checkout with matching tools. The trailing **Authenticode signature** on the released `.exe` is appended by the maintainer's code-signing step using a hardware token, so the signed region of the file will always differ between a third-party rebuild and an official release; what you can verify byte-for-byte is the underlying executable.
+
+#### How to reproduce a release locally
+
+1. Check out the tag you want to verify:
+   ```powershell
+   git fetch --tags
+   git checkout vX.Y.Z
+   ```
+2. Install the same .NET SDK patch level the CI used to produce that release. The version appears in the CI `build` job's log header as `SDK Version: 8.0.NNN`. To pin it, drop a `global.json` at the repo root before building:
+   ```json
+   {
+     "sdk": {
+       "version": "8.0.420",
+       "rollForward": "disable"
+     }
+   }
+   ```
+3. Build from `FileHasherApp\`:
+   ```powershell
+   dotnet publish -c Release -r win-x64 `
+       --self-contained true `
+       -p:PublishSingleFile=true `
+       -p:EnableCompressionInSingleFile=true `
+       -p:DebugType=embedded `
+       -p:Version=X.Y.Z `
+       -p:Deterministic=true `
+       -p:ContinuousIntegrationBuild=true
+   ```
+   The two flags beyond the regular [Building](#building) command are what make the output stable across machines:
+   - `Deterministic=true` — replaces build timestamps and random GUIDs in PE/PDB metadata with content-derived values.
+   - `ContinuousIntegrationBuild=true` — normalizes embedded source paths so the PDB content doesn't depend on your build machine's directory layout.
+4. The output at `FileHasherApp\bin\Release\net8.0-windows\win-x64\publish\FileHasher.exe` should be byte-identical to:
+   - the **unsigned** `FileHasher.exe` artifact uploaded by the CI's `build` stage (available on the pipeline's job page for 30 days after the release), or
+   - the signed release `.exe` with its trailing Authenticode certificate table stripped — for example via `osslsigncode remove-signature signed.exe unsigned.exe`.
+
+Compare with any SHA-256 utility. A match means the published bytes came from this source at that tag.
+
+#### Caveats
+
+- **Match the SDK first.** Patch-level SDK drift is the single biggest source of size and byte differences; even one patch apart will diverge by tens or hundreds of KB after compression. The SDK version the CI used to produce a given release is recorded in that pipeline's `build` job log.
+- **Applies only to releases built after the CI adopted deterministic flags.** Binaries from tags cut before `.gitlab-ci.yml` started passing `-p:Deterministic=true -p:ContinuousIntegrationBuild=true` (initial release `v0.1.1` predates the change) cannot be reproduced byte-for-byte regardless of the local flags used.
+- **The signature itself can't be reproduced** without access to the same code-signing certificate and HSM token. Verification of the signature, separate from binary reproduction, is done with standard tools like `signtool verify` or `osslsigncode verify` against the signed release `.exe`.
 
 ---
 
