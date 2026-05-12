@@ -28,6 +28,7 @@ A utility to hash files and folders, write sidecar hash files, and export result
 - [PowerShell Script](#powershell-script)
   - [Parameters](#parameters)
   - [Examples](#examples)
+- [Acknowledgements](#acknowledgements)
 
 ---
 
@@ -484,3 +485,9 @@ dotnet test FileHasherApp.Tests\FileHasherApp.Tests.csproj
 # Write hash-only sidecar files with a custom extension
 .\filehasher.ps1 -RootPath "C:\Installers" -WriteSidecarHashes -SidecarExtension ".hash" -SidecarFormat hashonly
 ```
+
+---
+
+## Acknowledgements
+
+This project was developed with assistance from Anthropic's Claude AI. Per-commit attribution is recorded in the git history via `Co-Authored-By` lines.
