@@ -3,10 +3,10 @@
 The build, sign, and release pipeline (`.gitlab-ci.yml` at the repo root) runs across two
 GitLab Runners on the local LAN.
 
-| Runner tag       | Host                          | Stages it runs       |
-|------------------|-------------------------------|----------------------|
-| `windows`        | Windows Server 2025 VM        | `test`, `build`      |
-| `linux-signer`   | Ubuntu 24.04 host (HSM token) | `sign`, `release`    |
+| Runner tag       | Host                          | Stages it runs                 |
+|------------------|-------------------------------|--------------------------------|
+| `windows`        | Windows Server 2025 VM        | `audit`, `build`, `test`       |
+| `linux-signer`   | Ubuntu 24.04 host (HSM token) | `sign`, `release`              |
 
 Both runners pull from `https://internal-host/`, so neither host needs inbound
 connectivity. Outbound HTTPS to the GitLab server is the only network requirement; the
@@ -15,13 +15,19 @@ Linux signer additionally needs outbound access to the timestamp authority
 
 ## Pipeline triggers
 
-| Trigger                                | What runs                       | `latest` symlinks | GitLab Release |
-|----------------------------------------|---------------------------------|-------------------|----------------|
-| Push a tag matching `vMAJOR.MINOR.PATCH` | `test → build → sign → release` | updated           | created        |
-| "Run pipeline" web button (any ref)    | `test → build → sign`           | unchanged         | not created    |
+| Trigger                                | What runs                                 | `latest` symlinks | GitLab Release |
+|----------------------------------------|-------------------------------------------|-------------------|----------------|
+| Push a tag matching `vMAJOR.MINOR.PATCH` | `audit → build → test → sign → release` | updated           | created        |
+| "Run pipeline" web button (any ref)    | `audit → build → test → sign`             | unchanged         | not created    |
 
 Manual web-button runs produce output suffixed with `-build.<short_sha>` so they cannot
 overwrite an official release artifact.
+
+The `audit` stage runs `dotnet list package --vulnerable --include-transitive` against the
+solution to surface NuGet dependencies with known CVEs (queried from the GitHub Advisory
+Database at restore time). It is marked `allow_failure: true` — findings show as a yellow
+warning on the pipeline summary, never blocking a release on their own. The intent is
+visibility, not gating; reviewing those warnings is a manual step on the maintainer.
 
 ## One-time prerequisites
 

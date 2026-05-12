@@ -5,20 +5,25 @@
 # Triggers
 # ────────
 #   • A pushed tag matching   vMAJOR.MINOR.PATCH   → full pipeline
-#       build → test → sign → release
+#       audit → build → test → sign → release
 #     Produces signed deliverables under /src/filehasher/signed-builds/ on the
 #     Linux signer host AND a GitLab Release with package assets attached.
 #
-#   • The "Run pipeline" web button (any ref) → build → test → sign
+#   • The "Run pipeline" web button (any ref) → audit → build → test → sign
 #     Useful for re-signing or ad-hoc builds. The output filename is suffixed
 #     with -build.<short_sha>, the FileHasher-latest.* symlinks are NOT touched,
 #     and no GitLab Release is created.
 #
-# Stage order: build runs first because the FlaUI tests in FileHasherApp.Tests
-# launch the actual FileHasher.exe via UI Automation. The test job points the
-# AppFixture at the published binary via FILEHASHER_EXE so the tests verify the
-# exact self-contained single-file artifact that will be signed and shipped.
-# `sign` lists `test` as a need so a red test run blocks the HSM signature.
+# Stage order:
+#   • `audit` runs first as a quick supply-chain sanity check. It is marked
+#     allow_failure: true so vulnerable-package findings show as a yellow warning
+#     in the pipeline view rather than blocking the release; the goal is
+#     visibility, not gating.
+#   • `build` runs next because the FlaUI tests in FileHasherApp.Tests launch
+#     the actual FileHasher.exe via UI Automation. The test job points the
+#     AppFixture at the published binary via FILEHASHER_EXE so the tests verify
+#     the exact self-contained single-file artifact that will be signed.
+#   • `sign` lists `test` as a need so a red test run blocks the HSM signature.
 #
 # Runners required
 # ────────────────
@@ -43,6 +48,7 @@ variables:
   SIGNED_DIR: "/src/filehasher/signed-builds"
 
 stages:
+  - audit
   - build
   - test
   - sign
@@ -54,6 +60,40 @@ workflow:
     - if: '$CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+\.[0-9]+$/'
     # Manual run via the GitLab UI "Run pipeline" button.
     - if: '$CI_PIPELINE_SOURCE == "web"'
+
+# ── AUDIT ────────────────────────────────────────────────────────────────────
+#
+# Supply-chain sanity check: scan NuGet dependencies (direct + transitive) for
+# packages with known CVEs against the GitHub Advisory Database. Runs in the
+# first stage so any finding is visible at the top of the pipeline. Marked
+# allow_failure: true — findings produce a yellow warning, not a red blocker.
+
+audit:
+  stage: audit
+  tags:
+    - windows
+  allow_failure: true
+  cache:
+    key: nuget-$CI_PROJECT_ID
+    paths:
+      - .nuget/packages/
+  script:
+    - |
+      Write-Host "Restoring solution to populate NuGet metadata..."
+      dotnet restore filehasher.sln
+      if ($LASTEXITCODE -ne 0) {
+        Write-Error "dotnet restore failed; cannot audit packages."
+        exit $LASTEXITCODE
+      }
+      Write-Host ""
+      Write-Host "Scanning for vulnerable packages (direct + transitive)..."
+      $output = dotnet list filehasher.sln package --vulnerable --include-transitive 2>&1 | Out-String
+      Write-Host $output
+      if ($output -match 'has the following vulnerable packages') {
+        Write-Warning "Vulnerable packages detected — see output above. This job is marked failed but the pipeline will continue (allow_failure: true)."
+        exit 1
+      }
+      Write-Host "No vulnerable packages found."
 
 # ── BUILD ────────────────────────────────────────────────────────────────────
 
