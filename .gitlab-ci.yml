@@ -79,6 +79,19 @@ audit:
       - .nuget/packages/
   script:
     - |
+      # Advisories that have been reviewed and judged not to apply to this
+      # project's threat model. Each entry should mirror a <NuGetAuditSuppress>
+      # in the relevant csproj (which silences the same finding for local
+      # `dotnet restore` users). Keep the two lists in sync; the script
+      # comments and csproj comments should reference each other.
+      $suppressedAdvisories = @(
+        # GHSA-rxg9-xrhp-64gj — System.Drawing.Common 5.0.2 (transitive via
+        # FlaUI in FileHasherApp.Tests). Test-only dep, never shipped; tests
+        # do not process attacker-controlled images. See the matching
+        # <NuGetAuditSuppress> in FileHasherApp.Tests.csproj.
+        'https://github.com/advisories/GHSA-rxg9-xrhp-64gj'
+      )
+
       Write-Host "Restoring solution to populate NuGet metadata..."
       dotnet restore filehasher.sln
       if ($LASTEXITCODE -ne 0) {
@@ -89,11 +102,29 @@ audit:
       Write-Host "Scanning for vulnerable packages (direct + transitive)..."
       $output = dotnet list filehasher.sln package --vulnerable --include-transitive 2>&1 | Out-String
       Write-Host $output
-      if ($output -match 'has the following vulnerable packages') {
-        Write-Warning "Vulnerable packages detected — see output above. This job is marked failed but the pipeline will continue (allow_failure: true)."
-        exit 1
+
+      if ($output -notmatch 'has the following vulnerable packages') {
+        Write-Host "No vulnerable packages found."
+        exit 0
       }
-      Write-Host "No vulnerable packages found."
+
+      # Pull every GHSA URL out of the output and compare against the suppression list.
+      $foundAdvisories = [regex]::Matches($output, 'https://github\.com/advisories/GHSA-[a-zA-Z0-9-]+') |
+                           ForEach-Object { $_.Value } |
+                           Sort-Object -Unique
+      $unsuppressed = @($foundAdvisories | Where-Object { $_ -notin $suppressedAdvisories })
+
+      if ($unsuppressed.Count -eq 0) {
+        Write-Host ""
+        Write-Host "All findings are on the suppression list; treating scan as clean."
+        Write-Host "Suppressed advisories matched: $($foundAdvisories -join ', ')"
+        Write-Host "Justifications: see `$suppressedAdvisories at the top of this script."
+        exit 0
+      }
+
+      Write-Warning "Unsuppressed vulnerable packages detected — see output above. This job is marked failed but the pipeline will continue (allow_failure: true)."
+      Write-Warning "Unsuppressed advisories: $($unsuppressed -join ', ')"
+      exit 1
 
 # ── BUILD ────────────────────────────────────────────────────────────────────
 

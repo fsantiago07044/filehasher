@@ -29,6 +29,21 @@ Database at restore time). It is marked `allow_failure: true` — findings show 
 warning on the pipeline summary, never blocking a release on their own. The intent is
 visibility, not gating; reviewing those warnings is a manual step on the maintainer.
 
+To explicitly silence an advisory after reviewing it and judging it not to apply, add its
+GitHub Advisory URL to **two** places:
+
+1. The `$suppressedAdvisories` array at the top of the audit job's script in
+   `.gitlab-ci.yml` — filters the finding out of the CI's pass/fail decision so the
+   yellow warning stops appearing on the pipeline.
+2. A `<NuGetAuditSuppress Include="…" />` element in the relevant project's `.csproj`
+   — silences the matching `NU1903`/`NU1904` warning during local `dotnet restore`
+   for developers running the build outside CI.
+
+Both entries should carry a comment explaining the justification, since "this advisory
+doesn't apply to us" decisions need to be revisitable later when the codebase or threat
+model changes. The two lists are kept in sync manually; the audit script does not parse
+csproj entries.
+
 ## One-time prerequisites
 
 ### Windows runner (Windows Server 2025 with Desktop Experience, from scratch)

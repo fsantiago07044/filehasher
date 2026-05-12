@@ -21,4 +21,23 @@
     </PackageReference>
   </ItemGroup>
 
+  <!--
+    NuGet audit suppressions for advisories reviewed and determined to not
+    apply to this project's threat model. Keep this list in sync with the
+    `$suppressedAdvisories` array in the audit job's script in .gitlab-ci.yml
+    — the csproj entry silences the NU1903/NU1904 warning during local
+    `dotnet restore`, the script entry silences the same finding in the CI
+    audit job's `dotnet list package --vulnerable` output (the latter command
+    does not honor <NuGetAuditSuppress>).
+  -->
+  <ItemGroup>
+    <!--
+      GHSA-rxg9-xrhp-64gj — System.Drawing.Common 5.0.2 (transitive via FlaUI).
+      Test-only dependency, never shipped to end users. The test process does
+      not load attacker-controlled images or otherwise reach the vulnerable
+      GDI+ paths described in the advisory. Reviewed 2026-05.
+    -->
+    <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-rxg9-xrhp-64gj" />
+  </ItemGroup>
+
 </Project>
