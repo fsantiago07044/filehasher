@@ -11,5 +11,8 @@ internal sealed record HashOptions(
     string  SidecarFormat,      // "sha256sum" | "hashonly"
     bool    ExportCsv,
     string  CsvPath,
-    bool    AllFileTypes        // false = .exe/.msi only when scanning a folder
+    bool    AllFileTypes,       // false = .exe/.msi only when scanning a folder
+    bool    DescendIntoMsi      // EXPERIMENTAL (feature branch): when true, .msi files are also
+                                // extracted via the Windows Installer database API and the inner
+                                // files are hashed individually in addition to the MSI itself.
 );

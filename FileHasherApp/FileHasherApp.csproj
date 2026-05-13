@@ -39,6 +39,18 @@
   </ItemGroup>
 
   <!--
+    EXPERIMENTAL (feature/msi-inner-scan branch). Pulls in WiX DTF wrappers
+    around the Windows Installer COM API. Used by MsiExtractor.cs to enumerate
+    and extract files contained inside .msi installer packages so they can be
+    hashed individually. Adds roughly 1.5 MB to the bundled self-contained
+    exe. If this branch is abandoned, remove this ItemGroup and MsiExtractor.cs.
+  -->
+  <ItemGroup>
+    <PackageReference Include="WixToolset.Dtf.WindowsInstaller"          Version="4.0.6" />
+    <PackageReference Include="WixToolset.Dtf.WindowsInstaller.Package"  Version="4.0.6" />
+  </ItemGroup>
+
+  <!--
     To publish a self-contained single-file executable (run from the FileHasherApp folder):
 
       dotnet publish -c Release -r win-x64 -p:SelfContained=true -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true -p:DebugType=embedded

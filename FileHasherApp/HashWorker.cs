@@ -35,11 +35,86 @@ internal sealed class HashWorker
         foreach (var path in files)
         {
             ct.ThrowIfCancellationRequested();
-            var result = await HashFileAsync(path, ct);
+            var result = await HashFileAsync(path, ct, container: null);
             _logger.LogResult(result, _opts.Algorithm);
             FileHashed?.Invoke(result);
             progress.Report(++done);
+
+            // EXPERIMENTAL: when DescendIntoMsi is on and the file is an MSI,
+            // extract its contents to a sandboxed temp dir and hash each inner
+            // file individually. The MSI itself has already been hashed above
+            // as a normal file; this only adds inner-file rows.
+            if (_opts.DescendIntoMsi &&
+                result.Success &&
+                path.EndsWith(".msi", StringComparison.OrdinalIgnoreCase))
+            {
+                done = await HashMsiInnerFilesAsync(path, progress, ct, done);
+            }
         }
+    }
+
+    /// <summary>
+    /// Extract <paramref name="msiPath"/> to a sandboxed temp dir, hash each
+    /// inner file, emit one <see cref="HashResult"/> per file with the
+    /// FilePath rewritten relative to the extract dir, and return the
+    /// progress counter advanced by the number of inner files processed.
+    /// </summary>
+    private async Task<int> HashMsiInnerFilesAsync(
+        string msiPath, IProgress<int> progress, CancellationToken ct, int done)
+    {
+        // Each MSI gets its own extractor instance so the temp dir lifetime
+        // is scoped exactly to this MSI's inner-file pass. `using` guarantees
+        // cleanup even if hashing throws.
+        MsiExtractor extractor;
+        try
+        {
+            extractor = new MsiExtractor();
+        }
+        catch (Exception ex)
+        {
+            WarningRaised?.Invoke($"MSI extractor init failed for {msiPath}: {ex.Message}");
+            return done;
+        }
+
+        using (extractor)
+        {
+            IReadOnlyList<string> innerFiles;
+            try
+            {
+                innerFiles = await extractor.ExtractAsync(msiPath, ct);
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                WarningRaised?.Invoke($"MSI extraction failed for {msiPath}: {ex.Message}");
+                return done;
+            }
+
+            foreach (var inner in innerFiles)
+            {
+                ct.ThrowIfCancellationRequested();
+                var innerResult = await HashFileAsync(inner, ct, container: msiPath);
+
+                // Rewrite FilePath in the emitted result to be relative to the
+                // extract dir; users get the MSI-internal install layout
+                // ("Program Files/Foo/bar.exe") rather than a useless temp-dir
+                // absolute path. The original absolute path never leaves this
+                // method and is unreachable to consumers once the extractor is
+                // disposed and its temp dir is deleted.
+                var relative = Path.GetRelativePath(extractor.ExtractDirectory, inner);
+                innerResult = innerResult with { FilePath = relative };
+
+                _logger.LogResult(innerResult, _opts.Algorithm);
+                FileHashed?.Invoke(innerResult);
+                progress.Report(++done);
+            }
+        }
+        // Extractor's temp dir is now deleted.
+
+        return done;
     }
 
     // ── File enumeration ─────────────────────────────────────────────────────
@@ -99,7 +174,7 @@ internal sealed class HashWorker
 
     // ── Single-file hashing ──────────────────────────────────────────────────
 
-    private async Task<HashResult> HashFileAsync(string filePath, CancellationToken ct)
+    private async Task<HashResult> HashFileAsync(string filePath, CancellationToken ct, string? container)
     {
         try
         {
@@ -117,7 +192,12 @@ internal sealed class HashWorker
 
             var fi = new FileInfo(filePath);
 
-            if (_opts.WriteSidecarHashes)
+            // Sidecar writes are intentionally skipped for files extracted
+            // from an MSI: those files live in a temp directory that will be
+            // deleted as soon as this MSI's inner-file pass finishes, so a
+            // sidecar there would be orphaned within seconds. The CSV export
+            // is the durable record for inner-file hashes.
+            if (_opts.WriteSidecarHashes && container is null)
                 await WriteSidecarAsync(filePath, hash, ct);
 
             return new HashResult(
@@ -126,7 +206,8 @@ internal sealed class HashWorker
                 Length:       _opts.IncludeMetadata ? fi.Length          : null,
                 LastWriteUtc: _opts.IncludeMetadata ? fi.LastWriteTimeUtc : null,
                 Success:      true,
-                ErrorMessage: null);
+                ErrorMessage: null,
+                Container:    container);
         }
         catch (OperationCanceledException)
         {
@@ -134,7 +215,7 @@ internal sealed class HashWorker
         }
         catch (Exception ex)
         {
-            return new HashResult(filePath, string.Empty, null, null, false, ex.Message);
+            return new HashResult(filePath, string.Empty, null, null, false, ex.Message, container);
         }
     }
 

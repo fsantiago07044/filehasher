@@ -29,6 +29,7 @@ public sealed class MainForm : Form
     private readonly TextBox     _csvPathBox;
     private readonly Button      _csvBrowseBtn;
     private readonly Panel       _csvOptsPanel;
+    private readonly CheckBox    _msiChk;   // EXPERIMENTAL (feature/msi-inner-scan branch)
 
     // Actions
     private readonly Button _runAsAdminBtn;
@@ -183,7 +184,7 @@ public sealed class MainForm : Form
             Text   = "Options",
             Left   = M,
             Top    = gbAlgo.Bottom + G,
-            Height = 200,
+            Height = 226,   // bumped from 200 to fit the experimental MSI checkbox
             Anchor = AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Top
         };
 
@@ -264,8 +265,17 @@ public sealed class MainForm : Form
         _csvBrowseBtn.Click += BrowseCsv_Click;
         _csvOptsPanel.Controls.AddRange(new Control[] { _csvPathBox, _csvBrowseBtn });
 
+        _msiChk = new CheckBox
+        {
+            Name  = "MsiChk",
+            Text  = "Hash files inside MSI installers  (experimental)",
+            Left  = M,
+            Top   = 192,
+            Width = 400
+        };
+
         gbOptions.Controls.AddRange(new Control[]
-            { _metadataChk, _sidecarChk, _sidecarOptsPanel, _csvChk, _csvOptsPanel });
+            { _metadataChk, _sidecarChk, _sidecarOptsPanel, _csvChk, _csvOptsPanel, _msiChk });
 
         // --- Actions panel ---
         var actionsPanel = new Panel
@@ -566,7 +576,8 @@ public sealed class MainForm : Form
             SidecarFormat:    _rdSha256Sum.Checked ? "sha256sum" : "hashonly",
             ExportCsv:        _csvChk.Checked,
             CsvPath:          _csvPathBox.Text.Trim(),
-            AllFileTypes:     _allTypesChk.Checked
+            AllFileTypes:     _allTypesChk.Checked,
+            DescendIntoMsi:   _msiChk.Checked
         );
 
         // ── Reset UI ─────────────────────────────────────────────────────────
@@ -754,13 +765,23 @@ public sealed class MainForm : Form
     {
         _allResults.Add(r);
 
-        var item = new ListViewItem(r.FilePath);
+        // Files extracted from an MSI come in with FilePath set to the
+        // installer-relative layout (e.g. "Program Files/Foo/bar.dll"). Prefix
+        // the display with the parent .msi's filename so the user can tell
+        // inner files apart from top-level ones at a glance.
+        var displayPath = r.Container is null
+            ? r.FilePath
+            : $"[{Path.GetFileName(r.Container)}] {r.FilePath}";
+
+        var item = new ListViewItem(displayPath);
         item.SubItems.Add(r.Success ? r.Hash : $"ERROR: {r.ErrorMessage}");
         item.SubItems.Add(r.Length.HasValue        ? r.Length.Value.ToString("N0")              : "");
         item.SubItems.Add(r.LastWriteUtc.HasValue  ? r.LastWriteUtc.Value.ToString("yyyy-MM-dd HH:mm:ss") : "");
 
         if (!r.Success)
             item.ForeColor = Color.Firebrick;
+        else if (r.Container is not null)
+            item.ForeColor = Color.SteelBlue;   // visually distinguish inner-MSI files from top-level ones
 
         _resultsView.Items.Add(item);
     }
@@ -787,9 +808,11 @@ public sealed class MainForm : Form
             sb.Append(opts.Algorithm);
             if (opts.IncludeMetadata)
                 sb.Append(",LengthBytes,LastWriteUtc");
+            if (opts.DescendIntoMsi)
+                sb.Append(",Container");
             sb.AppendLine();
 
-            foreach (var r in _allResults.Where(r => r.Success).OrderBy(r => r.FilePath))
+            foreach (var r in _allResults.Where(r => r.Success).OrderBy(r => r.Container ?? "").ThenBy(r => r.FilePath))
             {
                 sb.Append(CsvEscape(r.FilePath));
                 sb.Append(',');
@@ -800,6 +823,11 @@ public sealed class MainForm : Form
                     sb.Append(r.Length);
                     sb.Append(',');
                     sb.Append(r.LastWriteUtc?.ToString("yyyy-MM-ddTHH:mm:ssZ"));
+                }
+                if (opts.DescendIntoMsi)
+                {
+                    sb.Append(',');
+                    sb.Append(CsvEscape(r.Container ?? ""));
                 }
                 sb.AppendLine();
             }
