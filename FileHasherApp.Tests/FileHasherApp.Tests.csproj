@@ -41,4 +41,17 @@
     <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-rxg9-xrhp-64gj" />
   </ItemGroup>
 
+  <!--
+    EXPERIMENTAL (feature/msi-inner-scan branch). Test fixtures used by the
+    upcoming MSI inner-scan test class. The wildcard glob ships every file
+    under fixtures/ alongside the test assembly so tests can locate them via
+    Path.Combine(AppContext.BaseDirectory, "fixtures", "<name>"). Drop this
+    ItemGroup if the branch is abandoned.
+  -->
+  <ItemGroup>
+    <Content Include="fixtures\**\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
 </Project>
