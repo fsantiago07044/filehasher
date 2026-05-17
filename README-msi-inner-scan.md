@@ -26,6 +26,7 @@ In the main window's **Options** group, tick **Hash files inside MSI installers 
 - A new **MSI Dir** column on the right of the results list shows the original (unresolved) MSI Directory-table identifier — `PFiles64`, `INSTALLDIR`, etc. — so the audit-friendly raw value is visible alongside the human-readable path. Empty for top-level files.
 - CSV export gains a `Container` column that's empty for top-level files and populated with the parent MSI's full path for extracted ones, plus an `MsiDirectoryId` column that mirrors the **MSI Dir** ListView column.
 - The log file under `%APPDATA%\FileHasher\Logs\` appends ` | container: <path>` and ` | msi-dir: <id>` fields to each inner-file row.
+- The existing **Scan all file types** checkbox in the Target group also controls which inner MSI files get hashed. When unchecked (the default), only `.exe` and `.msi` files inside the MSI are hashed — same rule that applies to folder scans. When checked, every inner file is hashed regardless of extension. The checkbox is enabled whenever the rule is meaningful: a folder is selected, OR a single `.msi` file is selected AND **Hash files inside MSI installers** is on. Otherwise it stays disabled (one-file scans of non-MSI files don't need a filter).
 - Sidecar hash files are **not** written for inner files, even when **Write sidecar hash files** is on — the inner files live in a temp directory that's about to be deleted, and an orphan sidecar there would be meaningless. The CSV is the durable record.
 
 ## Security model

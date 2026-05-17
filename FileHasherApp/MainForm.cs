@@ -155,6 +155,11 @@ public sealed class MainForm : Form
         _pathBox.DragEnter += PathBox_DragEnter;
         _pathBox.DragDrop  += PathBox_DragDrop;
 
+        // A typed or pasted path is just as much a target as a drag-dropped or
+        // browsed one; mirror the enable rule so the AllTypes checkbox reflects
+        // reality regardless of how the path got into the box.
+        _pathBox.TextChanged += (_, _) => UpdateAllTypesEnabled();
+
         _browseFileBtn.Click   += BrowseFile_Click;
         _browseFolderBtn.Click += BrowseFolder_Click;
 
@@ -273,6 +278,10 @@ public sealed class MainForm : Form
             Top   = 192,
             Width = 400
         };
+        // Toggling DescendIntoMsi can change whether the AllTypes filter is
+        // relevant (an MSI's inner contents may be a mixed bag), so re-evaluate
+        // the enable state of _allTypesChk whenever this option flips.
+        _msiChk.CheckedChanged += (_, _) => UpdateAllTypesEnabled();
 
         gbOptions.Controls.AddRange(new Control[]
             { _metadataChk, _sidecarChk, _sidecarOptsPanel, _csvChk, _csvOptsPanel, _msiChk });
@@ -464,8 +473,43 @@ public sealed class MainForm : Form
             return;
 
         var dropped = paths[0];
-        _pathBox.Text        = dropped;
-        _allTypesChk.Enabled = Directory.Exists(dropped);
+        _pathBox.Text = dropped;
+        UpdateAllTypesEnabled();
+    }
+
+    /// <summary>
+    /// Centralized rule for whether the AllTypes filter is meaningful for the
+    /// current target. AllTypes is meaningful when more than one file will be
+    /// hashed, which happens in three situations:
+    ///   • a folder is selected (recursive scan filters by extension),
+    ///   • an MSI file is selected and DescendIntoMsi is on (the MSI's inner
+    ///     contents are filtered the same way folder contents are),
+    ///   • anything else: AllTypes is irrelevant and the checkbox is greyed.
+    /// </summary>
+    private void UpdateAllTypesEnabled()
+    {
+        var path = _pathBox.Text.Trim();
+        if (string.IsNullOrEmpty(path))
+        {
+            _allTypesChk.Enabled = false;
+            return;
+        }
+
+        if (Directory.Exists(path))
+        {
+            _allTypesChk.Enabled = true;
+            return;
+        }
+
+        if (File.Exists(path) &&
+            path.EndsWith(".msi", StringComparison.OrdinalIgnoreCase) &&
+            _msiChk.Checked)
+        {
+            _allTypesChk.Enabled = true;
+            return;
+        }
+
+        _allTypesChk.Enabled = false;
     }
 
     // ── Browse / file-picker handlers ─────────────────────────────────────────
@@ -480,8 +524,8 @@ public sealed class MainForm : Form
         };
         if (dlg.ShowDialog(this) == DialogResult.OK)
         {
-            _pathBox.Text         = dlg.FileName;
-            _allTypesChk.Enabled  = false;  // irrelevant for a single file
+            _pathBox.Text = dlg.FileName;
+            UpdateAllTypesEnabled();
         }
     }
 
@@ -494,8 +538,8 @@ public sealed class MainForm : Form
         };
         if (dlg.ShowDialog(this) == DialogResult.OK)
         {
-            _pathBox.Text        = dlg.SelectedPath;
-            _allTypesChk.Enabled = true;
+            _pathBox.Text = dlg.SelectedPath;
+            UpdateAllTypesEnabled();
         }
     }
 

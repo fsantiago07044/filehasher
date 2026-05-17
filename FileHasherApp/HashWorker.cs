@@ -93,9 +93,23 @@ internal sealed class HashWorker
                 return done;
             }
 
+            // Apply the same extension filter to inner MSI files that
+            // CollectFiles applies to folder enumeration: when AllFileTypes
+            // is off, only .exe and .msi inner files are hashed; when on,
+            // every inner file is included. Keeps the UX consistent — one
+            // checkbox controls both folder filtering and MSI-inner filtering.
+            var innerExtensions = _opts.AllFileTypes
+                ? null
+                : new HashSet<string>(StringComparer.OrdinalIgnoreCase) { ".exe", ".msi" };
+
             foreach (var inner in innerFiles)
             {
                 ct.ThrowIfCancellationRequested();
+
+                if (innerExtensions is not null &&
+                    !innerExtensions.Contains(Path.GetExtension(inner)))
+                    continue;
+
                 var innerResult = await HashFileAsync(inner, ct, container: msiPath);
 
                 // Rewrite FilePath in the emitted result to a human-readable
