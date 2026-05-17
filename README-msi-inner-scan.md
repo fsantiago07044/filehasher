@@ -22,7 +22,10 @@ In the main window's **Options** group, tick **Hash files inside MSI installers 
 - All `.msi` files in the target produce inner-file rows in addition to the MSI's own row.
 - Inner-file rows are colored steel-blue in the results list to distinguish them from top-level files.
 - Inner-file rows are prefixed in the display with `[parent.msi] `.
-- CSV export gains a `Container` column that's empty for top-level files and populated with the parent MSI's full path for extracted ones.
+- The displayed file path resolves common MSI Directory-table identifiers to their Windows-friendly equivalents — `PFiles64\msi-test\foo.exe` becomes `Program Files\msi-test\foo.exe`, `ProgramFilesFolder\…` becomes `Program Files (x86)\…`, etc. (see `MsiExtractor.WellKnownMsiDirectoryNames` for the full table). Custom identifiers an MSI author invented (e.g. `INSTALLDIR`) aren't in the table and stay in the displayed path verbatim.
+- A new **MSI Dir** column on the right of the results list shows the original (unresolved) MSI Directory-table identifier — `PFiles64`, `INSTALLDIR`, etc. — so the audit-friendly raw value is visible alongside the human-readable path. Empty for top-level files.
+- CSV export gains a `Container` column that's empty for top-level files and populated with the parent MSI's full path for extracted ones, plus an `MsiDirectoryId` column that mirrors the **MSI Dir** ListView column.
+- The log file under `%APPDATA%\FileHasher\Logs\` appends ` | container: <path>` and ` | msi-dir: <id>` fields to each inner-file row.
 - Sidecar hash files are **not** written for inner files, even when **Write sidecar hash files** is on — the inner files live in a temp directory that's about to be deleted, and an orphan sidecar there would be meaningless. The CSV is the durable record.
 
 ## Security model

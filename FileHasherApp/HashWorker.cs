@@ -98,14 +98,23 @@ internal sealed class HashWorker
                 ct.ThrowIfCancellationRequested();
                 var innerResult = await HashFileAsync(inner, ct, container: msiPath);
 
-                // Rewrite FilePath in the emitted result to be relative to the
-                // extract dir; users get the MSI-internal install layout
-                // ("Program Files/Foo/bar.exe") rather than a useless temp-dir
-                // absolute path. The original absolute path never leaves this
-                // method and is unreachable to consumers once the extractor is
-                // disposed and its temp dir is deleted.
+                // Rewrite FilePath in the emitted result to a human-readable
+                // relative path. The relative path comes out of the extract
+                // dir with the MSI's Directory-table identifier as its first
+                // component (e.g. "PFiles64\msi-test\7za.exe"); ResolveDisplayPath
+                // substitutes the well-known shell-folder name where possible
+                // ("Program Files\msi-test\7za.exe") and surfaces the original
+                // raw identifier separately so the UI / log / CSV can show
+                // both. Identifiers MSI authors invented themselves (e.g.
+                // "INSTALLDIR") aren't in the well-known map and stay in the
+                // path as-is.
                 var relative = Path.GetRelativePath(extractor.ExtractDirectory, inner);
-                innerResult = innerResult with { FilePath = relative };
+                var (displayPath, msiDirId) = MsiExtractor.ResolveDisplayPath(relative);
+                innerResult = innerResult with
+                {
+                    FilePath       = displayPath,
+                    MsiDirectoryId = msiDirId,
+                };
 
                 _logger.LogResult(innerResult, _opts.Algorithm);
                 FileHashed?.Invoke(innerResult);

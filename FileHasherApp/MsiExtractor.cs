@@ -226,6 +226,90 @@ internal sealed class MsiExtractor : IDisposable
         try { File.Delete(path); } catch { }
     }
 
+    // ── MSI Directory-table identifier resolution ────────────────────────────
+    //
+    // When InstallPackage.ExtractFiles drops files under the working directory,
+    // it uses the MSI Directory table's primary-key identifiers as folder names
+    // (e.g. "PFiles64", "ProgramFilesFolder", "INSTALLDIR"). Most MSI authors
+    // pick from a small set of Microsoft-documented "well-known" identifiers
+    // that map to actual Windows shell folders at install time. For display
+    // purposes we substitute the resolved Windows-friendly name; the original
+    // identifier is preserved separately so audits can still see what the MSI
+    // author wrote.
+
+    /// <summary>
+    /// Map of well-known MSI Directory-table identifiers to their resolved
+    /// Windows-friendly equivalent (on a 64-bit Windows install). Lookup is
+    /// case-insensitive. Any identifier NOT in this map is treated as an MSI
+    /// author's custom name (e.g. "INSTALLDIR") and left in the path as-is.
+    /// </summary>
+    private static readonly Dictionary<string, string> WellKnownMsiDirectoryNames =
+        new(StringComparer.OrdinalIgnoreCase)
+        {
+            { "TARGETDIR",            ""                            },  // root — strip
+            { "WindowsVolume",        ""                            },  // drive root — strip
+            { "ProgramFilesFolder",   "Program Files (x86)"         },
+            { "PFiles",               "Program Files (x86)"         },
+            { "ProgramFiles64Folder", "Program Files"               },
+            { "PFiles64",             "Program Files"               },
+            { "CommonFilesFolder",    @"Program Files (x86)\Common Files" },
+            { "CommonFiles64Folder",  @"Program Files\Common Files" },
+            { "WindowsFolder",        "Windows"                     },
+            { "SystemFolder",         @"Windows\System32"           },
+            { "System64Folder",       @"Windows\System32"           },
+            { "AppDataFolder",        @"AppData\Roaming"            },
+            { "LocalAppDataFolder",   @"AppData\Local"              },
+            { "CommonAppDataFolder",  @"ProgramData"                },
+            { "DesktopFolder",        "Desktop"                     },
+            { "StartMenuFolder",      "Start Menu"                  },
+            { "ProgramMenuFolder",    @"Start Menu\Programs"        },
+            { "StartupFolder",        @"Start Menu\Programs\Startup"},
+            { "MyPicturesFolder",     "Pictures"                    },
+            { "PersonalFolder",       "Documents"                   },
+            { "FontsFolder",          @"Windows\Fonts"              },
+            { "TempFolder",           "Temp"                        },
+        };
+
+    /// <summary>
+    /// Given a path relative to the extract directory (e.g.
+    /// <c>"PFiles64\msi-test\7za.exe"</c>), split off the leading MSI
+    /// Directory-table identifier and return a tuple of
+    /// <c>(humanReadablePath, originalIdentifier)</c>. The identifier is
+    /// looked up against <see cref="WellKnownMsiDirectoryNames"/>; if it's
+    /// well-known, the identifier is replaced in the returned path with its
+    /// resolved Windows name. If it's not well-known (e.g. an MSI author's
+    /// custom <c>INSTALLDIR</c>), the identifier is left in place. In all
+    /// cases the second tuple element is the original raw identifier so
+    /// callers can record it for audit display.
+    ///
+    /// Returns <c>(relativePath, null)</c> unchanged when the input has no
+    /// directory component (the file sits at the extract-dir root).
+    /// </summary>
+    public static (string FilePath, string? MsiDirectoryId) ResolveDisplayPath(string relativePath)
+    {
+        if (string.IsNullOrEmpty(relativePath))
+            return (relativePath, null);
+
+        var parts = relativePath.Split(Path.DirectorySeparatorChar, 2);
+        if (parts.Length < 2)
+            return (relativePath, null);  // bare filename — no identifier to extract
+
+        var identifier = parts[0];
+        var rest       = parts[1];
+
+        if (WellKnownMsiDirectoryNames.TryGetValue(identifier, out var friendly))
+        {
+            var displayPath = string.IsNullOrEmpty(friendly)
+                ? rest
+                : Path.Combine(friendly, rest);
+            return (displayPath, identifier);
+        }
+
+        // Unknown identifier — leave it in the displayed path, but still
+        // surface it separately so the caller can show it in its own column.
+        return (relativePath, identifier);
+    }
+
     public void Dispose()
     {
         if (_disposed) return;

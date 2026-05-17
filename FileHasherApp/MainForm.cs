@@ -43,7 +43,7 @@ public sealed class MainForm : Form
 
     // Results
     private readonly ListView    _resultsView;
-    private readonly ColumnHeader _colPath, _colHash, _colSize, _colModified;
+    private readonly ColumnHeader _colPath, _colHash, _colSize, _colModified, _colMsiDir;
 
     // Status strip
     private readonly ToolStripStatusLabel _logStripLabel;
@@ -363,6 +363,12 @@ public sealed class MainForm : Form
         _colHash     = new ColumnHeader { Text = "SHA256",         Width = 220 };
         _colSize     = new ColumnHeader { Text = "Size (bytes)",   Width = 95  };
         _colModified = new ColumnHeader { Text = "Modified (UTC)", Width = 145 };
+        // Always present; populated only for files extracted from an MSI when
+        // the experimental DescendIntoMsi option is on. The original raw MSI
+        // Directory-table identifier (PFiles64, ProgramFilesFolder, INSTALLDIR,
+        // etc.) appears here while the File Path column shows the resolved
+        // Windows-friendly equivalent ("Program Files\…").
+        _colMsiDir   = new ColumnHeader { Text = "MSI Dir",        Width = 120 };
 
         _resultsView = new ListView
         {
@@ -373,7 +379,7 @@ public sealed class MainForm : Form
             GridLines     = true,
             Font          = new Font("Consolas", 8.5F)
         };
-        _resultsView.Columns.AddRange(new[] { _colPath, _colHash, _colSize, _colModified });
+        _resultsView.Columns.AddRange(new[] { _colPath, _colHash, _colSize, _colModified, _colMsiDir });
 
         // ── Menu bar ─────────────────────────────────────────────────────────
 
@@ -777,6 +783,7 @@ public sealed class MainForm : Form
         item.SubItems.Add(r.Success ? r.Hash : $"ERROR: {r.ErrorMessage}");
         item.SubItems.Add(r.Length.HasValue        ? r.Length.Value.ToString("N0")              : "");
         item.SubItems.Add(r.LastWriteUtc.HasValue  ? r.LastWriteUtc.Value.ToString("yyyy-MM-dd HH:mm:ss") : "");
+        item.SubItems.Add(r.MsiDirectoryId ?? "");
 
         if (!r.Success)
             item.ForeColor = Color.Firebrick;
@@ -809,7 +816,7 @@ public sealed class MainForm : Form
             if (opts.IncludeMetadata)
                 sb.Append(",LengthBytes,LastWriteUtc");
             if (opts.DescendIntoMsi)
-                sb.Append(",Container");
+                sb.Append(",Container,MsiDirectoryId");
             sb.AppendLine();
 
             foreach (var r in _allResults.Where(r => r.Success).OrderBy(r => r.Container ?? "").ThenBy(r => r.FilePath))
@@ -828,6 +835,8 @@ public sealed class MainForm : Form
                 {
                     sb.Append(',');
                     sb.Append(CsvEscape(r.Container ?? ""));
+                    sb.Append(',');
+                    sb.Append(CsvEscape(r.MsiDirectoryId ?? ""));
                 }
                 sb.AppendLine();
             }

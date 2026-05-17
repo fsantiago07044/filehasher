@@ -42,11 +42,21 @@ internal sealed class Logger : IDisposable
                 sb.Append($" | {result.Length:N0} bytes");
             if (result.LastWriteUtc.HasValue)
                 sb.Append($" | modified {result.LastWriteUtc.Value:yyyy-MM-ddTHH:mm:ssZ}");
+            if (result.Container is not null)
+                sb.Append($" | container: {result.Container}");
+            if (result.MsiDirectoryId is not null)
+                sb.Append($" | msi-dir: {result.MsiDirectoryId}");
             WriteRaw(sb.ToString());
         }
         else
         {
-            WriteRaw($"{Ts()} | {algorithm} | ERROR | {result.ErrorMessage} | {result.FilePath}");
+            var sb = new StringBuilder(256);
+            sb.Append($"{Ts()} | {algorithm} | ERROR | {result.ErrorMessage} | {result.FilePath}");
+            if (result.Container is not null)
+                sb.Append($" | container: {result.Container}");
+            if (result.MsiDirectoryId is not null)
+                sb.Append($" | msi-dir: {result.MsiDirectoryId}");
+            WriteRaw(sb.ToString());
         }
     }
 
