@@ -1,6 +1,13 @@
 using WixToolset.Dtf.WindowsInstaller;
 using WixToolset.Dtf.WindowsInstaller.Package;
 
+// WixToolset.Dtf.WindowsInstaller exports its own FileAttributes enum (mapping
+// the MSI File table's Attributes column — Vital, ReadOnly, Hidden, etc.) that
+// collides with System.IO.FileAttributes. This file only ever wants the System
+// one (for reparse-point / read-only checks against the extracted files on
+// disk), so alias FileAttributes -> System.IO.FileAttributes at the file level.
+using FileAttributes = System.IO.FileAttributes;
+
 namespace FileHasher;
 
 /// <summary>
