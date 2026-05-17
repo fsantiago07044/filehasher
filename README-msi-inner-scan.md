@@ -84,15 +84,27 @@ Code added on this branch:
 
 ## Testing notes
 
-The existing FlaUI test suite under `FileHasherApp.Tests/` does not yet cover this feature. Reasonable additions before a merge-back to `main`:
+A FlaUI test class `MainFormMsiInnerScanTests` lives in `FileHasherApp.Tests/`, exercising the option's default state, on/off effect on the results count, the `[parent.msi]` prefix on inner-file rows, the dynamic enable-state of the AllTypes checkbox when an MSI is the target, the CSV's new `Container` / `MsiDirectoryId` columns, and the per-extraction temp-directory cleanup. Tests share the fixture MSI at `FileHasherApp.Tests/fixtures/msi-test.msi` (~7 MB) and assert on shape rather than exact contents, so the fixture can be regenerated without churning the test code.
 
-- `MsiInnerScan_OffByDefault_NoExtraRows` — sanity check that the option is unchecked at launch and that an MSI input produces exactly one row.
-- `MsiInnerScan_OnProducesInnerRowsWithContainer` — given a small test-fixture MSI checked into `FileHasherApp.Tests/fixtures/`, the results contain N+1 rows (1 outer + N inner) with the inner rows showing the parent MSI in the Container field.
-- `MsiInnerScan_CapEnforced` — given an MSI that declares a file size over the cap, the run completes, the MSI's own row is present, and a `[WARN]` row reports the cap violation.
-- `MsiInnerScan_PathTraversalEntry_NotWritten` — given a deliberately-malicious test fixture, verify no file lands outside the extract dir.
-- `MsiInnerScan_TempDirCleanedUp_OnCancelAndOnException` — assert the `FileHasher_msi_*` directory under `%TEMP%` is gone after a cancelled run and after a forced-throw run.
+Covered:
 
-These tests need a small test-fixture MSI checked into the repo. Building one with WiX or `msitools` is the simplest route.
+- `MsiChk_UncheckedByDefault` — option unchecked at app launch.
+- `MsiInnerScan_OffByDefault_HashesMsiAsSingleFile` — MSI input + option off → exactly one row.
+- `MsiInnerScan_OnProducesInnerRows` — MSI input + option on → more than one row.
+- `MsiInnerScan_OnInnerRowsArePrefixedWithContainerName` — at least one row begins with `[msi-test.msi]`.
+- `AllTypesChk_EnabledWhenMsiFileSelectedAndDescendOn` — AllTypes flips enabled when both conditions hold.
+- `AllTypesChk_DisabledWhenMsiFileSelectedAndDescendOff` — AllTypes stays disabled when MSI scan is off.
+- `MsiInnerScan_TempDirCleanedUpAfterRun` — no `FileHasher_msi_*` directories leak under `%TEMP%` after a normal run.
+- `MsiInnerScan_CsvHasContainerAndMsiDirectoryIdColumns` — CSV header contains both new columns and at least one row populates Container.
+
+NOT yet covered — need additional, deliberately-malicious test fixtures that aren't trivially generated. Reasonable additions before any merge-back consideration:
+
+- `MsiInnerScan_CapEnforced` — given an MSI that declares a file size over the cap, the run completes, the MSI's own row is present, and a `[WARN]` row reports the cap violation. Needs a synthetic MSI with an outsize `File.FileSize` table entry.
+- `MsiInnerScan_PathTraversalEntry_NotWritten` — given an MSI whose File table entries contain `..\` segments, verify no file lands outside the extract dir. Needs a hand-crafted MSI with an adversarial Directory/File table layout.
+- `MsiInnerScan_ReparsePointEntry_Excluded` — given an extracted tree that contains a symlink or junction, verify it is deleted and excluded. Hardest to fixture since cabinet streams don't normally produce reparse points; might be more practical to assert via a unit test against `MsiExtractor.ExtractAsync` rather than through the UI.
+- `MsiInnerScan_TempDirCleanedUpOnCancel` — Stop button mid-extraction also cleans up the temp dir. Currently dependent on cancellation actually interrupting `InstallPackage.ExtractFiles` (it doesn't — the synchronous WiX DTF call only sees cancellation between MSIs, not within one). Documenting this as a known limitation rather than chasing it for v1.
+
+Generating the malicious fixtures cleanly is the gating item; once they're in `FileHasherApp.Tests/fixtures/`, the test wiring is straightforward.
 
 ## Roadmap to merge back
 
