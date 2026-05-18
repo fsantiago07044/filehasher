@@ -51,6 +51,16 @@
   </ItemGroup>
 
   <!--
+    EXPERIMENTAL (feature/msi-inner-scan branch). Expose internal types
+    (MsiExtractor and its helpers) to the test project so the security guards
+    can be unit-tested directly without driving the UI. SDK-style projects
+    inject this into the generated AssemblyInfo.
+  -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="FileHasherApp.Tests" />
+  </ItemGroup>
+
+  <!--
     To publish a self-contained single-file executable (run from the FileHasherApp folder):
 
       dotnet publish -c Release -r win-x64 -p:SelfContained=true -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true -p:DebugType=embedded

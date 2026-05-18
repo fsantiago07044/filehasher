@@ -197,24 +197,12 @@ internal sealed class MsiExtractor : IDisposable
         var safeFiles = new List<string>();
         foreach (var f in Directory.EnumerateFiles(_extractDir, "*", SearchOption.AllDirectories))
         {
-            // Reject reparse points (symlinks / junctions / mount points).
-            var attrs = File.GetAttributes(f);
-            if ((attrs & FileAttributes.ReparsePoint) != 0)
+            if (IsReparsePoint(f) || IsPathOutsideDirectory(f, canonicalExtractDir))
             {
                 TryDeleteFile(f);
                 continue;
             }
-
-            // Path-traversal guard: file's canonical path must be strictly
-            // under the canonical extract dir.
-            var canonicalFile = Path.GetFullPath(f);
-            if (!canonicalFile.StartsWith(canonicalExtractDir, StringComparison.OrdinalIgnoreCase))
-            {
-                TryDeleteFile(f);
-                continue;
-            }
-
-            safeFiles.Add(canonicalFile);
+            safeFiles.Add(Path.GetFullPath(f));
         }
 
         return safeFiles;
@@ -224,6 +212,45 @@ internal sealed class MsiExtractor : IDisposable
     {
         try { File.SetAttributes(path, FileAttributes.Normal); } catch { }
         try { File.Delete(path); } catch { }
+    }
+
+    /// <summary>
+    /// True when the file at <paramref name="filePath"/> is a reparse point
+    /// (symbolic link, junction, mount point, or any other entry whose
+    /// <see cref="System.IO.FileAttributes.ReparsePoint"/> bit is set). Used
+    /// to exclude extracted entries whose attributes would silently redirect
+    /// a subsequent file read outside the sandbox.
+    ///
+    /// Exposed as internal so it can be unit-tested directly; the production
+    /// call site is the post-extraction loop in <see cref="ExtractAsync"/>.
+    /// </summary>
+    internal static bool IsReparsePoint(string filePath)
+    {
+        var attrs = File.GetAttributes(filePath);
+        return (attrs & FileAttributes.ReparsePoint) != 0;
+    }
+
+    /// <summary>
+    /// True when <paramref name="filePath"/>'s canonical absolute form is
+    /// NOT under <paramref name="canonicalDirectoryWithTrailingSeparator"/>,
+    /// i.e. the file escaped the sandbox via a "..\" segment or by being
+    /// written to an entirely unrelated location.
+    ///
+    /// The caller must canonicalize the directory ahead of time (via
+    /// <see cref="Path.GetFullPath(string)"/>) and append the platform's
+    /// directory separator. Without the trailing separator a file in a
+    /// sibling directory whose name shares a prefix — e.g.
+    /// <c>"C:\Temp\foobar.txt"</c> against <c>"C:\Temp\foo"</c> — would be
+    /// falsely accepted.
+    ///
+    /// Exposed as internal so the prefix-comparison edge cases can be
+    /// unit-tested with synthetic paths; the production call site is the
+    /// post-extraction loop in <see cref="ExtractAsync"/>.
+    /// </summary>
+    internal static bool IsPathOutsideDirectory(string filePath, string canonicalDirectoryWithTrailingSeparator)
+    {
+        var canonical = Path.GetFullPath(filePath);
+        return !canonical.StartsWith(canonicalDirectoryWithTrailingSeparator, StringComparison.OrdinalIgnoreCase);
     }
 
     // ── MSI Directory-table identifier resolution ────────────────────────────

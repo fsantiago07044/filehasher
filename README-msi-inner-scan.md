@@ -97,14 +97,24 @@ Covered:
 - `MsiInnerScan_TempDirCleanedUpAfterRun` — no `FileHasher_msi_*` directories leak under `%TEMP%` after a normal run.
 - `MsiInnerScan_CsvHasContainerAndMsiDirectoryIdColumns` — CSV header contains both new columns and at least one row populates Container.
 
-NOT yet covered — need additional, deliberately-malicious test fixtures that aren't trivially generated. Reasonable additions before any merge-back consideration:
+A second test class `MsiExtractorTests` exercises `MsiExtractor` directly as a unit (via `InternalsVisibleTo`), covering the security guards without needing the UI or adversarial MSI fixtures:
 
-- `MsiInnerScan_CapEnforced` — given an MSI that declares a file size over the cap, the run completes, the MSI's own row is present, and a `[WARN]` row reports the cap violation. Needs a synthetic MSI with an outsize `File.FileSize` table entry.
-- `MsiInnerScan_PathTraversalEntry_NotWritten` — given an MSI whose File table entries contain `..\` segments, verify no file lands outside the extract dir. Needs a hand-crafted MSI with an adversarial Directory/File table layout.
-- `MsiInnerScan_ReparsePointEntry_Excluded` — given an extracted tree that contains a symlink or junction, verify it is deleted and excluded. Hardest to fixture since cabinet streams don't normally produce reparse points; might be more practical to assert via a unit test against `MsiExtractor.ExtractAsync` rather than through the UI.
-- `MsiInnerScan_TempDirCleanedUpOnCancel` — Stop button mid-extraction also cleans up the temp dir. Currently dependent on cancellation actually interrupting `InstallPackage.ExtractFiles` (it doesn't — the synchronous WiX DTF call only sees cancellation between MSIs, not within one). Documenting this as a known limitation rather than chasing it for v1.
+- `Cap_PerFileBytes_Tiny_AbortsBeforeExtraction` / `Cap_TotalBytes_Tiny_AbortsBeforeExtraction` / `Cap_FileCount_Zero_AbortsBeforeExtraction` / `Cap_MinFreeDisk_Absurd_AbortsBeforeExtraction` — instantiate `MsiExtractor` with absurdly tight caps, run against the benign fixture, assert each cap path throws the right exception before the temp directory is created. No malicious fixture needed.
+- `IsPathOutsideDirectory_Cases` (theory) — drives the path-traversal guard with synthetic absolute paths covering inside/outside/sibling-with-shared-prefix/`..` traversal scenarios.
+- `IsPathOutsideDirectory_TrailingSeparatorRequired_DistinguishesPrefixSiblings` — captures the calling convention that the canonicalized directory must carry a trailing separator (the production code does this; the test documents why).
+- `IsReparsePoint_RegularFile_ReturnsFalse` — sanity check for the negative case.
+- `IsReparsePoint_Symlink_ReturnsTrue` — creates an actual symlink in the test temp directory and asserts the reparse-point bit is detected. Requires the test process to have `SeCreateSymbolicLinkPrivilege` (admin or Developer Mode); skip-by-early-return with a stderr message when the privilege is missing.
+- `Dispose_RemovesExtractDirectory_AfterSuccessfulExtraction` / `ExtractAsync_NonExistentMsi_ThrowsFileNotFound` — lifecycle sanity.
 
-Generating the malicious fixtures cleanly is the gating item; once they're in `FileHasherApp.Tests/fixtures/`, the test wiring is straightforward.
+These required a small refactor on `MsiExtractor.cs`: the reparse-point and path-traversal inline guards in `ExtractAsync`'s post-extraction loop were extracted into `internal static` helpers (`IsReparsePoint` and `IsPathOutsideDirectory`). Production behavior is unchanged — the loop calls the same predicates, in the same order, against the same data — they're just addressable from tests now.
+
+Still NOT covered — would need fully programmatic MSI synthesis via WiX DTF's `Database` create-mode + cabinet packing:
+
+- `MsiInnerScan_MaliciousPath_EndToEnd` — synthesize an MSI whose Directory/File table entries actually try to escape, run it through the full `ExtractAsync` path, and assert nothing landed outside the extract dir. The Tier-2 guard tests above cover the rejection LOGIC; this would additionally cover "feeding adversarial input to the real WiX call doesn't slip past us." Roughly 150-250 lines of test infrastructure.
+
+Still NOT covered — known limitations, not bugs:
+
+- `MsiInnerScan_TempDirCleanedUpOnCancel` — Stop button mid-extraction cleanup. `InstallPackage.ExtractFiles` is synchronous and not cancellation-aware, so the cancel signal only takes effect between MSIs, never within one. The Dispose-time cleanup still runs (the `using (extractor)` ensures it), so the cleanup itself is correct; there's just no reliable way to test the mid-extraction trigger.
 
 ## Roadmap to merge back
 
