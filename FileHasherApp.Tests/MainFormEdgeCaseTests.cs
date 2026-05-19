@@ -121,9 +121,14 @@ public sealed class MainFormEdgeCaseTests : IDisposable
         try
         {
             Win.FindFirstDescendant(cf => cf.ByAutomationId("PathBox")).AsTextBox().Text = tmp;
-            Win.FindFirstDescendant(cf => cf.ByAutomationId("RunBtn")).AsButton().Click();
 
-            var dialog = TestHelpers.WaitForModal(Win, TimeSpan.FromSeconds(15));
+            // ClickRunAndReturnModal carries the retry-click race protection that
+            // the raw .Click() + WaitForModal pattern below would otherwise miss:
+            // on a freshly-launched app the first click occasionally lands in a
+            // dead UIAutomation focus window, leaving the run un-started and the
+            // modal never appearing. ClickRunAndWaitForModal handles this for
+            // tests that don't need the modal back; this variant returns it.
+            var dialog = TestHelpers.ClickRunAndReturnModal(Win, TimeSpan.FromSeconds(15));
             Assert.NotNull(dialog);
 
             // Dialog title should indicate success

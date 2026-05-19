@@ -130,12 +130,14 @@ internal static class TestHelpers
     // ── Common run sequence ──────────────────────────────────────────────────
 
     /// <summary>
-    /// Clicks Run and waits for the completion modal, retrying the click once if
-    /// neither the run-started signals (button disabled OR modal up) appear within
-    /// 3s. The first click sometimes silently misses on a freshly-launched app
-    /// (focus/timing race), and the only way to recover is to click again.
+    /// Clicks Run, waits for the completion modal, returns it WITHOUT dismissing
+    /// so the caller can assert on Title or other contents before closing.
+    /// Retries the click once if neither run-started signal (button disabled OR
+    /// modal up) appears within 3s — the first click sometimes silently misses
+    /// on a freshly-launched app (focus/timing race), and re-clicking is the
+    /// only recovery.
     /// </summary>
-    internal static void ClickRunAndWaitForModal(Window win, TimeSpan modalTimeout)
+    internal static Window ClickRunAndReturnModal(Window win, TimeSpan modalTimeout)
     {
         var runBtn = win.FindFirstDescendant(cf => cf.ByAutomationId("RunBtn")).AsButton();
         runBtn.Click();
@@ -153,8 +155,16 @@ internal static class TestHelpers
         }
         if (!runStarted) runBtn.Click();
 
-        DismissFirstButton(WaitForModal(win, modalTimeout));
+        return WaitForModal(win, modalTimeout);
     }
+
+    /// <summary>
+    /// Convenience for the common case: clicks Run, waits for the completion
+    /// modal, and dismisses it. Internally calls <see cref="ClickRunAndReturnModal"/>
+    /// so the retry-click race protection lives in one place.
+    /// </summary>
+    internal static void ClickRunAndWaitForModal(Window win, TimeSpan modalTimeout)
+        => DismissFirstButton(ClickRunAndReturnModal(win, modalTimeout));
 
     /// <summary>Sets the path box, clicks Run, waits for the completion dialog, dismisses it.</summary>
     internal static void RunHashOnFile(Window win, string filePath)
