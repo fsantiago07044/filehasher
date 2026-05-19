@@ -43,7 +43,23 @@ internal static class TestHelpers
     /// <summary>Finds a button in a dialog by exact accessible name (& accelerator markers stripped).</summary>
     internal static void ClickDialogButton(Window dialog, string name)
     {
-        var buttons = dialog.FindAllDescendants(cf => cf.ByControlType(ControlType.Button));
+        // UIA timing: a dialog window can appear in the parent's ModalWindows
+        // collection before its child controls have fully materialized in the
+        // UIAutomation tree. FindAllDescendants then returns an empty array
+        // and the FirstOrDefault below fails with "Button … not found" / empty
+        // available list — a false negative caused by polling at the wrong
+        // instant, not by the button actually being absent. Poll until at
+        // least one button surfaces, with a short upper bound so a truly
+        // empty dialog still fails in bounded time.
+        AutomationElement[] buttons = Array.Empty<AutomationElement>();
+        var deadline = DateTime.UtcNow.AddSeconds(3);
+        while (DateTime.UtcNow < deadline)
+        {
+            buttons = dialog.FindAllDescendants(cf => cf.ByControlType(ControlType.Button));
+            if (buttons.Length > 0) break;
+            Thread.Sleep(50);
+        }
+
         var btn = buttons.FirstOrDefault(b =>
                 string.Equals(b.Name.Replace("&", ""), name, StringComparison.OrdinalIgnoreCase))
             ?? throw new InvalidOperationException(
