@@ -37,34 +37,60 @@ internal static class TestHelpers
     // ── Button helpers ───────────────────────────────────────────────────────
 
     internal static void DismissFirstButton(Window dialog)
-        => dialog.FindFirstDescendant(cf => cf.ByControlType(ControlType.Button))
-                 .AsButton().Click();
+    {
+        // Same UIA-tree-population race as ClickDialogButton below: the dialog
+        // window can be returned by ModalWindows before its children are
+        // enumerable, in which case FindFirstDescendant returns null and the
+        // subsequent .AsButton().Click() throws NullReferenceException. Poll
+        // until at least one button materializes, with a short upper bound so
+        // a genuinely button-less dialog still fails in bounded time.
+        AutomationElement? btn = null;
+        var deadline = DateTime.UtcNow.AddSeconds(3);
+        while (DateTime.UtcNow < deadline)
+        {
+            btn = dialog.FindFirstDescendant(cf => cf.ByControlType(ControlType.Button));
+            if (btn is not null) break;
+            Thread.Sleep(50);
+        }
+
+        if (btn is null)
+            throw new InvalidOperationException(
+                $"No button found in dialog '{dialog.Title}' after polling for 3 seconds.");
+
+        btn.AsButton().Click();
+    }
 
     /// <summary>Finds a button in a dialog by exact accessible name (& accelerator markers stripped).</summary>
     internal static void ClickDialogButton(Window dialog, string name)
     {
         // UIA timing: a dialog window can appear in the parent's ModalWindows
-        // collection before its child controls have fully materialized in the
-        // UIAutomation tree. FindAllDescendants then returns an empty array
-        // and the FirstOrDefault below fails with "Button … not found" / empty
-        // available list — a false negative caused by polling at the wrong
-        // instant, not by the button actually being absent. Poll until at
-        // least one button surfaces, with a short upper bound so a truly
-        // empty dialog still fails in bounded time.
-        AutomationElement[] buttons = Array.Empty<AutomationElement>();
+        // collection before all of its child buttons have materialized in the
+        // UIAutomation tree. Buttons can also surface in stages — e.g. a
+        // TaskDialog with four custom buttons might present #1 and #3 first,
+        // then fill in #2 and #4 within tens of milliseconds. Polling once
+        // and looking by name would miss the target if the target is in the
+        // later batch. Poll for the SPECIFIC button by name (not just any
+        // button); on each iteration re-enumerate so newly-materialized
+        // buttons enter the candidate set. Fall through to a clear error
+        // (showing what WAS observed at the last enumeration) if the named
+        // button never appears.
+        AutomationElement? btn = null;
+        AutomationElement[] lastSeen = Array.Empty<AutomationElement>();
         var deadline = DateTime.UtcNow.AddSeconds(3);
         while (DateTime.UtcNow < deadline)
         {
-            buttons = dialog.FindAllDescendants(cf => cf.ByControlType(ControlType.Button));
-            if (buttons.Length > 0) break;
+            lastSeen = dialog.FindAllDescendants(cf => cf.ByControlType(ControlType.Button));
+            btn = lastSeen.FirstOrDefault(b =>
+                string.Equals(b.Name.Replace("&", ""), name, StringComparison.OrdinalIgnoreCase));
+            if (btn is not null) break;
             Thread.Sleep(50);
         }
 
-        var btn = buttons.FirstOrDefault(b =>
-                string.Equals(b.Name.Replace("&", ""), name, StringComparison.OrdinalIgnoreCase))
-            ?? throw new InvalidOperationException(
-                $"Button '{name}' not found in dialog '{dialog.Title}'. " +
-                $"Available: [{string.Join(", ", buttons.Select(b => b.Name))}]");
+        if (btn is null)
+            throw new InvalidOperationException(
+                $"Button '{name}' not found in dialog '{dialog.Title}' after polling for 3 seconds. " +
+                $"Last-observed buttons: [{string.Join(", ", lastSeen.Select(b => b.Name))}]");
+
         // Invoke (not Click) for dialog buttons: mouse-simulation coords can miss native
         // Win32 TaskDialog custom buttons, while IInvokePattern is coordinate-independent.
         btn.AsButton().Invoke();
