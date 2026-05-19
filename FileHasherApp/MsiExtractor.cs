@@ -162,7 +162,18 @@ internal sealed class MsiExtractor : IDisposable
             throw new IOException($"Could not determine drive root for temp path: {_extractDir}");
 
         var driveInfo = new DriveInfo(root);
-        long required = totalSize + _minFreeDiskBytes;
+
+        // Saturated addition: a caller passing a huge _minFreeDiskBytes (or a
+        // pathological MSI with a near-int64 totalSize) would otherwise wrap
+        // `required` to a negative value, and `AvailableFreeSpace < negative`
+        // is always false — silently turning the disk-space cap into a no-op.
+        // Detect the overflow ahead of the sum and clamp to long.MaxValue,
+        // which makes the comparison correctly fire because no real disk
+        // reports that much free.
+        long required = (_minFreeDiskBytes > long.MaxValue - totalSize)
+            ? long.MaxValue
+            : totalSize + _minFreeDiskBytes;
+
         if (driveInfo.AvailableFreeSpace < required)
             throw new IOException(
                 $"Insufficient free disk space on {driveInfo.Name}: need {required:N0} bytes (payload + safety margin), have {driveInfo.AvailableFreeSpace:N0}.");
