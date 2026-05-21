@@ -170,6 +170,36 @@ public sealed class MsiExtractorTests
         }
     }
 
+    // ── ResolveDisplayPath: well-known MSI Directory-table identifier mapping ──
+
+    [Theory]
+    // PFiles64 / ProgramFiles64Folder both map to "Program Files" on a 64-bit Windows install.
+    [InlineData(@"PFiles64\foo.exe",                    @"Program Files\foo.exe",       "PFiles64")]
+    [InlineData(@"ProgramFiles64Folder\sub\foo.exe",    @"Program Files\sub\foo.exe",   "ProgramFiles64Folder")]
+    // PFiles / ProgramFilesFolder map to the 32-bit "Program Files (x86)".
+    [InlineData(@"PFiles\foo.exe",                      @"Program Files (x86)\foo.exe", "PFiles")]
+    [InlineData(@"ProgramFilesFolder\app\foo.exe",      @"Program Files (x86)\app\foo.exe", "ProgramFilesFolder")]
+    // Other common well-known shell folders.
+    [InlineData(@"WindowsFolder\sysmon.exe",            @"Windows\sysmon.exe",          "WindowsFolder")]
+    [InlineData(@"SystemFolder\cmd.exe",                @"Windows\System32\cmd.exe",    "SystemFolder")]
+    [InlineData(@"FontsFolder\arial.ttf",               @"Windows\Fonts\arial.ttf",     "FontsFolder")]
+    [InlineData(@"CommonFiles64Folder\shared.dll",      @"Program Files\Common Files\shared.dll", "CommonFiles64Folder")]
+    // TARGETDIR maps to empty string — the identifier is dropped from the displayed path entirely.
+    [InlineData(@"TARGETDIR\foo.exe",                   @"foo.exe",                     "TARGETDIR")]
+    // Unknown identifier (an MSI author's custom name like INSTALLDIR): path is preserved verbatim,
+    // identifier is still surfaced for audit display.
+    [InlineData(@"INSTALLDIR\sub\foo.exe",              @"INSTALLDIR\sub\foo.exe",      "INSTALLDIR")]
+    [InlineData(@"MyCustomFolder\bar.exe",              @"MyCustomFolder\bar.exe",      "MyCustomFolder")]
+    // Edge cases: bare filename and empty input — no identifier to surface.
+    [InlineData(@"bare-file.exe",                       @"bare-file.exe",               null)]
+    [InlineData(@"",                                    @"",                            null)]
+    public void ResolveDisplayPath_Cases(string input, string expectedDisplay, string? expectedId)
+    {
+        var (display, id) = MsiExtractor.ResolveDisplayPath(input);
+        Assert.Equal(expectedDisplay, display);
+        Assert.Equal(expectedId, id);
+    }
+
     // ── Lifecycle / sanity ──
 
     [Fact]

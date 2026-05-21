@@ -96,6 +96,10 @@ Covered:
 - `AllTypesChk_DisabledWhenMsiFileSelectedAndDescendOff` — AllTypes stays disabled when MSI scan is off.
 - `MsiInnerScan_TempDirCleanedUpAfterRun` — no `FileHasher_msi_*` directories leak under `%TEMP%` after a normal run.
 - `MsiInnerScan_CsvHasContainerAndMsiDirectoryIdColumns` — CSV header contains both new columns and at least one row populates Container.
+- `MsiInnerScan_AllTypesOff_OnlyHashesExeAndMsiInnerFiles` — with AllTypes off, only the 6 `.exe` files inside the fixture surface as inner rows (7 total rows including the outer MSI).
+- `MsiInnerScan_AllTypesOn_HashesEveryInnerFile` — with AllTypes on, all 9 inner files of the fixture surface (10 total rows including the outer MSI).
+- `MsiInnerScan_WithSidecarsOn_OnlyWritesSidecarForOuterMsi` — sidecar writes for top-level files happen as usual; inner files generate no sidecars (they live in a temp dir that is deleted right after the inner-file pass).
+- `MsiInnerScan_FolderWithMultipleMsis_EachExtractsAndCleansSeparately` — scanning a folder containing two MSIs produces 2 outer + 12 inner rows = 14 total (AllTypes off), and both per-MSI temp directories are cleaned up.
 
 A second test class `MsiExtractorTests` exercises `MsiExtractor` directly as a unit (via `InternalsVisibleTo`), covering the security guards without needing the UI or adversarial MSI fixtures:
 
@@ -105,6 +109,7 @@ A second test class `MsiExtractorTests` exercises `MsiExtractor` directly as a u
 - `IsReparsePoint_RegularFile_ReturnsFalse` — sanity check for the negative case.
 - `IsReparsePoint_Symlink_ReturnsTrue` — creates an actual symlink in the test temp directory and asserts the reparse-point bit is detected. Requires the test process to have `SeCreateSymbolicLinkPrivilege` (admin or Developer Mode); skip-by-early-return with a stderr message when the privilege is missing.
 - `Dispose_RemovesExtractDirectory_AfterSuccessfulExtraction` / `ExtractAsync_NonExistentMsi_ThrowsFileNotFound` — lifecycle sanity.
+- `ResolveDisplayPath_Cases` — Theory covering 13 inputs against the MSI Directory-table identifier resolver: standard `PFiles64`/`ProgramFiles64Folder` → `Program Files`, `PFiles`/`ProgramFilesFolder` → `Program Files (x86)`, `WindowsFolder`/`SystemFolder`/`FontsFolder`/`CommonFiles64Folder` → their expected Windows shell paths, `TARGETDIR` → stripped entirely (empty identifier), custom non-well-known identifiers (e.g. `INSTALLDIR`) → passed through verbatim with the identifier still surfaced for audit display, plus bare-filename and empty-input edge cases.
 
 These required a small refactor on `MsiExtractor.cs`: the reparse-point and path-traversal inline guards in `ExtractAsync`'s post-extraction loop were extracted into `internal static` helpers (`IsReparsePoint` and `IsPathOutsideDirectory`). Production behavior is unchanged — the loop calls the same predicates, in the same order, against the same data — they're just addressable from tests now.
 

@@ -182,6 +182,132 @@ public sealed class MainFormMsiInnerScanTests : IDisposable
         }
     }
 
+    // ── AllTypes interaction with inner-file filtering ───────────────────────
+    //
+    // Fixture contents (msi-test.msi): 6 .exe files + 2 .jpg + 1 .txt = 9 inner files.
+    // AllTypes off keeps the default .exe/.msi-only filter, so only the 6 .exe rows
+    // appear; AllTypes on lifts the filter and all 9 inner files surface.
+
+    [Fact]
+    public void MsiInnerScan_AllTypesOff_OnlyHashesExeAndMsiInnerFiles()
+    {
+        AssertFixturePresent();
+        EnableMsiScan();
+        // Leave AllTypes off (its default state).
+        TestHelpers.RunHashOnFile(Win, FixtureMsiPath);
+
+        // 1 outer MSI row + 6 inner .exe rows = 7 total.
+        Assert.Equal(7, TestHelpers.GetResultsRowCount(Win));
+    }
+
+    [Fact]
+    public void MsiInnerScan_AllTypesOn_HashesEveryInnerFile()
+    {
+        AssertFixturePresent();
+        EnableMsiScan();
+
+        // Set the path first (UpdateAllTypesEnabled needs to see an .msi file
+        // selected with MsiChk on before AllTypesChk becomes enable-able).
+        Win.FindFirstDescendant(cf => cf.ByAutomationId("PathBox")).AsTextBox().Text = FixtureMsiPath;
+        var allTypes = Win.FindFirstDescendant(cf => cf.ByAutomationId("AllTypesChk")).AsCheckBox();
+        Assert.True(TestHelpers.WaitUntilEnabled(allTypes, TimeSpan.FromSeconds(2)),
+            "AllTypes checkbox should be enabled after setting an .msi path with MsiScan on.");
+        allTypes.Toggle();
+
+        Win.FindFirstDescendant(cf => cf.ByAutomationId("RunBtn")).AsButton().Click();
+        TestHelpers.DismissFirstButton(TestHelpers.WaitForModal(Win, TimeSpan.FromSeconds(30)));
+
+        // 1 outer MSI row + 9 inner rows (6 exe + 2 jpg + 1 txt) = 10 total.
+        Assert.Equal(10, TestHelpers.GetResultsRowCount(Win));
+    }
+
+    // ── Sidecar suppression for inner files ──────────────────────────────────
+
+    [Fact]
+    public void MsiInnerScan_WithSidecarsOn_OnlyWritesSidecarForOuterMsi()
+    {
+        AssertFixturePresent();
+
+        // Copy the fixture to a fresh, writable temp directory so the test doesn't
+        // pollute the test-bin fixtures/ folder with .sha256 files across runs.
+        var workDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(workDir);
+        var msiCopy = Path.Combine(workDir, "msi-test.msi");
+        File.Copy(FixtureMsiPath, msiCopy);
+        var expectedSidecar = msiCopy + ".sha256";
+
+        try
+        {
+            EnableMsiScan();
+            // Turn on sidecar writes (uses default .sha256 extension, sha256sum format).
+            var sidecarChk = Win.FindFirstDescendant(cf => cf.ByAutomationId("SidecarChk")).AsCheckBox();
+            if (sidecarChk.IsChecked != true) sidecarChk.Toggle();
+
+            TestHelpers.RunHashOnFile(Win, msiCopy);
+
+            // The outer MSI must have its sidecar written next to it on disk.
+            Assert.True(File.Exists(expectedSidecar),
+                $"Expected outer-MSI sidecar at '{expectedSidecar}'.");
+
+            // No phantom sidecars anywhere in the work dir — inner files live
+            // in a now-deleted temp dir, so nothing else should exist here.
+            var allSidecars = Directory.GetFiles(workDir, "*.sha256", SearchOption.AllDirectories);
+            Assert.Single(allSidecars);
+
+            // And no leaked FileHasher_msi_* temp dir under %TEMP%.
+            var leakedTempDirs = Directory.GetDirectories(Path.GetTempPath(), "FileHasher_msi_*")
+                .Where(d => Directory.GetCreationTime(d) > DateTime.Now.AddMinutes(-5))
+                .ToList();
+            Assert.Empty(leakedTempDirs);
+        }
+        finally
+        {
+            if (Directory.Exists(workDir)) Directory.Delete(workDir, recursive: true);
+        }
+    }
+
+    // ── Multi-MSI folder scan ────────────────────────────────────────────────
+
+    [Fact]
+    public void MsiInnerScan_FolderWithMultipleMsis_EachExtractsAndCleansSeparately()
+    {
+        AssertFixturePresent();
+
+        // Build a temp folder containing two copies of the fixture MSI under
+        // distinct names. This exercises the fan-out behavior: each MSI gets
+        // its own MsiExtractor instance, its own randomly-named temp dir, and
+        // its own cleanup on disposal.
+        var workDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(workDir);
+        File.Copy(FixtureMsiPath, Path.Combine(workDir, "msi-test-1.msi"));
+        File.Copy(FixtureMsiPath, Path.Combine(workDir, "msi-test-2.msi"));
+
+        try
+        {
+            EnableMsiScan();
+            Win.FindFirstDescendant(cf => cf.ByAutomationId("PathBox")).AsTextBox().Text = workDir;
+            // AllTypes stays off: folder enumeration picks .exe/.msi only (the only files in
+            // this folder are 2 .msi anyway), and inner files filter to .exe/.msi only.
+
+            Win.FindFirstDescendant(cf => cf.ByAutomationId("RunBtn")).AsButton().Click();
+            TestHelpers.DismissFirstButton(TestHelpers.WaitForModal(Win, TimeSpan.FromSeconds(60)));
+
+            // 2 outer MSI rows + 6 inner .exe rows per MSI × 2 = 14 total.
+            Assert.Equal(14, TestHelpers.GetResultsRowCount(Win));
+
+            // Both MSIs' temp dirs must be cleaned up — no FileHasher_msi_* dir
+            // freshly created in the last few minutes should remain.
+            var leakedTempDirs = Directory.GetDirectories(Path.GetTempPath(), "FileHasher_msi_*")
+                .Where(d => Directory.GetCreationTime(d) > DateTime.Now.AddMinutes(-5))
+                .ToList();
+            Assert.Empty(leakedTempDirs);
+        }
+        finally
+        {
+            if (Directory.Exists(workDir)) Directory.Delete(workDir, recursive: true);
+        }
+    }
+
     // ── helpers ──────────────────────────────────────────────────────────────
 
     private void EnableMsiScan()
