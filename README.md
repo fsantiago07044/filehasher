@@ -200,6 +200,17 @@ When checked, a CSV file is written after all files have been hashed. Click **Br
 
 ---
 
+**Hash files inside MSI installers (experimental)**
+When checked, every `.msi` file the worker encounters is also opened read-only via the Windows Installer database API, and the files contained inside it are hashed individually in addition to the MSI itself. Each inner file appears as its own results row prefixed with `[parent.msi]`, colored steel-blue, with the MSI's internal install path (e.g. `Program Files\msi-test\foo.exe`) in the **File Path** column and the raw MSI Directory-table identifier (e.g. `PFiles64`, `INSTALLDIR`) in a new **MSI Dir** column on the right. The CSV export gains optional `Container` and `MsiDirectoryId` columns when this option is on.
+
+The **Scan all file types** checkbox above also drives the inner-MSI filter: when unchecked, only `.exe` and `.msi` inner files are surfaced; when checked, every inner file regardless of extension. The checkbox stays enabled whenever the target is a folder OR an `.msi` file with this option on.
+
+The MSI is treated as data — the database is opened read-only and the contents extracted to a sandboxed per-MSI temp directory that's deleted as soon as hashing finishes. The installer is **not** executed.
+
+For the full security model (file-size / total-size / file-count / disk-headroom caps, path-traversal and reparse-point rejection, sibling-escape cleanup), the test-coverage layout across all three tiers, and the known limitations, see [`README-msi-inner-scan.md`](README-msi-inner-scan.md).
+
+---
+
 #### Running and stopping
 
 | Control | Behaviour |
