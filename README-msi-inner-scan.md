@@ -40,6 +40,7 @@ This feature handles potentially-untrusted MSI files. Every input is treated as 
 | Max file count               | 10,000                 | Caps the number of inner files; defends against inode-exhaustion / loop-blowup attacks.  |
 | Minimum free disk            | 1 GB headroom          | Pre-extraction check that the temp drive can hold the projected payload plus a margin.   |
 | Path-traversal guard         | always on              | Every extracted file's canonical path must remain strictly under the extract directory. Any escape is deleted and excluded. |
+| Sibling-escape guard         | always on              | The contents of the extract dir's parent are snapshotted immediately before extraction; any new sibling that appears during the extraction and isn't the extract dir itself is deleted afterward. Catches escapes via `Directory.DefaultDir` payloads like `..\..\evil_dir` that land *outside* the extract dir, where the path-traversal guard above (which only enumerates *inside* the extract dir) cannot see them. |
 | Reparse-point rejection      | always on              | Symlinks, junctions, and mount points found in the extracted tree are deleted before hashing. |
 | Cryptographically random temp dir | always on         | `Path.GetRandomFileName()` produces 11-char random names; unpredictable to other processes. |
 | Read-only MSI open           | always on              | The MSI database is opened `ReadOnly`; the underlying Windows Installer code does not run any installer logic. |

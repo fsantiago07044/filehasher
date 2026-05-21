@@ -322,12 +322,17 @@ public sealed class MsiExtractorTests
     {
         AssertFixturePresent();
         using var malicious = new MaliciousMsiBuilder(FixtureMsiPath);
-        // 3 GB > the 2 GB per-file cap default. The cap check reads only
-        // the declared FileSize column, so it doesn't matter that the cabinet
-        // doesn't actually contain 3 GB of data.
-        malicious.SetFirstFileSize((long)int.MaxValue);   // ~2 GB, just above the 2 GB cap
+        // MSI's FileSize column is a 32-bit DoubleInteger, so int.MaxValue
+        // (~2 GiB − 1 byte) is the largest declared size we can write — and
+        // that's actually just *under* the production default per-file cap
+        // (2 GiB). To observe the cap-trip against a real adversarial MSI
+        // input, pass a tighter cap to MsiExtractor here. The point of this
+        // test is "real adversarial input fires the cap path"; the absolute
+        // cap value isn't what's being exercised (the Tier-1 unit tests
+        // already cover that).
+        malicious.SetFirstFileSize(int.MaxValue);
 
-        using var extractor = new MsiExtractor();
+        using var extractor = new MsiExtractor(maxPerFileBytes: 1_000_000_000);   // 1 GB cap
         var ex = await Assert.ThrowsAsync<InvalidDataException>(
             () => extractor.ExtractAsync(malicious.Path, CancellationToken.None));
         Assert.Contains("per-file cap", ex.Message, StringComparison.OrdinalIgnoreCase);

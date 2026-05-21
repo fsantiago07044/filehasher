@@ -181,6 +181,24 @@ internal sealed class MsiExtractor : IDisposable
         // ── Phase 3: extract via WiX DTF InstallPackage ──────────────────────
         Directory.CreateDirectory(_extractDir);
 
+        // Snapshot the contents of the extract dir's parent immediately before
+        // extraction. WiX DTF's InstallPackage uses the MSI's Directory table
+        // to compute output paths, and a malicious DefaultDir like "..\..\foo"
+        // can cause it to create files or directories ALONGSIDE our extract
+        // dir rather than inside it. Phase 4's IsPathOutsideDirectory only
+        // sees what we enumerate from inside the extract dir, so it cannot
+        // catch sibling-level escapes on its own. By snapshotting beforehand
+        // we can compute the precise set of new siblings that appeared during
+        // extraction and treat them as escapes to be cleaned up.
+        var parentDir = Path.GetDirectoryName(_extractDir);
+        HashSet<string>? preExtractSiblings = null;
+        if (!string.IsNullOrEmpty(parentDir) && Directory.Exists(parentDir))
+        {
+            preExtractSiblings = new HashSet<string>(
+                Directory.EnumerateFileSystemEntries(parentDir),
+                StringComparer.OrdinalIgnoreCase);
+        }
+
         await Task.Run(() =>
         {
             // InstallPackage handles cabinet extraction (embedded cabs from
@@ -197,6 +215,25 @@ internal sealed class MsiExtractor : IDisposable
         }, ct);
 
         ct.ThrowIfCancellationRequested();
+
+        // ── Phase 3.5: clean up sibling-level escapes ────────────────────────
+        // Anything that appeared in the parent dir during our extraction and
+        // isn't our extract dir was created by WiX DTF following an adversarial
+        // Directory.DefaultDir or File.FileName value. Delete it. This is a
+        // best-effort cleanup — if another process happens to create a temp
+        // file in the same parent dir during our extraction window (rare in
+        // practice for a few-seconds-long extraction in %TEMP%), it could be
+        // caught by this sweep. The alternative — leaving the escape in place
+        // — is strictly worse.
+        if (preExtractSiblings is not null && !string.IsNullOrEmpty(parentDir))
+        {
+            foreach (var item in Directory.EnumerateFileSystemEntries(parentDir))
+            {
+                if (preExtractSiblings.Contains(item)) continue;
+                if (string.Equals(item, _extractDir, StringComparison.OrdinalIgnoreCase)) continue;
+                TryDeleteAny(item);
+            }
+        }
 
         // ── Phase 4: post-extraction validation per file ─────────────────────
         // Canonicalize the extract dir with a trailing separator so prefix
@@ -223,6 +260,33 @@ internal sealed class MsiExtractor : IDisposable
     {
         try { File.SetAttributes(path, FileAttributes.Normal); } catch { }
         try { File.Delete(path); } catch { }
+    }
+
+    /// <summary>
+    /// Deletes a filesystem entry whether it's a file, a directory, or doesn't
+    /// exist any more. Used by Phase 3.5 to clean up sibling-level escapes
+    /// without caring about which kind of entry WiX DTF created.
+    /// </summary>
+    private static void TryDeleteAny(string path)
+    {
+        try
+        {
+            if (Directory.Exists(path))
+            {
+                // Clear read-only flags so Directory.Delete doesn't choke.
+                foreach (var f in Directory.EnumerateFiles(path, "*", SearchOption.AllDirectories))
+                {
+                    try { File.SetAttributes(f, FileAttributes.Normal); } catch { /* best-effort */ }
+                }
+                Directory.Delete(path, recursive: true);
+            }
+            else if (File.Exists(path))
+            {
+                try { File.SetAttributes(path, FileAttributes.Normal); } catch { /* best-effort */ }
+                File.Delete(path);
+            }
+        }
+        catch { /* best-effort */ }
     }
 
     /// <summary>
