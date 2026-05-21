@@ -22,6 +22,21 @@
   </ItemGroup>
 
   <!--
+    EXPERIMENTAL (feature/msi-inner-scan branch). Project-reference the main
+    app so the unit tests in MsiExtractorTests can resolve the internal
+    MsiExtractor type via InternalsVisibleTo. The existing FlaUI integration
+    tests still launch the built FileHasher.exe out-of-process via FlaUI;
+    they don't depend on the project reference. AppFixture.FindExe walks up
+    from AppContext.BaseDirectory looking for the canonical exe in
+    FileHasherApp\bin\<config>\net8.0-windows\, so the duplicate that the
+    project reference drops next to the test assembly is incidental and
+    ignored at runtime.
+  -->
+  <ItemGroup>
+    <ProjectReference Include="..\FileHasherApp\FileHasherApp.csproj" />
+  </ItemGroup>
+
+  <!--
     NuGet audit suppressions for advisories reviewed and determined to not
     apply to this project's threat model. Keep this list in sync with the
     $suppressedAdvisories array in the audit job's script in .gitlab-ci.yml
@@ -39,6 +54,19 @@
       GDI+ paths described in the advisory. Reviewed 2026-05.
     -->
     <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-rxg9-xrhp-64gj" />
+  </ItemGroup>
+
+  <!--
+    EXPERIMENTAL (feature/msi-inner-scan branch). Test fixtures used by the
+    upcoming MSI inner-scan test class. The wildcard glob ships every file
+    under fixtures/ alongside the test assembly so tests can locate them via
+    Path.Combine(AppContext.BaseDirectory, "fixtures", "<name>"). Drop this
+    ItemGroup if the branch is abandoned.
+  -->
+  <ItemGroup>
+    <Content Include="fixtures\**\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
 
 </Project>

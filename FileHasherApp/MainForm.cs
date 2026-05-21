@@ -29,6 +29,7 @@ public sealed class MainForm : Form
     private readonly TextBox     _csvPathBox;
     private readonly Button      _csvBrowseBtn;
     private readonly Panel       _csvOptsPanel;
+    private readonly CheckBox    _msiChk;   // EXPERIMENTAL (feature/msi-inner-scan branch)
 
     // Actions
     private readonly Button _runAsAdminBtn;
@@ -42,7 +43,7 @@ public sealed class MainForm : Form
 
     // Results
     private readonly ListView    _resultsView;
-    private readonly ColumnHeader _colPath, _colHash, _colSize, _colModified;
+    private readonly ColumnHeader _colPath, _colHash, _colSize, _colModified, _colMsiDir;
 
     // Status strip
     private readonly ToolStripStatusLabel _logStripLabel;
@@ -154,6 +155,11 @@ public sealed class MainForm : Form
         _pathBox.DragEnter += PathBox_DragEnter;
         _pathBox.DragDrop  += PathBox_DragDrop;
 
+        // A typed or pasted path is just as much a target as a drag-dropped or
+        // browsed one; mirror the enable rule so the AllTypes checkbox reflects
+        // reality regardless of how the path got into the box.
+        _pathBox.TextChanged += (_, _) => UpdateAllTypesEnabled();
+
         _browseFileBtn.Click   += BrowseFile_Click;
         _browseFolderBtn.Click += BrowseFolder_Click;
 
@@ -183,7 +189,7 @@ public sealed class MainForm : Form
             Text   = "Options",
             Left   = M,
             Top    = gbAlgo.Bottom + G,
-            Height = 200,
+            Height = 226,   // bumped from 200 to fit the experimental MSI checkbox
             Anchor = AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Top
         };
 
@@ -264,8 +270,21 @@ public sealed class MainForm : Form
         _csvBrowseBtn.Click += BrowseCsv_Click;
         _csvOptsPanel.Controls.AddRange(new Control[] { _csvPathBox, _csvBrowseBtn });
 
+        _msiChk = new CheckBox
+        {
+            Name  = "MsiChk",
+            Text  = "Hash files inside MSI installers  (experimental)",
+            Left  = M,
+            Top   = 192,
+            Width = 400
+        };
+        // Toggling DescendIntoMsi can change whether the AllTypes filter is
+        // relevant (an MSI's inner contents may be a mixed bag), so re-evaluate
+        // the enable state of _allTypesChk whenever this option flips.
+        _msiChk.CheckedChanged += (_, _) => UpdateAllTypesEnabled();
+
         gbOptions.Controls.AddRange(new Control[]
-            { _metadataChk, _sidecarChk, _sidecarOptsPanel, _csvChk, _csvOptsPanel });
+            { _metadataChk, _sidecarChk, _sidecarOptsPanel, _csvChk, _csvOptsPanel, _msiChk });
 
         // --- Actions panel ---
         var actionsPanel = new Panel
@@ -353,6 +372,12 @@ public sealed class MainForm : Form
         _colHash     = new ColumnHeader { Text = "SHA256",         Width = 220 };
         _colSize     = new ColumnHeader { Text = "Size (bytes)",   Width = 95  };
         _colModified = new ColumnHeader { Text = "Modified (UTC)", Width = 145 };
+        // Always present; populated only for files extracted from an MSI when
+        // the experimental DescendIntoMsi option is on. The original raw MSI
+        // Directory-table identifier (PFiles64, ProgramFilesFolder, INSTALLDIR,
+        // etc.) appears here while the File Path column shows the resolved
+        // Windows-friendly equivalent ("Program Files\…").
+        _colMsiDir   = new ColumnHeader { Text = "MSI Dir",        Width = 120 };
 
         _resultsView = new ListView
         {
@@ -363,7 +388,7 @@ public sealed class MainForm : Form
             GridLines     = true,
             Font          = new Font("Consolas", 8.5F)
         };
-        _resultsView.Columns.AddRange(new[] { _colPath, _colHash, _colSize, _colModified });
+        _resultsView.Columns.AddRange(new[] { _colPath, _colHash, _colSize, _colModified, _colMsiDir });
 
         // ── Menu bar ─────────────────────────────────────────────────────────
 
@@ -448,8 +473,43 @@ public sealed class MainForm : Form
             return;
 
         var dropped = paths[0];
-        _pathBox.Text        = dropped;
-        _allTypesChk.Enabled = Directory.Exists(dropped);
+        _pathBox.Text = dropped;
+        UpdateAllTypesEnabled();
+    }
+
+    /// <summary>
+    /// Centralized rule for whether the AllTypes filter is meaningful for the
+    /// current target. AllTypes is meaningful when more than one file will be
+    /// hashed, which happens in three situations:
+    ///   • a folder is selected (recursive scan filters by extension),
+    ///   • an MSI file is selected and DescendIntoMsi is on (the MSI's inner
+    ///     contents are filtered the same way folder contents are),
+    ///   • anything else: AllTypes is irrelevant and the checkbox is greyed.
+    /// </summary>
+    private void UpdateAllTypesEnabled()
+    {
+        var path = _pathBox.Text.Trim();
+        if (string.IsNullOrEmpty(path))
+        {
+            _allTypesChk.Enabled = false;
+            return;
+        }
+
+        if (Directory.Exists(path))
+        {
+            _allTypesChk.Enabled = true;
+            return;
+        }
+
+        if (File.Exists(path) &&
+            path.EndsWith(".msi", StringComparison.OrdinalIgnoreCase) &&
+            _msiChk.Checked)
+        {
+            _allTypesChk.Enabled = true;
+            return;
+        }
+
+        _allTypesChk.Enabled = false;
     }
 
     // ── Browse / file-picker handlers ─────────────────────────────────────────
@@ -464,8 +524,8 @@ public sealed class MainForm : Form
         };
         if (dlg.ShowDialog(this) == DialogResult.OK)
         {
-            _pathBox.Text         = dlg.FileName;
-            _allTypesChk.Enabled  = false;  // irrelevant for a single file
+            _pathBox.Text = dlg.FileName;
+            UpdateAllTypesEnabled();
         }
     }
 
@@ -478,8 +538,8 @@ public sealed class MainForm : Form
         };
         if (dlg.ShowDialog(this) == DialogResult.OK)
         {
-            _pathBox.Text        = dlg.SelectedPath;
-            _allTypesChk.Enabled = true;
+            _pathBox.Text = dlg.SelectedPath;
+            UpdateAllTypesEnabled();
         }
     }
 
@@ -566,7 +626,8 @@ public sealed class MainForm : Form
             SidecarFormat:    _rdSha256Sum.Checked ? "sha256sum" : "hashonly",
             ExportCsv:        _csvChk.Checked,
             CsvPath:          _csvPathBox.Text.Trim(),
-            AllFileTypes:     _allTypesChk.Checked
+            AllFileTypes:     _allTypesChk.Checked,
+            DescendIntoMsi:   _msiChk.Checked
         );
 
         // ── Reset UI ─────────────────────────────────────────────────────────
@@ -754,13 +815,24 @@ public sealed class MainForm : Form
     {
         _allResults.Add(r);
 
-        var item = new ListViewItem(r.FilePath);
+        // Files extracted from an MSI come in with FilePath set to the
+        // installer-relative layout (e.g. "Program Files/Foo/bar.dll"). Prefix
+        // the display with the parent .msi's filename so the user can tell
+        // inner files apart from top-level ones at a glance.
+        var displayPath = r.Container is null
+            ? r.FilePath
+            : $"[{Path.GetFileName(r.Container)}] {r.FilePath}";
+
+        var item = new ListViewItem(displayPath);
         item.SubItems.Add(r.Success ? r.Hash : $"ERROR: {r.ErrorMessage}");
         item.SubItems.Add(r.Length.HasValue        ? r.Length.Value.ToString("N0")              : "");
         item.SubItems.Add(r.LastWriteUtc.HasValue  ? r.LastWriteUtc.Value.ToString("yyyy-MM-dd HH:mm:ss") : "");
+        item.SubItems.Add(r.MsiDirectoryId ?? "");
 
         if (!r.Success)
             item.ForeColor = Color.Firebrick;
+        else if (r.Container is not null)
+            item.ForeColor = Color.SteelBlue;   // visually distinguish inner-MSI files from top-level ones
 
         _resultsView.Items.Add(item);
     }
@@ -787,9 +859,11 @@ public sealed class MainForm : Form
             sb.Append(opts.Algorithm);
             if (opts.IncludeMetadata)
                 sb.Append(",LengthBytes,LastWriteUtc");
+            if (opts.DescendIntoMsi)
+                sb.Append(",Container,MsiDirectoryId");
             sb.AppendLine();
 
-            foreach (var r in _allResults.Where(r => r.Success).OrderBy(r => r.FilePath))
+            foreach (var r in _allResults.Where(r => r.Success).OrderBy(r => r.Container ?? "").ThenBy(r => r.FilePath))
             {
                 sb.Append(CsvEscape(r.FilePath));
                 sb.Append(',');
@@ -800,6 +874,13 @@ public sealed class MainForm : Form
                     sb.Append(r.Length);
                     sb.Append(',');
                     sb.Append(r.LastWriteUtc?.ToString("yyyy-MM-ddTHH:mm:ssZ"));
+                }
+                if (opts.DescendIntoMsi)
+                {
+                    sb.Append(',');
+                    sb.Append(CsvEscape(r.Container ?? ""));
+                    sb.Append(',');
+                    sb.Append(CsvEscape(r.MsiDirectoryId ?? ""));
                 }
                 sb.AppendLine();
             }
