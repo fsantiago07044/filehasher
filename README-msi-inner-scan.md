@@ -113,9 +113,14 @@ A second test class `MsiExtractorTests` exercises `MsiExtractor` directly as a u
 
 These required a small refactor on `MsiExtractor.cs`: the reparse-point and path-traversal inline guards in `ExtractAsync`'s post-extraction loop were extracted into `internal static` helpers (`IsReparsePoint` and `IsPathOutsideDirectory`). Production behavior is unchanged — the loop calls the same predicates, in the same order, against the same data — they're just addressable from tests now.
 
-Still NOT covered — would need fully programmatic MSI synthesis via WiX DTF's `Database` create-mode + cabinet packing:
+Tier 3 — end-to-end adversarial MSI synthesis — is also now covered. The `MaliciousMsiBuilder` test helper copies the benign template fixture to a temp file and mutates specific table rows in place (via WiX DTF's `Database` in `Direct` open mode), producing a structurally well-formed but content-hostile MSI. Four tests exercise it against `MsiExtractor.ExtractAsync` directly:
 
-- `MsiInnerScan_MaliciousPath_EndToEnd` — synthesize an MSI whose Directory/File table entries actually try to escape, run it through the full `ExtractAsync` path, and assert nothing landed outside the extract dir. The Tier-2 guard tests above cover the rejection LOGIC; this would additionally cover "feeding adversarial input to the real WiX call doesn't slip past us." Roughly 150-250 lines of test infrastructure.
+- `Adversarial_PathTraversalInFileName_DoesNotEscapeSandbox` — flip the first File row's `FileName` to `..\..\evil.exe`, run the full extraction, assert every returned path is canonically under the extract dir, and confirm directly on disk that no `evil.exe` was created in the extract dir's parent within the last 30 seconds.
+- `Adversarial_PathTraversalInDirectoryDefaultDir_DoesNotEscapeSandbox` — flip a child Directory row's `DefaultDir` to `..\..\evil_dir`. Same pair of assertions, walking the extract dir's parent and grandparent for any `evil_dir` directory created recently.
+- `Adversarial_OversizeDeclaredFileSize_TripsPerFileCap` — flip the first File row's `FileSize` to `int.MaxValue` (~2 GB, just above the per-file cap). Assert `InvalidDataException` and that the temp dir was never created.
+- `Adversarial_TooManyFiles_TripsFileCountCap` — insert 10,000 synthetic File rows so the total exceeds the count cap. Same exception/no-temp-dir assertions.
+
+The path-traversal tests are the high-value ones: they additionally cover "feeding adversarial input to the real WiX DTF call doesn't slip past our guards" on top of the Tier-2 helper unit tests' coverage of the guard logic itself. The two cap tests are mostly insurance — they verify the cap-enforcement path works end-to-end from an actual-MSI input rather than from artificially-tight constructor parameters.
 
 Still NOT covered — known limitations, not bugs:
 

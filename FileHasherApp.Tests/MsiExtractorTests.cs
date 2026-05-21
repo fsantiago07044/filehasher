@@ -229,6 +229,130 @@ public sealed class MsiExtractorTests
             () => extractor.ExtractAsync(bogus, CancellationToken.None));
     }
 
+    // ── Tier 3: end-to-end adversarial MSI synthesis ──
+    //
+    // These tests use MaliciousMsiBuilder to fabricate genuinely-adversarial
+    // MSIs at runtime by copying the benign template fixture into a temp file
+    // and mutating specific table rows in place. The mutation goes through
+    // WiX DTF's Direct-mode database API and writes valid bytes — the MSI
+    // remains structurally well-formed and parseable, only its content is
+    // hostile.
+
+    [Fact]
+    public async Task Adversarial_PathTraversalInFileName_DoesNotEscapeSandbox()
+    {
+        AssertFixturePresent();
+        using var malicious = new MaliciousMsiBuilder(FixtureMsiPath);
+        malicious.SetFirstFileName(@"..\..\evil.exe");
+
+        using var extractor = new MsiExtractor();
+        var safeFiles = await extractor.ExtractAsync(malicious.Path, CancellationToken.None);
+
+        // Every entry the extractor returns must canonically live under the
+        // extract directory. If WiX DTF actually wrote the file outside the
+        // sandbox, our Phase 4 IsPathOutsideDirectory guard would have deleted
+        // it and excluded it from this list. Either way: nothing in the
+        // returned set is unsafe.
+        var canonicalExtractDir = Path.GetFullPath(extractor.ExtractDirectory)
+            .TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+        foreach (var f in safeFiles)
+        {
+            Assert.StartsWith(canonicalExtractDir, f, StringComparison.OrdinalIgnoreCase);
+        }
+
+        // And confirm directly on disk that the malicious filename did not
+        // surface in the extract dir's parent (the obvious escape target for
+        // "..\..\evil.exe"). %TEMP% can contain stale "evil.exe" files from
+        // earlier failed runs, so qualify by recency: anything created in the
+        // last 30 seconds at that path is from THIS test.
+        var parentDir = Path.GetDirectoryName(extractor.ExtractDirectory)!;
+        var escapeCandidate = Path.Combine(parentDir, "evil.exe");
+        if (File.Exists(escapeCandidate))
+        {
+            var age = DateTime.UtcNow - File.GetCreationTimeUtc(escapeCandidate);
+            Assert.True(age > TimeSpan.FromSeconds(30),
+                $"Path-traversal entry escaped to {escapeCandidate} (created {age.TotalSeconds:F1}s ago).");
+        }
+    }
+
+    [Fact]
+    public async Task Adversarial_PathTraversalInDirectoryDefaultDir_DoesNotEscapeSandbox()
+    {
+        AssertFixturePresent();
+        using var malicious = new MaliciousMsiBuilder(FixtureMsiPath);
+        malicious.InjectDirectoryTraversal();
+
+        using var extractor = new MsiExtractor();
+        IReadOnlyList<string> safeFiles;
+        try
+        {
+            safeFiles = await extractor.ExtractAsync(malicious.Path, CancellationToken.None);
+        }
+        catch
+        {
+            // It is acceptable for WiX DTF to reject a malformed Directory
+            // table outright — that's a different correct outcome (extraction
+            // never produces anything to escape with). What matters is the
+            // negative property below.
+            safeFiles = Array.Empty<string>();
+        }
+
+        var canonicalExtractDir = Path.GetFullPath(extractor.ExtractDirectory)
+            .TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+        foreach (var f in safeFiles)
+        {
+            Assert.StartsWith(canonicalExtractDir, f, StringComparison.OrdinalIgnoreCase);
+        }
+
+        // Walk the extract dir's parent and grandparent for anything containing
+        // "evil_dir" in its path created in the last 30 seconds.
+        var parentDir = Path.GetDirectoryName(extractor.ExtractDirectory)!;
+        foreach (var probe in new[] { parentDir, Path.GetDirectoryName(parentDir) })
+        {
+            if (string.IsNullOrEmpty(probe) || !Directory.Exists(probe)) continue;
+            var hits = Directory.GetDirectories(probe, "evil_dir", SearchOption.TopDirectoryOnly)
+                .Where(d => DateTime.UtcNow - Directory.GetCreationTimeUtc(d) <= TimeSpan.FromSeconds(30))
+                .ToList();
+            Assert.Empty(hits);
+        }
+    }
+
+    [Fact]
+    public async Task Adversarial_OversizeDeclaredFileSize_TripsPerFileCap()
+    {
+        AssertFixturePresent();
+        using var malicious = new MaliciousMsiBuilder(FixtureMsiPath);
+        // 3 GB > the 2 GB per-file cap default. The cap check reads only
+        // the declared FileSize column, so it doesn't matter that the cabinet
+        // doesn't actually contain 3 GB of data.
+        malicious.SetFirstFileSize((long)int.MaxValue);   // ~2 GB, just above the 2 GB cap
+
+        using var extractor = new MsiExtractor();
+        var ex = await Assert.ThrowsAsync<InvalidDataException>(
+            () => extractor.ExtractAsync(malicious.Path, CancellationToken.None));
+        Assert.Contains("per-file cap", ex.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.False(Directory.Exists(extractor.ExtractDirectory),
+            "Cap rejection must occur before the temp dir is created.");
+    }
+
+    [Fact]
+    public async Task Adversarial_TooManyFiles_TripsFileCountCap()
+    {
+        AssertFixturePresent();
+        using var malicious = new MaliciousMsiBuilder(FixtureMsiPath);
+        // Default file-count cap is 10_000. Template has 9 rows; insert
+        // enough synthetic rows to put us above 10_000. The cap check reads
+        // only the count, so the synthetic rows don't need real cabinet
+        // backing.
+        malicious.InsertSyntheticFileRows(10_000);
+
+        using var extractor = new MsiExtractor();
+        var ex = await Assert.ThrowsAsync<InvalidDataException>(
+            () => extractor.ExtractAsync(malicious.Path, CancellationToken.None));
+        Assert.Contains("cap of 10,000", ex.Message);
+        Assert.False(Directory.Exists(extractor.ExtractDirectory));
+    }
+
     // ── helpers ──
 
     private static void AssertFixturePresent()
