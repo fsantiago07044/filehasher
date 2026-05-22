@@ -3,10 +3,10 @@
 The build, sign, and release pipeline (`.gitlab-ci.yml` at the repo root) runs across two
 GitLab Runners on the local LAN.
 
-| Runner tag       | Host                          | Stages it runs                 |
-|------------------|-------------------------------|--------------------------------|
-| `windows`        | Windows Server 2025 VM        | `audit`, `build`, `test`       |
-| `linux-signer`   | Ubuntu 24.04 host (HSM token) | `sign`, `release`              |
+| Runner tag       | Host                          | Stages it runs                              |
+|------------------|-------------------------------|---------------------------------------------|
+| `windows`        | Windows Server 2025 VM        | `audit`, `build`, `test`                    |
+| `linux-signer`   | Ubuntu 24.04 host (HSM token) | `sign`, `release`, `mirror`                 |
 
 Both runners pull from `https://internal-host/`, so neither host needs inbound
 connectivity. Outbound HTTPS to the GitLab server is the only network requirement; the
@@ -15,10 +15,10 @@ Linux signer additionally needs outbound access to the timestamp authority
 
 ## Pipeline triggers
 
-| Trigger                                | What runs                                 | `latest` symlinks | GitLab Release |
-|----------------------------------------|-------------------------------------------|-------------------|----------------|
-| Push a tag matching `vMAJOR.MINOR.PATCH` | `audit → build → test → sign → release` | updated           | created        |
-| "Run pipeline" web button (any ref)    | `audit → build → test → sign`             | unchanged         | not created    |
+| Trigger                                | What runs                                          | `latest` symlinks | GitLab Release | GitHub Release |
+|----------------------------------------|----------------------------------------------------|-------------------|----------------|----------------|
+| Push a tag matching `vMAJOR.MINOR.PATCH` | `audit → build → test → sign → release → mirror` | updated           | created        | created (mirrored) |
+| "Run pipeline" web button (any ref)    | `audit → build → test → sign`                      | unchanged         | not created    | not created    |
 
 Manual web-button runs produce output suffixed with `-build.<short_sha>` so they cannot
 overwrite an official release artifact.
@@ -28,6 +28,17 @@ solution to surface NuGet dependencies with known CVEs (queried from the GitHub 
 Database at restore time). It is marked `allow_failure: true` — findings show as a yellow
 warning on the pipeline summary, never blocking a release on their own. The intent is
 visibility, not gating; reviewing those warnings is a manual step on the maintainer.
+
+The `mirror` stage runs `ci/mirror-to-github.sh` and creates a GitHub Release on the
+configured mirror repo (currently `fsantiago07044/filehasher`, hardcoded in the script)
+with the same four signed assets that the prior `release` stage attached to the GitLab
+Release. The git history and tags are mirrored separately via GitLab's built-in push
+mirror (Settings → Repository → Mirroring repositories). The `mirror` stage is marked
+`allow_failure: true` — if `gh release create` fails for any reason (PAT expired, GitHub
+down, mirror push hasn't propagated the tag yet, etc.) the stage shows a yellow warning
+but the overall release is still considered successful. Retry the mirror job to upload
+to GitHub after fixing the underlying issue; the script is idempotent (uses `gh release
+view` + `gh release upload --clobber` on retry).
 
 To explicitly silence an advisory after reviewing it and judging it not to apply, add its
 GitHub Advisory URL to **two** places:
@@ -257,6 +268,41 @@ gitlab-runner install --user root
 gitlab-runner start
 systemctl status gitlab-runner
 ```
+
+### GitHub release mirroring (one-time)
+
+The `mirror` stage uses the `gh` CLI on the Linux signer host to push each `vX.Y.Z`
+release to the GitHub mirror repo as a GitHub Release with the same four signed assets
+that the prior `release` stage published to GitLab. The GitLab → GitHub git history /
+tag mirror itself is set up via GitLab UI (Settings → Repository → Mirroring repositories)
+and is independent of this stage; the script here only handles the asset-side gap.
+
+```sh
+# 1. Install gh CLI on the signer host (as root).
+mkdir -p -m 755 /etc/apt/keyrings
+curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | \
+  tee /etc/apt/keyrings/githubcli-archive-keyring.gpg > /dev/null
+chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | \
+  tee /etc/apt/sources.list.d/github-cli.list > /dev/null
+apt update
+apt install -y gh
+
+# 2. Generate a fine-grained PAT at https://github.com/settings/personal-access-tokens/new
+#      Repository access:    Only select repositories → the FileHasher mirror repo
+#      Repository permissions: Contents = Read and write
+#    Copy the token (starts with github_pat_) — GitHub only shows it once.
+
+# 3. Authenticate gh against github.com as root. The token persists to
+#    /root/.config/gh/hosts.yml, where the gitlab-runner (which also runs as
+#    root) picks it up automatically when the mirror job invokes gh.
+echo "<paste-the-PAT-here>" | gh auth login --with-token
+gh auth status   # verify
+```
+
+The mirror target repo is hardcoded as `GITHUB_REPO` near the top of
+`ci/mirror-to-github.sh`; edit there if the mirror moves. PAT rotation: re-run step 3
+with a fresh token when the existing one expires — no GitLab-side config to update.
 
 ### GitLab project settings
 

@@ -5,14 +5,18 @@
 # Triggers
 # ────────
 #   • A pushed tag matching   vMAJOR.MINOR.PATCH   → full pipeline
-#       audit → build → test → sign → release
+#       audit → build → test → sign → release → mirror
 #     Produces signed deliverables under /src/filehasher/signed-builds/ on the
-#     Linux signer host AND a GitLab Release with package assets attached.
+#     Linux signer host, a GitLab Release with package assets attached, AND a
+#     mirrored GitHub Release on the configured target repo with the same
+#     four signed assets. The mirror stage is allow_failure: true — a GitHub
+#     outage or expired PAT surfaces as a yellow warning but doesn't fail the
+#     overall release.
 #
 #   • The "Run pipeline" web button (any ref) → audit → build → test → sign
 #     Useful for re-signing or ad-hoc builds. The output filename is suffixed
 #     with -build.<short_sha>, the FileHasher-latest.* symlinks are NOT touched,
-#     and no GitLab Release is created.
+#     and no GitLab Release or GitHub mirror is created.
 #
 # Stage order:
 #   • `audit` runs first as a quick supply-chain sanity check. It is marked
@@ -53,6 +57,7 @@ stages:
   - test
   - sign
   - release
+  - mirror
 
 workflow:
   rules:
@@ -254,3 +259,25 @@ release:
     - job: sign
   script:
     - bash ci/release.sh
+
+# ── MIRROR ───────────────────────────────────────────────────────────────────
+#
+# Pushes the same v${VERSION} release that the prior stage published to GitLab
+# to the GitHub mirror as a GitHub Release with the same four signed assets.
+# Uses gh CLI authenticated against /root/.config/gh/hosts.yml (one-time setup
+# documented in ci/README.md under "GitHub release mirroring"). Marked
+# allow_failure: true so a GitHub-side hiccup doesn't fail the overall release.
+
+mirror-github:
+  stage: mirror
+  tags:
+    - linux-signer
+  rules:
+    - if: '$CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+\.[0-9]+$/'
+  allow_failure: true
+  needs:
+    - job: build
+      artifacts: true
+    - job: release
+  script:
+    - bash ci/mirror-to-github.sh
