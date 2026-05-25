@@ -39,14 +39,15 @@
 #
 # Required CI/CD variables (Settings → CI/CD → Variables)
 # ───────────────────────────────────────────────────────
-#   HSM_PIN            — the PKCS#11 token PIN. Mark Masked AND Protected.
-#                        Protect tag refs matching v* so this variable is only
-#                        injected into release pipelines.
+#   HSM_PIN            — the PKCS#11 token PIN.
 #   SIGNING_BASE_PATH  — absolute path on the linux-signer host to the directory
-#                        holding chain.pem (the code-signing cert chain). Mark
-#                        Protected. Held in CI/CD variables rather than hardcoded
-#                        in this file so the path doesn't appear in the public
-#                        mirror.
+#                        holding chain.pem (the code-signing cert chain). Held
+#                        in CI/CD variables rather than hardcoded in this file
+#                        so the path doesn't appear in the public mirror.
+#
+# Both variables are marked Masked + Hidden + Protected. The v* tag glob is
+# added to Settings → Repository → Protected tags so they're only injected
+# into pipelines triggered by release tags.
 #
 # See ci/README.md for one-time runner setup instructions.
 

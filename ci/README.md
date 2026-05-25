@@ -308,20 +308,28 @@ with a fresh token when the existing one expires — no GitLab-side config to up
 
 In **Settings → CI/CD → Variables**, add:
 
-| Key                 | Value                                                            | Type     | Flags                     |
-|---------------------|------------------------------------------------------------------|----------|---------------------------|
-| `HSM_PIN`           | the PKCS#11 token PIN                                            | Variable | **Masked**, **Protected** |
-| `SIGNING_BASE_PATH` | absolute path on the signer host to the dir holding `chain.pem`  | Variable | **Protected**             |
+| Key                 | Value                                                            | Type     | Flags                                            |
+|---------------------|------------------------------------------------------------------|----------|--------------------------------------------------|
+| `HSM_PIN`           | the PKCS#11 token PIN                                            | Variable | **Masked**, **Hidden**, **Protected**            |
+| `SIGNING_BASE_PATH` | absolute path on the signer host to the dir holding `chain.pem`  | Variable | **Masked**, **Hidden**, **Protected**            |
 
-In **Settings → Repository → Protected tags**, add a wildcard `v*` so the masked +
-protected `HSM_PIN` and `SIGNING_BASE_PATH` are only injected into pipelines triggered
-by those tags.
+In **Settings → Repository → Protected tags**, add a wildcard `v*` so both variables
+are only injected into pipelines triggered by those tags.
 
 `SIGNING_BASE_PATH` is held in CI/CD variables (rather than hardcoded in
 `.gitlab-ci.yml`) so the internal disk layout of the signer host doesn't appear in the
-public-mirror copy of this repo. The path itself is operational, not secret, so
-**Masked** is not required (and may be refused by GitLab anyway for paths containing
-`/` characters); **Protected** is the meaningful flag.
+public-mirror copy of this repo. Both variables carry all three privacy flags:
+
+- **Masked** — redacts the value from job log output so a runaway echo or stack
+  trace cannot leak it into the pipeline logs.
+- **Hidden** — prevents the value from being viewable in the GitLab UI after
+  creation, even by project maintainers. The value can be replaced but not read
+  back; this protects against shoulder-surfing and stops the value from being
+  exposed if a maintainer account is later compromised.
+- **Protected** — restricts injection to pipelines running on protected refs
+  (the `v*` tag glob, plus `main`). A pipeline triggered from an unprotected
+  branch never sees the variable, and `ci/sign.sh`'s `require` check fails
+  fast in that case with a clear message.
 
 ## Releasing a new version
 
