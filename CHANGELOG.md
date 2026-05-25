@@ -11,6 +11,11 @@ result against `<Version>` in `FileHasherApp/FileHasherApp.csproj`.
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-05-25
+
+### Changed
+- Re-publish of v0.2.0 under a fresh tag. v0.2.0's tag name was permanently reserved on the GitHub mirror by GitHub's Immutable Releases policy during a history-signing cleanup, blocking the GitLab → GitHub mirror push for that one ref. v0.2.1 has no functional changes from v0.2.0; the source tree differs only in `<Version>` (`0.2.0` → `0.2.1`) and this CHANGELOG entry.
+
 ## [0.2.0] - 2026-05-22
 
 ### Added
@@ -61,7 +66,7 @@ result against `<Version>` in `FileHasherApp/FileHasherApp.csproj`.
 - Custom application icon and project metadata.
 - `.gitignore` covering standard .NET build output.
 
-[Unreleased]: https://github.com/fsantiago07044/filehasher/compare/v0.2.0...HEAD
-[0.2.0]: https://github.com/fsantiago07044/filehasher/compare/v0.1.1...v0.2.0
+[Unreleased]: https://github.com/fsantiago07044/filehasher/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/fsantiago07044/filehasher/compare/v0.1.1...v0.2.1
 [0.1.1]: https://github.com/fsantiago07044/filehasher/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/fsantiago07044/filehasher/releases/tag/v0.1.0
