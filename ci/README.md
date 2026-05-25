@@ -308,12 +308,20 @@ with a fresh token when the existing one expires — no GitLab-side config to up
 
 In **Settings → CI/CD → Variables**, add:
 
-| Key       | Value         | Type     | Flags                     |
-|-----------|---------------|----------|---------------------------|
-| `HSM_PIN` | the token PIN | Variable | **Masked**, **Protected** |
+| Key                 | Value                                                            | Type     | Flags                     |
+|---------------------|------------------------------------------------------------------|----------|---------------------------|
+| `HSM_PIN`           | the PKCS#11 token PIN                                            | Variable | **Masked**, **Protected** |
+| `SIGNING_BASE_PATH` | absolute path on the signer host to the dir holding `chain.pem`  | Variable | **Protected**             |
 
 In **Settings → Repository → Protected tags**, add a wildcard `v*` so the masked +
-protected `HSM_PIN` is only injected into pipelines triggered by those tags.
+protected `HSM_PIN` and `SIGNING_BASE_PATH` are only injected into pipelines triggered
+by those tags.
+
+`SIGNING_BASE_PATH` is held in CI/CD variables (rather than hardcoded in
+`.gitlab-ci.yml`) so the internal disk layout of the signer host doesn't appear in the
+public-mirror copy of this repo. The path itself is operational, not secret, so
+**Masked** is not required (and may be refused by GitLab anyway for paths containing
+`/` characters); **Protected** is the meaningful flag.
 
 ## Releasing a new version
 

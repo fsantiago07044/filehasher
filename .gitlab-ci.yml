@@ -34,14 +34,19 @@
 #   • Tag "windows"      — Windows Server runner, shell/powershell executor,
 #                          .NET 8 SDK, interactive desktop session for FlaUI.
 #   • Tag "linux-signer" — Ubuntu host with HSM token, osslsigncode, the cert
-#                          chain at /root/signing-directory/signing-dir,
-#                          release-cli, zip. Runs as root.
+#                          chain at the path configured via the SIGNING_BASE_PATH
+#                          CI/CD variable, release-cli, zip. Runs as root.
 #
 # Required CI/CD variables (Settings → CI/CD → Variables)
 # ───────────────────────────────────────────────────────
-#   HSM_PIN — the PKCS#11 token PIN. Mark Masked AND Protected. Protect tag
-#             refs matching v* so this variable is only injected into release
-#             pipelines.
+#   HSM_PIN            — the PKCS#11 token PIN. Mark Masked AND Protected.
+#                        Protect tag refs matching v* so this variable is only
+#                        injected into release pipelines.
+#   SIGNING_BASE_PATH  — absolute path on the linux-signer host to the directory
+#                        holding chain.pem (the code-signing cert chain). Mark
+#                        Protected. Held in CI/CD variables rather than hardcoded
+#                        in this file so the path doesn't appear in the public
+#                        mirror.
 #
 # See ci/README.md for one-time runner setup instructions.
 
@@ -230,7 +235,10 @@ sign:
     - job: test
   variables:
     OSSLSIGNCODE:  "/usr/local/bin/osslsigncode"
-    SIGNING_BASE:  "/root/signing-directory/signing-dir"
+    # SIGNING_BASE_PATH (absolute path to the dir holding chain.pem) is injected
+    # at job time as a Protected CI/CD variable from GitLab UI rather than
+    # hardcoded here, so the internal disk layout doesn't appear in the public
+    # mirror. See ci/README.md under "GitLab project settings" for the value.
     PKCS11_ENGINE: "/usr/lib/x86_64-linux-gnu/engines-3/pkcs11.so"
     PKCS11_MODULE: "/usr/lib/x86_64-linux-gnu/opensc-pkcs11.so"
     TIMESTAMP_URL: "http://timestamp.digicert.com"

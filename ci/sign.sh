@@ -7,7 +7,7 @@
 #   SIGNED_DIR      - destination for kept-forever signed deliverables
 #   VERSION         - e.g. 0.1.2 (from build.env)
 #   OSSLSIGNCODE    - path to osslsigncode
-#   SIGNING_BASE    - dir holding chain.pem
+#   SIGNING_BASE_PATH    - dir holding chain.pem
 #   PKCS11_ENGINE   - PKCS#11 engine .so
 #   PKCS11_MODULE   - PKCS#11 module .so
 #   TIMESTAMP_URL   - RFC3161 timestamp URL
@@ -44,7 +44,7 @@ require PUBLISH_DIR
 require SIGNED_DIR
 require VERSION
 require OSSLSIGNCODE
-require SIGNING_BASE
+require SIGNING_BASE_PATH
 require PKCS11_ENGINE
 require PKCS11_MODULE
 require TIMESTAMP_URL
@@ -64,7 +64,7 @@ fi
 UNSIGNED_EXE="${PUBLISH_DIR}/FileHasher.exe"
 [[ -f "$UNSIGNED_EXE" ]] || { echo "Unsigned executable not found at $UNSIGNED_EXE" >&2; exit 1; }
 [[ -x "$OSSLSIGNCODE" ]] || { echo "osslsigncode not executable at $OSSLSIGNCODE"  >&2; exit 1; }
-[[ -f "${SIGNING_BASE}/chain.pem" ]] || { echo "Cert chain not found at ${SIGNING_BASE}/chain.pem" >&2; exit 1; }
+[[ -f "${SIGNING_BASE_PATH}/chain.pem" ]] || { echo "Cert chain not found at ${SIGNING_BASE_PATH}/chain.pem" >&2; exit 1; }
 
 # PIN handling — written to a 0600 tempfile, shredded on exit. Never echo.
 PIN_FILE="$(mktemp)"
@@ -83,7 +83,7 @@ echo "Signing ${UNSIGNED_EXE}"
 "${OSSLSIGNCODE}" sign \
   -pkcs11engine "${PKCS11_ENGINE}" \
   -pkcs11module "${PKCS11_MODULE}" \
-  -certs        "${SIGNING_BASE}/chain.pem" \
+  -certs        "${SIGNING_BASE_PATH}/chain.pem" \
   -key          'pkcs11:id=%01;type=private' \
   -readpass     "${PIN_FILE}" \
   -n            "${SIGN_NAME}" \
