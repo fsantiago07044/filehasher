@@ -182,7 +182,8 @@ build:
         -p:DebugType=embedded `
         -p:Version=$version `
         -p:Deterministic=true `
-        -p:ContinuousIntegrationBuild=true
+        -p:ContinuousIntegrationBuild=true `
+        -p:PathMap="$($env:CI_PROJECT_DIR)=/_/"
       $code = $LASTEXITCODE
       Pop-Location
       if ($code -ne 0) { exit $code }
