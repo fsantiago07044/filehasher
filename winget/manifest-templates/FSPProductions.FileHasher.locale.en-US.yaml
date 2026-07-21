@@ -1,0 +1,31 @@
+# Default-locale manifest template for winget-pkgs.
+# Replace {VERSION} (e.g. 0.3.0). Static fields below should stay in sync with
+# the csproj metadata and installer/FileHasher.wxs (publisher, URLs, license).
+PackageIdentifier: FSPProductions.FileHasher
+PackageVersion: "{VERSION}"
+PackageLocale: en-US
+Publisher: FSP Productions, LLC
+PublisherUrl: https://www.fspproductions.com/software-projects
+PublisherSupportUrl: https://github.com/fsantiago07044/filehasher/issues
+PackageName: FileHasher
+PackageUrl: https://github.com/fsantiago07044/filehasher
+License: MIT
+LicenseUrl: https://github.com/fsantiago07044/filehasher/blob/main/LICENSE
+Copyright: Copyright © 2026 FSP Productions, LLC
+ShortDescription: Windows GUI utility to hash files and folders, write sidecar hash files, and export results to CSV.
+Description: |-
+  FileHasher computes cryptographic hashes for individual files or whole
+  folder trees, writes .sha256-style sidecar files, verifies existing
+  sidecars, and exports results to CSV. It can optionally open .msi installer
+  packages read-only and hash the files contained inside them individually.
+  Ships as a signed, self-contained single executable; no .NET runtime
+  install is required.
+Tags:
+  - hash
+  - sha256
+  - checksum
+  - integrity
+  - verification
+ReleaseNotesUrl: https://github.com/fsantiago07044/filehasher/releases/tag/v{VERSION}
+ManifestType: defaultLocale
+ManifestVersion: 1.6.0

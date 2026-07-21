@@ -3,8 +3,11 @@
 # ci/mirror-to-github.sh — runs in the `mirror` stage on the Linux signer runner.
 #
 # Mirrors the v${VERSION} release to GitHub by creating a GitHub Release on
-# the repo configured below with the same four signed assets that the prior
-# `release` stage published to GitLab. Uses the gh CLI, which finds its
+# the repo configured below with the same six signed assets that the prior
+# `release` stage published to GitLab. The MSI asset here matters beyond
+# mirroring: its GitHub download URL is what the winget manifest points at
+# (see winget/README.md), so a failed mirror also blocks the winget update
+# for that version. Uses the gh CLI, which finds its
 # authentication state in /root/.config/gh/hosts.yml — set up one-time via
 # `echo "<PAT>" | gh auth login --with-token` (see "GitHub release mirroring"
 # in ci/README.md).
@@ -41,8 +44,10 @@ EXE="FileHasher-${VERSION}.exe"
 EXE_SHA="FileHasher-${VERSION}.exe.sha256"
 ZIP="FileHasher-${VERSION}.zip"
 ZIP_SHA="FileHasher-${VERSION}.zip.sha256"
+MSI="FileHasher-${VERSION}.msi"
+MSI_SHA="FileHasher-${VERSION}.msi.sha256"
 
-for f in "$EXE" "$EXE_SHA" "$ZIP" "$ZIP_SHA"; do
+for f in "$EXE" "$EXE_SHA" "$ZIP" "$ZIP_SHA" "$MSI" "$MSI_SHA"; do
   [[ -f "${SIGNED_DIR}/${f}" ]] || { echo "Missing asset: ${SIGNED_DIR}/${f}" >&2; exit 1; }
 done
 
@@ -87,7 +92,9 @@ if gh release view "${CI_COMMIT_TAG}" --repo "${GITHUB_REPO}" >/dev/null 2>&1; t
     "${SIGNED_DIR}/${EXE}" \
     "${SIGNED_DIR}/${EXE_SHA}" \
     "${SIGNED_DIR}/${ZIP}" \
-    "${SIGNED_DIR}/${ZIP_SHA}"
+    "${SIGNED_DIR}/${ZIP_SHA}" \
+    "${SIGNED_DIR}/${MSI}" \
+    "${SIGNED_DIR}/${MSI_SHA}"
 else
   echo "Creating GitHub release ${CI_COMMIT_TAG} on ${GITHUB_REPO}..."
   gh release create "${CI_COMMIT_TAG}" \
@@ -98,7 +105,9 @@ else
     "${SIGNED_DIR}/${EXE}" \
     "${SIGNED_DIR}/${EXE_SHA}" \
     "${SIGNED_DIR}/${ZIP}" \
-    "${SIGNED_DIR}/${ZIP_SHA}"
+    "${SIGNED_DIR}/${ZIP_SHA}" \
+    "${SIGNED_DIR}/${MSI}" \
+    "${SIGNED_DIR}/${MSI_SHA}"
 fi
 
 echo "GitHub mirror complete: https://github.com/${GITHUB_REPO}/releases/tag/${CI_COMMIT_TAG}"

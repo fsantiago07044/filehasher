@@ -5,8 +5,8 @@ GitLab Runners on the local LAN.
 
 | Runner tag       | Host                          | Stages it runs                              |
 |------------------|-------------------------------|---------------------------------------------|
-| `windows`        | Windows Server 2025 VM        | `audit`, `build`, `test`                    |
-| `linux-signer`   | Ubuntu 24.04 host (HSM token) | `sign`, `release`, `mirror`                 |
+| `windows`        | Windows Server 2025 VM        | `audit`, `build`, `test`, `package-msi`     |
+| `linux-signer`   | Ubuntu 24.04 host (HSM token) | `sign`, `sign-msi`, `release`, `mirror`     |
 
 Both runners pull from `https://internal-host/`, so neither host needs inbound
 connectivity. Outbound HTTPS to the GitLab server is the only network requirement; the
@@ -17,8 +17,8 @@ Linux signer additionally needs outbound access to the timestamp authority
 
 | Trigger                                | What runs                                          | `latest` symlinks | GitLab Release | GitHub Release |
 |----------------------------------------|----------------------------------------------------|-------------------|----------------|----------------|
-| Push a tag matching `vMAJOR.MINOR.PATCH` | `audit → build → test → sign → release → mirror` | updated           | created        | created (mirrored) |
-| "Run pipeline" web button (any ref)    | `audit → build → test → sign`                      | unchanged         | not created    | not created    |
+| Push a tag matching `vMAJOR.MINOR.PATCH` | `audit → build → test → sign → package-msi → sign-msi → release → mirror` | updated           | created        | created (mirrored) |
+| "Run pipeline" web button (any ref)    | `audit → build → test → sign → package-msi → sign-msi` | unchanged         | not created    | not created    |
 
 Manual web-button runs produce output suffixed with `-build.<short_sha>` so they cannot
 overwrite an official release artifact.
@@ -31,7 +31,7 @@ visibility, not gating; reviewing those warnings is a manual step on the maintai
 
 The `mirror` stage runs `ci/mirror-to-github.sh` and creates a GitHub Release on the
 configured mirror repo (currently `fsantiago07044/filehasher`, hardcoded in the script)
-with the same four signed assets that the prior `release` stage attached to the GitLab
+with the same six signed assets that the prior `release` stage attached to the GitLab
 Release. The git history and tags are mirrored separately via GitLab's built-in push
 mirror (Settings → Repository → Mirroring repositories). The `mirror` stage is marked
 `allow_failure: true` — if `gh release create` fails for any reason (PAT expired, GitHub
@@ -83,6 +83,27 @@ dotnet --version
 If `winget` is unavailable on the freshly installed Server 2025, download the
 .NET 8 SDK x64 installer from <https://dotnet.microsoft.com/download/dotnet/8.0>
 and run it interactively.
+
+#### 1b. Install the WiX toolset
+
+The `package-msi` job builds the MSI on this runner with the `wix` CLI (a dotnet
+global tool) and ICE-validates it via `wix msi validate` — both are Windows-only
+(WiX refuses to run elsewhere: wixtoolset/issues#7154, closed not-planned).
+Install it **as the `gitlab-runner` user** (after step 2 creates it and you've
+signed in once), because dotnet global tools are per-user:
+
+```powershell
+# [as gitlab-runner]
+dotnet tool install --global wix --version "5.*"
+& "$env:USERPROFILE\.dotnet\tools\wix.exe" --version   # expect 5.x
+```
+
+The version is pinned to major 5 deliberately: WiX v6 and later require a
+per-host acceptance of the Open Source Maintenance Fee (OSMF) EULA before the
+tool will run, which is exactly the kind of silent CI dependency we don't
+want. `.gitlab-ci.yml` invokes the tool by its absolute path
+(`C:\Users\gitlab-runner\.dotnet\tools\wix.exe`) so PATH staleness in the
+runner session can't bite.
 
 #### 2. Create the runner user account
 
@@ -272,7 +293,7 @@ systemctl status gitlab-runner
 ### GitHub release mirroring (one-time)
 
 The `mirror` stage uses the `gh` CLI on the Linux signer host to push each `vX.Y.Z`
-release to the GitHub mirror repo as a GitHub Release with the same four signed assets
+release to the GitHub mirror repo as a GitHub Release with the same six signed assets
 that the prior `release` stage published to GitLab. The GitLab → GitHub git history /
 tag mirror itself is set up via GitLab UI (Settings → Repository → Mirroring repositories)
 and is independent of this stage; the script here only handles the asset-side gap.
@@ -343,11 +364,14 @@ public-mirror copy of this repo. Both variables carry all three privacy flags:
    git push origin vX.Y.Z
    ```
 5. Watch the pipeline. When `release` finishes:
-   - `/src/filehasher/signed-builds/FileHasher-X.Y.Z.{exe,exe.sha256,zip,zip.sha256}`
+   - `/src/filehasher/signed-builds/FileHasher-X.Y.Z.{exe,exe.sha256,zip,zip.sha256,msi,msi.sha256}`
      exist on the Ubuntu host.
    - `FileHasher-latest.*` symlinks point at the new files.
-   - A GitLab Release for `vX.Y.Z` exists with the four assets attached as Generic
+   - A GitLab Release for `vX.Y.Z` exists with the six assets attached as Generic
      Package links.
+6. Once `mirror-github` finishes, submit the version to winget — the manifest
+   points at the MSI's GitHub Release URL. Windows-side workflow in
+   [`../winget/README.md`](../winget/README.md).
 
 If the `test` job fails because the tag does not match `<Version>` in the csproj,
 fix the csproj or recreate the tag at the right commit and push again.

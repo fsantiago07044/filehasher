@@ -11,6 +11,9 @@ result against `<Version>` in `FileHasherApp/FileHasherApp.csproj`.
 
 ## [Unreleased]
 
+### Added
+- Signed MSI installer deliverable, built for distribution via **winget** (`winget install FSPProductions.FileHasher`) and usable standalone. New WiX authoring in `installer/FileHasher.wxs`: per-machine install to `Program Files\FileHasher`, Start Menu shortcut, Add/Remove Programs entry with icon, clean major-upgrade between versions. Two new pipeline stages implement the required signing order across the two runners — `package-msi` (Windows) wraps the already-signed exe in the MSI with the WiX 5.x toolset and runs full ICE validation, then `sign-msi` (Linux signer) Authenticode-signs the MSI itself (WiX only runs on Windows; the HSM only lives on the signer). The MSI and its `.sha256` sidecar join the existing four release assets on both the GitLab Release and the GitHub mirror (six assets total). New `winget/` folder documents the Windows-side submission workflow to `microsoft/winget-pkgs` (wingetcreate) with reviewable manifest templates. Windows runner gains a one-time prerequisite: the `wix` dotnet global tool, pinned to 5.x to avoid the v6+ OSMF EULA gate (see `ci/README.md`).
+
 ## [0.2.1] - 2026-05-25
 
 ### Changed

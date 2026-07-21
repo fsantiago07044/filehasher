@@ -1,0 +1,10 @@
+# Version manifest template for winget-pkgs.
+# Replace {VERSION} (e.g. 0.3.0). See winget/README.md for the full workflow —
+# wingetcreate generates all three manifests automatically; these templates
+# exist so the intended content is reviewable in-repo and so a manifest can be
+# hand-authored if wingetcreate is unavailable.
+PackageIdentifier: FSPProductions.FileHasher
+PackageVersion: "{VERSION}"
+DefaultLocale: en-US
+ManifestType: version
+ManifestVersion: 1.6.0

@@ -18,7 +18,10 @@
 #   CI_COMMIT_SHORT_SHA - always present
 #
 # Outputs (in CWD = $CI_PROJECT_DIR):
-#   signed-out/<basename>.exe                signed binary (CI artifact)
+#   signed-out/<basename>.exe                signed binary — published as a job
+#                                            artifact so the package-msi stage on
+#                                            the Windows runner can wrap it in the
+#                                            MSI (WiX refuses to run on Linux)
 #   signed-out/<basename>.exe.sha256         sidecar (sha256sum -b format)
 #   signed-out/<basename>.zip                publish dir bundled, exe replaced with signed
 #   signed-out/<basename>.zip.sha256         sidecar
@@ -26,6 +29,11 @@
 # Outputs (on disk, persistent):
 #   $SIGNED_DIR/<basename>.{exe,exe.sha256,zip,zip.sha256}
 #   $SIGNED_DIR/FileHasher-latest.{exe,exe.sha256,zip,zip.sha256}   (tag pipelines only)
+#
+# The MSI deliverable is NOT produced here: it must wrap the exe signed by this
+# script, and WiX only runs on Windows, so the pipeline continues
+# sign → package-msi (Windows, wix build + ICE validate) → sign-msi (back here
+# for the HSM). See ci/sign-msi.sh for the MSI's signing/persist step.
 #
 # <basename> is FileHasher-${VERSION} on tag pipelines, otherwise
 # FileHasher-${VERSION}-build.${CI_COMMIT_SHORT_SHA}.

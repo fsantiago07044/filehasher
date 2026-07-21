@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  installer/FileHasher.wxs — WiX (v4 schema, builds with the wix 5.x dotnet
+  tool; WiX only runs on Windows) authoring for the FileHasher MSI. Built by
+  the package-msi CI job on the Windows runner AFTER ci/sign.sh has
+  Authenticode-signed the exe, so the MSI always wraps the signed binary; the
+  MSI itself is then signed by ci/sign-msi.sh in a second osslsigncode pass on
+  the Linux signer. Built for winget distribution (winget requires a fully
+  silent install, which MSI provides natively via msiexec /qn) but equally
+  usable standalone.
+
+  Build (from the repo root, so the icon's relative SourceFile resolves):
+
+    wix build installer/FileHasher.wxs \
+      -arch x64 \
+      -d Version=<X.Y.Z> \
+      -d SignedExe=<path/to/signed/FileHasher.exe> \
+      -o <out.msi>
+
+  Preprocessor variables (both required, no defaults):
+    Version   — numeric MAJOR.MINOR.PATCH; becomes ProductVersion, which is
+                what Add/Remove Programs shows as DisplayVersion and what
+                winget matches PackageVersion against.
+    SignedExe — path to the already-signed self-contained FileHasher.exe.
+
+  Identity rules:
+    • UpgradeCode is FIXED FOREVER — it is how Windows Installer recognizes
+      two FileHasher MSIs as the same product across versions. Never change it.
+    • ProductCode is intentionally NOT set, so it regenerates on every build;
+      combined with <MajorUpgrade> this makes each new version cleanly replace
+      the previous install. The winget installer manifest pins each version's
+      ProductCode (wingetcreate reads it out of the MSI automatically).
+
+  No UI is authored: a double-click install shows only the progress bar and
+  installs to the default location, which matches how winget drives it
+  anyway. There is nothing to configure at install time.
+
+  ICE validation runs automatically in the package-msi job
+  (wix msi validate) and fails the pipeline on ICE errors.
+-->
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Package
+      Name="FileHasher"
+      Manufacturer="FSP Productions, LLC"
+      Version="$(var.Version)"
+      UpgradeCode="6807D22E-BD17-4210-BC20-E87DFCF44074"
+      Language="1033"
+      Scope="perMachine"
+      Compressed="yes">
+
+    <SummaryInformation
+        Description="FileHasher $(var.Version) installer"
+        Manufacturer="FSP Productions, LLC" />
+
+    <MajorUpgrade
+        DowngradeErrorMessage="A newer version of FileHasher is already installed. Uninstall it first to install this older version." />
+
+    <MediaTemplate EmbedCab="yes" />
+
+    <!--
+      Same .ico the app embeds; reused for the Start Menu shortcut and the
+      Add/Remove Programs entry (ARPPRODUCTICON). Path is relative to the
+      repo root because ci/sign.sh runs wix from $CI_PROJECT_DIR.
+    -->
+    <Icon Id="HashIcon.ico" SourceFile="FileHasherApp/assets/app-icon/hash-icon.ico" />
+    <Property Id="ARPPRODUCTICON" Value="HashIcon.ico" />
+    <Property Id="ARPURLINFOABOUT" Value="https://www.fspproductions.com/software-projects" />
+    <Property Id="ARPHELPLINK" Value="https://github.com/fsantiago07044/filehasher" />
+
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLFOLDER" Name="FileHasher" />
+    </StandardDirectory>
+
+    <ComponentGroup Id="ProductComponents" Directory="INSTALLFOLDER">
+      <Component Id="MainExecutable">
+        <!--
+          Name= renames the versioned signed artifact (FileHasher-X.Y.Z.exe)
+          back to its runtime name. The Shortcut is advertised so it can live
+          in this component with the File as KeyPath — the non-advertised
+          alternative needs a separate registry-KeyPath component (ICE38/43/57
+          territory) for zero user-visible benefit.
+        -->
+        <File Id="FileHasherExe" Source="$(var.SignedExe)" Name="FileHasher.exe" KeyPath="yes">
+          <Shortcut Id="StartMenuShortcut"
+                    Directory="ProgramMenuFolder"
+                    Name="FileHasher"
+                    Advertise="yes"
+                    Icon="HashIcon.ico"
+                    WorkingDirectory="INSTALLFOLDER" />
+        </File>
+      </Component>
+    </ComponentGroup>
+
+    <Feature Id="Main">
+      <ComponentGroupRef Id="ProductComponents" />
+    </Feature>
+  </Package>
+</Wix>

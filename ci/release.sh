@@ -42,13 +42,17 @@ ZIP_NAME="FileHasher-${VERSION}.zip"
 ZIP_SHA="FileHasher-${VERSION}.zip.sha256"
 EXE_NAME="FileHasher-${VERSION}.exe"
 EXE_SHA="FileHasher-${VERSION}.exe.sha256"
+MSI_NAME="FileHasher-${VERSION}.msi"
+MSI_SHA="FileHasher-${VERSION}.msi.sha256"
 
 ZIP_PATH="${SIGNED_DIR}/${ZIP_NAME}"
 ZIP_SHA_PATH="${SIGNED_DIR}/${ZIP_SHA}"
 EXE_PATH="${SIGNED_DIR}/${EXE_NAME}"
 EXE_SHA_PATH="${SIGNED_DIR}/${EXE_SHA}"
+MSI_PATH="${SIGNED_DIR}/${MSI_NAME}"
+MSI_SHA_PATH="${SIGNED_DIR}/${MSI_SHA}"
 
-for f in "$ZIP_PATH" "$ZIP_SHA_PATH" "$EXE_PATH" "$EXE_SHA_PATH"; do
+for f in "$ZIP_PATH" "$ZIP_SHA_PATH" "$EXE_PATH" "$EXE_SHA_PATH" "$MSI_PATH" "$MSI_SHA_PATH"; do
   [[ -f "$f" ]] || { echo "Missing release input: $f" >&2; exit 1; }
 done
 
@@ -67,6 +71,8 @@ upload "$ZIP_PATH"     "$ZIP_NAME"
 upload "$ZIP_SHA_PATH" "$ZIP_SHA"
 upload "$EXE_PATH"     "$EXE_NAME"
 upload "$EXE_SHA_PATH" "$EXE_SHA"
+upload "$MSI_PATH"     "$MSI_NAME"
+upload "$MSI_SHA_PATH" "$MSI_SHA"
 
 # Extract the [VERSION] section from CHANGELOG.md.
 NOTES_FILE="$(mktemp)"
@@ -93,6 +99,8 @@ release-cli create \
   --assets-link "{\"name\":\"${ZIP_NAME}\",\"url\":\"${PKG_BASE}/${ZIP_NAME}\",\"link_type\":\"package\"}" \
   --assets-link "{\"name\":\"${ZIP_SHA}\",\"url\":\"${PKG_BASE}/${ZIP_SHA}\",\"link_type\":\"other\"}" \
   --assets-link "{\"name\":\"${EXE_NAME}\",\"url\":\"${PKG_BASE}/${EXE_NAME}\",\"link_type\":\"package\"}" \
-  --assets-link "{\"name\":\"${EXE_SHA}\",\"url\":\"${PKG_BASE}/${EXE_SHA}\",\"link_type\":\"other\"}"
+  --assets-link "{\"name\":\"${EXE_SHA}\",\"url\":\"${PKG_BASE}/${EXE_SHA}\",\"link_type\":\"other\"}" \
+  --assets-link "{\"name\":\"${MSI_NAME}\",\"url\":\"${PKG_BASE}/${MSI_NAME}\",\"link_type\":\"package\"}" \
+  --assets-link "{\"name\":\"${MSI_SHA}\",\"url\":\"${PKG_BASE}/${MSI_SHA}\",\"link_type\":\"other\"}"
 
 echo "Release ${CI_COMMIT_TAG} created."

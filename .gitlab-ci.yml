@@ -5,18 +5,28 @@
 # Triggers
 # ────────
 #   • A pushed tag matching   vMAJOR.MINOR.PATCH   → full pipeline
-#       audit → build → test → sign → release → mirror
+#       audit → build → test → sign → package-msi → sign-msi → release → mirror
 #     Produces signed deliverables under /src/filehasher/signed-builds/ on the
-#     Linux signer host, a GitLab Release with package assets attached, AND a
-#     mirrored GitHub Release on the configured target repo with the same
-#     four signed assets. The mirror stage is allow_failure: true — a GitHub
-#     outage or expired PAT surfaces as a yellow warning but doesn't fail the
-#     overall release.
+#     Linux signer host (exe + zip + msi, each with a .sha256 sidecar), a
+#     GitLab Release with package assets attached, AND a mirrored GitHub
+#     Release on the configured target repo with the same six signed assets.
+#     The mirror stage is allow_failure: true — a GitHub outage or expired
+#     PAT surfaces as a yellow warning but doesn't fail the overall release.
 #
-#   • The "Run pipeline" web button (any ref) → audit → build → test → sign
+#   • The "Run pipeline" web button (any ref)
+#       → audit → build → test → sign → package-msi → sign-msi
 #     Useful for re-signing or ad-hoc builds. The output filename is suffixed
 #     with -build.<short_sha>, the FileHasher-latest.* symlinks are NOT touched,
 #     and no GitLab Release or GitHub mirror is created.
+#
+# MSI build topology (why the sign → package-msi → sign-msi ping-pong):
+#   The MSI must wrap the ALREADY-SIGNED exe and then be Authenticode-signed
+#   itself, and the two capabilities live on different hosts — the HSM is on
+#   the Linux signer, while WiX refuses to run anywhere but Windows
+#   (wixtoolset/issues#7154, closed not-planned). So the signed exe travels
+#   back to the Windows runner as a job artifact (~65 MB, under the server's
+#   100 MB artifact cap), wix builds + ICE-validates the MSI there, and the
+#   unsigned MSI returns to the signer for the second signing pass.
 #
 # Stage order:
 #   • `audit` runs first as a quick supply-chain sanity check. It is marked
@@ -32,7 +42,8 @@
 # Runners required
 # ────────────────
 #   • Tag "windows"      — Windows Server runner, shell/powershell executor,
-#                          .NET 8 SDK, interactive desktop session for FlaUI.
+#                          .NET 8 SDK, the wix dotnet tool (MSI build + ICE
+#                          validation), interactive desktop session for FlaUI.
 #   • Tag "linux-signer" — Ubuntu host with HSM token, osslsigncode, the cert
 #                          chain at the path configured via the SIGNING_BASE_PATH
 #                          CI/CD variable, release-cli, zip. Runs as root.
@@ -62,6 +73,8 @@ stages:
   - build
   - test
   - sign
+  - package-msi
+  - sign-msi
   - release
   - mirror
 
@@ -248,6 +261,96 @@ sign:
     SIGN_URL:      "https://www.fspproductions.com/software-projects"
   script:
     - bash ci/sign.sh
+  # Only the signed exe travels onward as an artifact — package-msi on the
+  # Windows runner needs it to build the MSI around it. The zip stays out to
+  # keep the artifact under the server's 100 MB cap (exe+zip ≈ 135 MB).
+  artifacts:
+    name: "FileHasher-$CI_COMMIT_SHORT_SHA-signed-exe"
+    paths:
+      - signed-out/FileHasher-*.exe
+    expire_in: 7 days
+
+# ── PACKAGE-MSI ──────────────────────────────────────────────────────────────
+#
+# Wraps the signed exe (artifact from the sign stage) in an MSI via WiX and
+# runs full ICE validation on it — `wix msi validate` needs Windows, which is
+# also why this job can't live on the signer. Output is UNSIGNED; the next
+# stage carries it back to the signer for the Authenticode pass. The wix CLI
+# is a dotnet global tool installed for the gitlab-runner user, pinned to
+# major version 5: v6+ requires accepting the Open Source Maintenance Fee
+# EULA per host, which we don't want as a silent CI dependency (see
+# ci/README.md "WiX toolset").
+
+package-msi:
+  stage: package-msi
+  tags:
+    - windows
+  needs:
+    - job: build      # build.env dotenv → $VERSION
+      artifacts: true
+    - job: sign       # signed-out/<basename>.exe
+      artifacts: true
+  variables:
+    WIX: 'C:\Users\gitlab-runner\.dotnet\tools\wix.exe'
+  script:
+    - |
+      if ($env:CI_COMMIT_TAG) {
+        $basename = "FileHasher-$env:VERSION"
+      } else {
+        $basename = "FileHasher-$env:VERSION-build.$env:CI_COMMIT_SHORT_SHA"
+      }
+      $signedExe = "signed-out/$basename.exe"
+      if (-not (Test-Path $signedExe)) {
+        Write-Error "Signed exe not found at $signedExe (sign-stage artifact missing?)"
+        exit 1
+      }
+      New-Item -ItemType Directory -Force msi-out | Out-Null
+
+      Write-Host "Building MSI from installer/FileHasher.wxs"
+      & $env:WIX build installer/FileHasher.wxs `
+        -arch x64 `
+        -d Version=$env:VERSION `
+        -d SignedExe=$signedExe `
+        -pdbtype none `
+        -o "msi-out/$basename-unsigned.msi"
+      if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      Write-Host "Running ICE validation"
+      & $env:WIX msi validate "msi-out/$basename-unsigned.msi"
+      if ($LASTEXITCODE -ne 0) {
+        Write-Error "ICE validation failed — fix installer/FileHasher.wxs before releasing."
+        exit $LASTEXITCODE
+      }
+  artifacts:
+    name: "FileHasher-$CI_COMMIT_SHORT_SHA-msi-unsigned"
+    paths:
+      - msi-out/
+    expire_in: 7 days
+
+# ── SIGN-MSI ─────────────────────────────────────────────────────────────────
+#
+# Second HSM pass: Authenticode-signs the MSI built by package-msi, writes the
+# .sha256 sidecar, and persists both to $SIGNED_DIR alongside the exe/zip from
+# the first sign stage (plus FileHasher-latest.msi* symlinks on tag pipelines).
+
+sign-msi:
+  stage: sign-msi
+  tags:
+    - linux-signer
+  needs:
+    - job: build
+      artifacts: true
+    - job: package-msi
+      artifacts: true
+  variables:
+    OSSLSIGNCODE:  "/usr/local/bin/osslsigncode"
+    PKCS11_ENGINE: "/usr/lib/x86_64-linux-gnu/engines-3/pkcs11.so"
+    PKCS11_MODULE: "/usr/lib/x86_64-linux-gnu/opensc-pkcs11.so"
+    TIMESTAMP_URL: "http://timestamp.digicert.com"
+    SIGN_NAME:     "FSP Productions LLC"
+    SIGN_URL:      "https://www.fspproductions.com/software-projects"
+  script:
+    - bash ci/sign-msi.sh
 
 # ── RELEASE ──────────────────────────────────────────────────────────────────
 #
@@ -267,13 +370,16 @@ release:
     - job: build
       artifacts: true
     - job: sign
+    - job: sign-msi
   script:
     - bash ci/release.sh
 
 # ── MIRROR ───────────────────────────────────────────────────────────────────
 #
 # Pushes the same v${VERSION} release that the prior stage published to GitLab
-# to the GitHub mirror as a GitHub Release with the same four signed assets.
+# to the GitHub mirror as a GitHub Release with the same six signed assets.
+# The MSI's GitHub download URL is the one the winget manifest pins, so a
+# failed mirror also blocks that version's winget submission (winget/README.md).
 # Uses gh CLI authenticated against /root/.config/gh/hosts.yml (one-time setup
 # documented in ci/README.md under "GitHub release mirroring"). Marked
 # allow_failure: true so a GitHub-side hiccup doesn't fail the overall release.
