@@ -11,8 +11,13 @@ result against `<Version>` in `FileHasherApp/FileHasherApp.csproj`.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-07-21
+
 ### Added
 - Signed MSI installer deliverable, built for distribution via **winget** (`winget install FSPProductions.FileHasher`) and usable standalone. New WiX authoring in `installer/FileHasher.wxs`: per-machine install to `Program Files\FileHasher`, Start Menu shortcut, Add/Remove Programs entry with icon, clean major-upgrade between versions. Two new pipeline stages implement the required signing order across the two runners — `package-msi` (Windows) wraps the already-signed exe in the MSI with the WiX 5.x toolset and runs full ICE validation, then `sign-msi` (Linux signer) Authenticode-signs the MSI itself (WiX only runs on Windows; the HSM only lives on the signer). The MSI and its `.sha256` sidecar join the existing four release assets on both the GitLab Release and the GitHub mirror (six assets total). New `winget/` folder documents the Windows-side submission workflow to `microsoft/winget-pkgs` (wingetcreate) with reviewable manifest templates. Windows runner gains a one-time prerequisite: the `wix` dotnet global tool, pinned to 5.x to avoid the v6+ OSMF EULA gate (see `ci/README.md`).
+
+### Changed
+- Linux signer host: retired the pre-2.2 custom osslsigncode build (couldn't sign MSI — built without libgsf) in favor of the distro's 2.8, symlinked at the pipeline's stable `/usr/local/bin/osslsigncode` path, and replaced the stock noble libp11 0.4.12 PKCS#11 engine (segfaults osslsigncode HSM signing with OpenSSL 3.0.13 — Ubuntu bug 2119094) with 0.4.20 built from source, with the distro package apt-mark held. Setup steps 4/4b/4c in `ci/README.md` document the new stack for a from-scratch rebuild.
 
 ## [0.2.1] - 2026-05-25
 
@@ -69,7 +74,8 @@ result against `<Version>` in `FileHasherApp/FileHasherApp.csproj`.
 - Custom application icon and project metadata.
 - `.gitignore` covering standard .NET build output.
 
-[Unreleased]: https://github.com/fsantiago07044/filehasher/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/fsantiago07044/filehasher/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/fsantiago07044/filehasher/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/fsantiago07044/filehasher/compare/v0.1.1...v0.2.1
 [0.1.1]: https://github.com/fsantiago07044/filehasher/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/fsantiago07044/filehasher/releases/tag/v0.1.0

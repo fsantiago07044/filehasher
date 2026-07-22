@@ -260,7 +260,27 @@ curl -L --output /usr/local/bin/release-cli \
 chmod +x /usr/local/bin/release-cli
 release-cli --version
 
-# 4. Confirm osslsigncode and the PKCS#11 stack are still in place.
+# 4. Install osslsigncode ≥ 2.2 (2.2 reimplemented MSI signing natively; older
+#    builds need libgsf and print "libgsf is not available, msi support is
+#    disabled" when ci/sign-msi.sh feeds them an MSI). The distro package is
+#    fine — /usr/local/bin/osslsigncode is a symlink to it so the pipeline's
+#    OSSLSIGNCODE path stays stable; the retired pre-2.2 custom build is kept
+#    at /usr/local/bin/osslsigncode-legacy.
+apt-get install -y osslsigncode
+ln -sfn /usr/bin/osslsigncode /usr/local/bin/osslsigncode
+
+# 4b. Fix the PKCS#11 engine. Stock noble libengine-pkcs11-openssl (libp11
+#     0.4.12) + OpenSSL 3.0.13 SEGFAULTS osslsigncode during HSM signing
+#     (Ubuntu bug 2119094 / Debian bug 1074764). Build current libp11 from
+#     source — its `make install` overwrites the system engine at
+#     /usr/lib/x86_64-linux-gnu/engines-3/pkcs11.so in place (configure
+#     auto-detects OpenSSL's enginesdir), so no pipeline paths change. Hold
+#     the distro package so an apt upgrade can't clobber the fixed engine.
+apt-get install -y build-essential autoconf automake libtool pkg-config libssl-dev
+git clone https://github.com/OpenSC/libp11 && (cd libp11 && ./bootstrap && ./configure && make && make install)
+apt-mark hold libengine-pkcs11-openssl
+
+# 4c. Confirm the signing stack is in place.
 test -x /usr/local/bin/osslsigncode
 test -f /usr/lib/x86_64-linux-gnu/engines-3/pkcs11.so
 test -f /usr/lib/x86_64-linux-gnu/opensc-pkcs11.so
