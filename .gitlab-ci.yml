@@ -5,7 +5,7 @@
 # Triggers
 # ────────
 #   • A pushed tag matching   vMAJOR.MINOR.PATCH   → full pipeline
-#       audit → build → test → sign → package-msi → sign-msi → release → mirror
+#       audit → build → test → sign → package-msi → sign-msi → release → mirror → winget
 #     Produces signed deliverables under /src/filehasher/signed-builds/ on the
 #     Linux signer host (exe + zip + msi, each with a .sha256 sidecar), a
 #     GitLab Release with package assets attached, AND a mirrored GitHub
@@ -77,6 +77,7 @@ stages:
   - sign-msi
   - release
   - mirror
+  - winget
 
 workflow:
   rules:
@@ -397,3 +398,89 @@ mirror-github:
     - job: release
   script:
     - bash ci/mirror-to-github.sh
+
+# ── WINGET ───────────────────────────────────────────────────────────────────
+#
+# Submits the new version to microsoft/winget-pkgs: wingetcreate downloads the
+# MSI from the GitHub Release (so this must run after mirror-github), computes
+# its SHA256, extracts the ProductCode, carries every other field over from
+# the previous version's merged manifests, and opens the PR from the
+# fsantiago07044 fork. Version-specific locale fields that would carry over
+# stale are patched between generate and submit: ReleaseNotesUrl is rewritten
+# to this tag and any freeform ReleaseNotes line is dropped (the CHANGELOG
+# lives at the URL). allow_failure like the mirror stage — a winget-side
+# failure yellow-flags the pipeline, and the manual fallback is documented in
+# winget/README.md. Note: needs on mirror-github still runs this job if that
+# allow_failure job failed; wingetcreate then fails fast on the missing asset
+# URL, which is the desired signal.
+#
+# One-time prerequisites (ci/README.md): wingetcreate.exe standalone on the
+# Windows runner (section 1c) and the WINGET_PAT Protected variable (classic
+# PAT, public_repo scope — wingetcreate needs it to push the manifest branch
+# to the winget-pkgs fork and open the upstream PR). The token is passed on
+# the command line, which is acceptable on this private single-user runner.
+
+winget-update:
+  stage: winget
+  tags:
+    - windows
+  rules:
+    - if: '$CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+\.[0-9]+$/'
+  allow_failure: true
+  needs:
+    - job: build
+      artifacts: true
+    - job: mirror-github
+  variables:
+    WINGETCREATE: 'C:\GitLab-Runner\tools\wingetcreate.exe'
+    PACKAGE_ID:   'FSPProductions.FileHasher'
+  script:
+    - |
+      if (-not $env:WINGET_PAT) {
+        Write-Error "WINGET_PAT is not set. It is a Protected CI/CD variable, injected only on protected refs — see ci/README.md."
+        exit 1
+      }
+      if (-not (Test-Path $env:WINGETCREATE)) {
+        Write-Error "wingetcreate not found at $env:WINGETCREATE — one-time install in ci/README.md section 1c."
+        exit 1
+      }
+      $url = "https://github.com/fsantiago07044/filehasher/releases/download/v$($env:VERSION)/FileHasher-$($env:VERSION).msi"
+
+      Write-Host "Generating winget manifests for $($env:PACKAGE_ID) $($env:VERSION)"
+      Write-Host "Installer URL: $url"
+      & $env:WINGETCREATE update $env:PACKAGE_ID --version $env:VERSION --urls $url --out winget-out --token $env:WINGET_PAT
+      if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      $manifestDir = "winget-out\manifests\f\FSPProductions\FileHasher\$($env:VERSION)"
+      if (-not (Test-Path $manifestDir)) {
+        Write-Error "Expected manifest directory not found: $manifestDir"
+        exit 1
+      }
+
+      # Patch version-specific locale fields carried over from the previous
+      # version's merged manifest. Assumes single-line values (which is what
+      # our manifests use); a future block-scalar ReleaseNotes would need a
+      # smarter edit than this line filter.
+      $locale = Join-Path $manifestDir "$($env:PACKAGE_ID).locale.en-US.yaml"
+      if (Test-Path $locale) {
+        $lines = Get-Content $locale |
+          Where-Object { $_ -notmatch '^ReleaseNotes:' } |
+          ForEach-Object {
+            if ($_ -match '^ReleaseNotesUrl:') {
+              "ReleaseNotesUrl: https://github.com/fsantiago07044/filehasher/releases/tag/v$($env:VERSION)"
+            } else { $_ }
+          }
+        Set-Content -Path $locale -Value $lines -Encoding utf8
+        Write-Host "Patched version-specific locale fields in $locale"
+      }
+
+      Write-Host "Submitting PR to microsoft/winget-pkgs"
+      & $env:WINGETCREATE submit --token $env:WINGET_PAT $manifestDir
+      if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+  # Keep the generated manifests for audit / manual resubmission on failure.
+  artifacts:
+    name: "FileHasher-$CI_COMMIT_SHORT_SHA-winget-manifests"
+    paths:
+      - winget-out/
+    expire_in: 30 days
+    when: always

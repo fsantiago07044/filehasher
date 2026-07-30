@@ -14,9 +14,20 @@ SHA256 of that version's signed MSI on the GitHub mirror
 tag pipeline (see [`../ci/README.md`](../ci/README.md)); the authoring lives
 in [`../installer/FileHasher.wxs`](../installer/FileHasher.wxs).
 
-**Every step in this document runs on the Windows box** (build host or any
-Windows 10/11 machine with winget). Nothing here touches the Mac or the CI
-hosts.
+**Per-release submission is automated.** The `winget-update` pipeline job
+(tag pipelines only, after `mirror-github`) runs `wingetcreate update` on the
+Windows runner, patches the version-specific locale fields (fresh
+`ReleaseNotesUrl`, drops carried-over `ReleaseNotes`), and opens the PR from
+the `fsantiago07044` winget-pkgs fork. Prerequisites are one-time
+(`wingetcreate.exe` on the runner, `WINGET_PAT` CI/CD variable — both in
+[`../ci/README.md`](../ci/README.md)). After each release, just watch the PR
+the job log links to. Everything below is the **manual fallback** for when
+that job yellow-flags (its generated manifests are attached as job artifacts,
+so `wingetcreate submit <folder>` on a fixed copy is usually all a recovery
+takes) — or for a first-time submission of a brand-new package.
+
+**Every manual step in this document runs on a Windows box** (build host or
+any Windows 10/11 machine with winget). Nothing here touches the Mac.
 
 ## One-time setup
 
@@ -39,7 +50,7 @@ errors, so any MSI that reaches a release has already passed. No manual
 validation step is needed; the functional smoke test below is the part that
 still deserves human eyes.
 
-## Per-release workflow
+## Manual fallback workflow (per release)
 
 Run after the tag pipeline's `mirror-github` job has finished (the manifest
 points at the GitHub Release asset, so it must exist and be final first —
@@ -115,7 +126,12 @@ GitHub releases on this repo are immutable).
   merged into `microsoft/winget-pkgs`. If a static field changes (publisher
   URL, description, license), update the template here and let `wingetcreate`
   prompt/carry it into the next submission.
-- This step can later be automated as a pipeline job on the Windows runner
-  (`wingetcreate update … --submit` is headless; PAT as a Masked + Hidden +
-  Protected CI/CD variable). Kept manual until a few versions have gone
-  through review cleanly.
+- wingetcreate's interactive prompts (first submission, 2026-07) had two
+  gotchas worth remembering: the PackageIdentifier auto-derived from the
+  publisher name came out as `FSPProductions,LLC.FileHasher` (comma baked in)
+  and had to be corrected manually, and the Tags prompt never splits input
+  into list items regardless of delimiter — enter a single placeholder tag,
+  decline auto-submit, hand-edit the saved locale YAML, then
+  `wingetcreate submit <folder>`. The automated `winget-update` job avoids
+  both by using non-interactive `wingetcreate update`, which carries fields
+  over from the previous merged manifests.

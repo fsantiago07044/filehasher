@@ -11,6 +11,9 @@ result against `<Version>` in `FileHasherApp/FileHasherApp.csproj`.
 
 ## [Unreleased]
 
+### Added
+- Automated winget submission: new `winget` pipeline stage (`winget-update` job, Windows runner, tag pipelines only, after `mirror-github`) runs `wingetcreate update` against the GitHub Release MSI, patches version-specific locale fields (fresh `ReleaseNotesUrl`, drops carried-over `ReleaseNotes`), and opens the `microsoft/winget-pkgs` PR from the `fsantiago07044` fork. `allow_failure: true` like the mirror stage; generated manifests are kept as job artifacts for audit/manual resubmission. One-time prerequisites: standalone `wingetcreate.exe` on the Windows runner and a `WINGET_PAT` Protected CI/CD variable (classic PAT, `public_repo`) — see `ci/README.md`. `winget/README.md`'s manual workflow is reframed as the fallback path. First exercised by the next `vX.Y.Z` tag.
+
 ## [0.3.0] - 2026-07-21
 
 ### Added

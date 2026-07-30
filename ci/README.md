@@ -5,7 +5,7 @@ GitLab Runners on the local LAN.
 
 | Runner tag       | Host                          | Stages it runs                              |
 |------------------|-------------------------------|---------------------------------------------|
-| `windows`        | Windows Server 2025 VM        | `audit`, `build`, `test`, `package-msi`     |
+| `windows`        | Windows Server 2025 VM        | `audit`, `build`, `test`, `package-msi`, `winget` |
 | `linux-signer`   | Ubuntu 24.04 host (HSM token) | `sign`, `sign-msi`, `release`, `mirror`     |
 
 Both runners pull from `https://internal-host/`, so neither host needs inbound
@@ -17,7 +17,7 @@ Linux signer additionally needs outbound access to the timestamp authority
 
 | Trigger                                | What runs                                          | `latest` symlinks | GitLab Release | GitHub Release |
 |----------------------------------------|----------------------------------------------------|-------------------|----------------|----------------|
-| Push a tag matching `vMAJOR.MINOR.PATCH` | `audit → build → test → sign → package-msi → sign-msi → release → mirror` | updated           | created        | created (mirrored) |
+| Push a tag matching `vMAJOR.MINOR.PATCH` | `audit → build → test → sign → package-msi → sign-msi → release → mirror → winget` | updated           | created        | created (mirrored) |
 | "Run pipeline" web button (any ref)    | `audit → build → test → sign → package-msi → sign-msi` | unchanged         | not created    | not created    |
 
 Manual web-button runs produce output suffixed with `-build.<short_sha>` so they cannot
@@ -104,6 +104,23 @@ tool will run, which is exactly the kind of silent CI dependency we don't
 want. `.gitlab-ci.yml` invokes the tool by its absolute path
 (`C:\Users\gitlab-runner\.dotnet\tools\wix.exe`) so PATH staleness in the
 runner session can't bite.
+
+#### 1c. Install wingetcreate (winget submission automation)
+
+The `winget-update` job submits each release to `microsoft/winget-pkgs` with
+`wingetcreate`. Use the standalone exe at a fixed path (no MSIX/user-PATH
+dependency); download as Administrator, the runner user only needs to execute
+it:
+
+```powershell
+New-Item -ItemType Directory -Force C:\GitLab-Runner\tools | Out-Null
+Invoke-WebRequest -Uri "https://aka.ms/wingetcreate/latest" -OutFile "C:\GitLab-Runner\tools\wingetcreate.exe"
+& C:\GitLab-Runner\tools\wingetcreate.exe --version
+```
+
+To update it later, re-run the download. The job references the tool via its
+`WINGETCREATE` variable in `.gitlab-ci.yml`; also see the `WINGET_PAT`
+variable under "GitLab project settings".
 
 #### 2. Create the runner user account
 
@@ -353,6 +370,14 @@ In **Settings → CI/CD → Variables**, add:
 |---------------------|------------------------------------------------------------------|----------|--------------------------------------------------|
 | `HSM_PIN`           | the PKCS#11 token PIN                                            | Variable | **Masked**, **Hidden**, **Protected**            |
 | `SIGNING_BASE_PATH` | absolute path on the signer host to the dir holding `chain.pem`  | Variable | **Masked**, **Hidden**, **Protected**            |
+| `WINGET_PAT`        | classic GitHub PAT (`public_repo` scope) on the `fsantiago07044` account, used by `winget-update` to push the manifest branch to the winget-pkgs fork and open the upstream PR | Variable | **Masked**, **Hidden**, **Protected**            |
+
+`WINGET_PAT` is deliberately a separate token from the mirror-stage PAT (which
+is a fine-grained token scoped to Contents on the mirror repo and lives in the
+signer's `gh` config): the winget token needs the classic `public_repo` scope
+because fine-grained tokens cannot open pull requests against repositories
+they don't own (`microsoft/winget-pkgs`). Rotate it in the GitLab variable
+when it expires; nothing on the runners stores it.
 
 In **Settings → Repository → Protected tags**, add a wildcard `v*` so both variables
 are only injected into pipelines triggered by those tags.
@@ -389,8 +414,11 @@ public-mirror copy of this repo. Both variables carry all three privacy flags:
    - `FileHasher-latest.*` symlinks point at the new files.
    - A GitLab Release for `vX.Y.Z` exists with the six assets attached as Generic
      Package links.
-6. Once `mirror-github` finishes, submit the version to winget — the manifest
-   points at the MSI's GitHub Release URL. Windows-side workflow in
+6. Once `mirror-github` finishes, the `winget-update` job automatically opens
+   the version's PR against `microsoft/winget-pkgs` (the job log prints the PR
+   URL). Watch it for `Needs-Author-Feedback` labels; version updates usually
+   merge within hours. If the job yellow-flags, the generated manifests are
+   attached as job artifacts and the manual fallback workflow is in
    [`../winget/README.md`](../winget/README.md).
 
 If the `test` job fails because the tag does not match `<Version>` in the csproj,
