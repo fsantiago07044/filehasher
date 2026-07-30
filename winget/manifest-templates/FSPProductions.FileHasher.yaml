@@ -7,4 +7,4 @@ PackageIdentifier: FSPProductions.FileHasher
 PackageVersion: "{VERSION}"
 DefaultLocale: en-US
 ManifestType: version
-ManifestVersion: 1.6.0
+ManifestVersion: 1.12.0

@@ -1,12 +1,18 @@
 # Default-locale manifest template for winget-pkgs.
 # Replace {VERSION} (e.g. 0.3.0). Static fields below should stay in sync with
 # the csproj metadata and installer/FileHasher.wxs (publisher, URLs, license).
+# Synced 2026-07-29 against the merged 0.3.0 manifest (the authoritative copy
+# lives in microsoft/winget-pkgs; wingetcreate update carries fields forward
+# from THERE, so this file is documentation, not an input). The pipeline's
+# winget-update job drops any carried-over ReleaseNotes line and rewrites
+# ReleaseNotesUrl to the new tag on every submission.
 PackageIdentifier: FSPProductions.FileHasher
 PackageVersion: "{VERSION}"
 PackageLocale: en-US
 Publisher: FSP Productions, LLC
 PublisherUrl: https://www.fspproductions.com/software-projects
 PublisherSupportUrl: https://github.com/fsantiago07044/filehasher/issues
+Author: Fabian Aldo Santiago
 PackageName: FileHasher
 PackageUrl: https://github.com/fsantiago07044/filehasher
 License: MIT
@@ -20,6 +26,7 @@ Description: |-
   packages read-only and hash the files contained inside them individually.
   Ships as a signed, self-contained single executable; no .NET runtime
   install is required.
+Moniker: filehasher
 Tags:
   - hash
   - sha256
@@ -28,4 +35,4 @@ Tags:
   - verification
 ReleaseNotesUrl: https://github.com/fsantiago07044/filehasher/releases/tag/v{VERSION}
 ManifestType: defaultLocale
-ManifestVersion: 1.6.0
+ManifestVersion: 1.12.0
