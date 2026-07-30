@@ -110,13 +110,20 @@ runner session can't bite.
 The `winget-update` job submits each release to `microsoft/winget-pkgs` with
 `wingetcreate`. Use the standalone exe at a fixed path (no MSIX/user-PATH
 dependency); download as Administrator, the runner user only needs to execute
-it:
+it. The exe is framework-dependent and (as of wingetcreate 1.12) requires the
+**.NET 9 runtime**, which is not covered by the .NET 8 SDK from step 1 —
+install it alongside (builds are unaffected; `global.json` pins the SDK):
 
 ```powershell
+winget install --id Microsoft.DotNet.Runtime.9 --silent --accept-package-agreements --accept-source-agreements
 New-Item -ItemType Directory -Force C:\GitLab-Runner\tools | Out-Null
 Invoke-WebRequest -Uri "https://aka.ms/wingetcreate/latest" -OutFile "C:\GitLab-Runner\tools\wingetcreate.exe"
 & C:\GitLab-Runner\tools\wingetcreate.exe --version
 ```
+
+If `wingetcreate --version` complains a newer `Microsoft.NETCore.App`
+framework is missing after a future re-download, install the matching newer
+runtime the same way.
 
 To update it later, re-run the download. The job references the tool via its
 `WINGETCREATE` variable in `.gitlab-ci.yml`; also see the `WINGET_PAT`
