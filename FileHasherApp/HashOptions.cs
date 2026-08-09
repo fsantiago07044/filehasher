@@ -8,7 +8,9 @@ internal sealed record HashOptions(
     bool    IncludeMetadata,
     bool    WriteSidecarHashes,
     string  SidecarExtension,   // e.g. ".sha256"
-    string  SidecarFormat,      // "sha256sum" | "hashonly"
+    string  SidecarFormat,      // "sha256sum" (HASH *filename — the {algo}sum tool line format)
+                                // | "hashonly" (bare hash)
+                                // | "extended" (HASH *filename *lastModifiedIso8601Utc *sizeBytes)
     bool    ExportCsv,
     string  CsvPath,
     bool    AllFileTypes,       // false = .exe/.msi only when scanning a folder

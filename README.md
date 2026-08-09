@@ -156,10 +156,11 @@ When checked, two additional columns are populated in the results list and CSV e
 **Write sidecar hash files**
 Writes a small text file next to each hashed file. For example, hashing `setup.exe` produces `setup.exe.sha256` alongside it.
 
-- **Extension** — the suffix appended to the original filename. Default: `.sha256`. Change this to match the algorithm you are using (e.g. `.md5`, `.sha512`) or any custom value.
+- **Extension** — the suffix appended to the original filename. The suggested value follows the selected hash algorithm automatically (`.md5`, `.sha1`, `.sha256`, `.sha512`); switching algorithms updates the box only while it still holds one of those four standard values, so a custom extension you typed is never overwritten.
 - **Format** — controls the content of the sidecar file:
-  - **sha256sum format** (default) — `HASH *filename`, compatible with standard `sha256sum`/`sha512sum` tools.
+  - **`{algo}sum` format** (default) — `HASH *filename`, compatible with the standard `md5sum`/`sha1sum`/`sha256sum`/`sha512sum` tools. The radio button's label follows the selected algorithm (e.g. **sha256sum format** when SHA256 is selected).
   - **Hash only** — the raw hash string with no filename, useful for simple verification scripts.
+  - **Extended** — `HASH *filename *lastModified *sizeBytes`, where the last-modified timestamp is ISO-8601 UTC (e.g. `2026-08-09T14:33:05Z`), matching the CSV export's `LastWriteUtc` format.
 
 Writing sidecars to protected locations (e.g. `C:\Program Files`) requires Administrator rights — see [UAC elevation](#uac-elevation).
 
@@ -243,6 +244,14 @@ The results list shows one row per file:
 | Modified (UTC) | Populated when **Include file metadata** is checked |
 
 Warnings (e.g. inaccessible subdirectories) appear as orange rows.
+
+Right-clicking a result row opens a context menu with three actions, each targeting the row's file location:
+
+- **Open in File Explorer** — opens the containing folder with the file pre-selected (`explorer /select`). If the file has been deleted since it was hashed, the folder is opened plainly instead.
+- **Open PowerShell here** — opens a Windows PowerShell window in the containing folder.
+- **Open Command Prompt here** — opens a `cmd` window in the containing folder.
+
+For inner-MSI rows (experimental MSI scan), the actions target the containing `.msi` file's location — the extracted temp copies are already deleted by the time results are browsable. Warning rows have no location, so no menu appears for them.
 
 ---
 
@@ -342,8 +351,9 @@ window.FindFirstDescendant(cf => cf.ByAutomationId("RunBtn")).AsButton()
 | `MetadataChk` | CheckBox | Include file metadata |
 | `SidecarChk` | CheckBox | Write sidecar hash files |
 | `SidecarExtBox` | TextBox | Sidecar file extension |
-| `SidecarFmtSha256Sum` | RadioButton | sha256sum sidecar format (default) |
+| `SidecarFmtSha256Sum` | RadioButton | `{algo}sum` sidecar format (default; label follows the selected algorithm) |
 | `SidecarFmtHashOnly` | RadioButton | Hash-only sidecar format |
+| `SidecarFmtExtended` | RadioButton | Extended sidecar format (hash, filename, modified, size) |
 | `CsvChk` | CheckBox | Export results to CSV |
 | `CsvPathBox` | TextBox | CSV output path |
 | `CsvBrowseBtn` | Button | Opens CSV save dialog |
@@ -353,6 +363,10 @@ window.FindFirstDescendant(cf => cf.ByAutomationId("RunBtn")).AsButton()
 | `RunBtn` | Button | Starts hashing |
 | `StatusLabel` | Label | Status text (accessible name = label text) |
 | `ResultsView` | ListView | Results list |
+| `ResultsMenu` | ContextMenuStrip | Right-click menu on result rows |
+| `MiOpenExplorer` | MenuItem | Open in File Explorer (select the file) |
+| `MiOpenPowerShell` | MenuItem | Open PowerShell at the row's location |
+| `MiOpenCmd` | MenuItem | Open Command Prompt at the row's location |
 
 ---
 

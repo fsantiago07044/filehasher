@@ -12,6 +12,11 @@ result against `<Version>` in `FileHasherApp/FileHasherApp.csproj`.
 ## [Unreleased]
 
 ### Added
+- Right-click context menu on results-list rows: **Open in File Explorer** (containing folder with the file pre-selected via `explorer /select`, falling back to the plain folder if the file has since been deleted), **Open PowerShell here**, and **Open Command Prompt here**, each targeting the row's location. Inner-MSI rows (experimental MSI scan) target the containing `.msi`'s location, since the extracted temp copies are deleted before results are browsable; warning rows have no location and show no menu.
+- Third sidecar format, **Extended** — `HASH *filename *lastModified *sizeBytes`, with the last-modified timestamp in ISO-8601 UTC matching the CSV export's `LastWriteUtc` (e.g. `2026-08-09T14:33:05Z`). Placed after **Hash only** in the sidecar options row.
+
+### Changed
+- The sidecar suggested extension and the first format radio's label now follow the selected hash algorithm (`.md5`/`md5sum format`, `.sha1`/`sha1sum format`, `.sha256`/`sha256sum format`, `.sha512`/`sha512sum format`). The extension box is only auto-updated while it still holds one of the four standard values — a custom extension the user typed is never overwritten.
 - Automated winget submission: new `winget` pipeline stage (`winget-update` job, Windows runner, tag pipelines only, after `mirror-github`) runs `wingetcreate update` against the GitHub Release MSI, patches version-specific locale fields (fresh `ReleaseNotesUrl`, drops carried-over `ReleaseNotes`), and opens the `microsoft/winget-pkgs` PR from the `fsantiago07044` fork. `allow_failure: true` like the mirror stage; generated manifests are kept as job artifacts for audit/manual resubmission. One-time prerequisites: standalone `wingetcreate.exe` on the Windows runner and a `WINGET_PAT` Protected CI/CD variable (classic PAT, `public_repo`) — see `ci/README.md`. `winget/README.md`'s manual workflow is reframed as the fallback path. First exercised by the next `vX.Y.Z` tag.
 
 ## [0.3.0] - 2026-07-21

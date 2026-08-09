@@ -251,9 +251,27 @@ internal sealed class HashWorker
         try
         {
             var sidecarPath = filePath + _opts.SidecarExtension;
-            var content     = _opts.SidecarFormat == "hashonly"
-                ? hash
-                : $"{hash} *{Path.GetFileName(filePath)}";
+
+            string content;
+            switch (_opts.SidecarFormat)
+            {
+                case "hashonly":
+                    content = hash;
+                    break;
+
+                case "extended":
+                {
+                    // HASH *filename *last-modified *size — the timestamp is
+                    // ISO-8601 UTC, matching the CSV export's LastWriteUtc.
+                    var fi = new FileInfo(filePath);
+                    content = $"{hash} *{fi.Name} *{fi.LastWriteTimeUtc:yyyy-MM-ddTHH:mm:ssZ} *{fi.Length}";
+                    break;
+                }
+
+                default:    // "sha256sum" — the {algo}sum tool line format
+                    content = $"{hash} *{Path.GetFileName(filePath)}";
+                    break;
+            }
 
             await File.WriteAllTextAsync(sidecarPath,
                                          content + Environment.NewLine,

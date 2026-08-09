@@ -23,7 +23,7 @@ public sealed class MainForm : Form
     private readonly CheckBox    _metadataChk;
     private readonly CheckBox    _sidecarChk;
     private readonly TextBox     _sidecarExtBox;
-    private readonly RadioButton _rdSha256Sum, _rdHashOnly;
+    private readonly RadioButton _rdSha256Sum, _rdHashOnly, _rdExtended;
     private readonly Panel       _sidecarOptsPanel;
     private readonly CheckBox    _csvChk;
     private readonly TextBox     _csvPathBox;
@@ -44,6 +44,7 @@ public sealed class MainForm : Form
     // Results
     private readonly ListView    _resultsView;
     private readonly ColumnHeader _colPath, _colHash, _colSize, _colModified, _colMsiDir;
+    private readonly ContextMenuStrip _resultsMenu;
 
     // Status strip
     private readonly ToolStripStatusLabel _logStripLabel;
@@ -54,6 +55,10 @@ public sealed class MainForm : Form
     private CancellationTokenSource? _cts;
     private Logger?                  _logger;
     private readonly List<HashResult> _allResults = new();
+
+    // Full on-disk path the currently open results context menu targets
+    // (resolved in ResultsMenu_Opening; null cancels the menu).
+    private string? _menuTargetPath;
 
     // ── Constructor ──────────────────────────────────────────────────────────
 
@@ -183,6 +188,12 @@ public sealed class MainForm : Form
 
         gbAlgo.Controls.AddRange(new Control[] { _rdMd5, _rdSha1, _rdSha256, _rdSha512 });
 
+        // The sidecar extension suggestion and the "{algo}sum format" radio
+        // label follow the selected algorithm. CheckedChanged fires for both
+        // the newly checked and the unchecked radio; the update is idempotent.
+        foreach (var rd in new[] { _rdMd5, _rdSha1, _rdSha256, _rdSha512 })
+            rd.CheckedChanged += (_, _) => UpdateSidecarAlgorithmUi();
+
         // --- GroupBox: Options ---
         var gbOptions = new GroupBox
         {
@@ -228,10 +239,14 @@ public sealed class MainForm : Form
             Width     = 68,
             TextAlign = ContentAlignment.MiddleLeft
         };
+        // The extension and the first radio's label track the selected hash
+        // algorithm (see UpdateSidecarAlgorithmUi); ".sha256"/"sha256sum" here
+        // only match the default-checked SHA256 algorithm radio.
         _sidecarExtBox  = new TextBox    { Name = "SidecarExtBox",        Text = ".sha256",                               Left = 72,  Top = 3,  Width = 80 };
         _rdSha256Sum    = new RadioButton { Name = "SidecarFmtSha256Sum", Text = "sha256sum format  (HASH *filename)", Left = 0,   Top = 30, AutoSize = true, Checked = true };
         _rdHashOnly     = new RadioButton { Name = "SidecarFmtHashOnly",  Text = "Hash only",                          Left = 248, Top = 30, AutoSize = true };
-        _sidecarOptsPanel.Controls.AddRange(new Control[] { lblExt, _sidecarExtBox, _rdSha256Sum, _rdHashOnly });
+        _rdExtended     = new RadioButton { Name = "SidecarFmtExtended",  Text = "Extended  (HASH *filename *modified *size)", Left = 350, Top = 30, AutoSize = true };
+        _sidecarOptsPanel.Controls.AddRange(new Control[] { lblExt, _sidecarExtBox, _rdSha256Sum, _rdHashOnly, _rdExtended });
 
         _csvChk = new CheckBox
         {
@@ -389,6 +404,24 @@ public sealed class MainForm : Form
             Font          = new Font("Consolas", 8.5F)
         };
         _resultsView.Columns.AddRange(new[] { _colPath, _colHash, _colSize, _colModified, _colMsiDir });
+
+        // Right-click context menu on result rows: open Explorer / PowerShell /
+        // cmd at the item's location. Rows carry their on-disk path in Tag
+        // (the parent .msi for inner-MSI rows, whose extracted temp files are
+        // gone by the time results are visible); rows without one ([WARN])
+        // cancel the menu in ResultsMenu_Opening.
+        var miExplorer   = new ToolStripMenuItem("Open in File &Explorer")   { Name = "MiOpenExplorer" };
+        var miPowerShell = new ToolStripMenuItem("Open &PowerShell here")    { Name = "MiOpenPowerShell" };
+        var miCmd        = new ToolStripMenuItem("Open &Command Prompt here") { Name = "MiOpenCmd" };
+
+        miExplorer.Click   += (_, _) => OpenTargetInExplorer();
+        miPowerShell.Click += (_, _) => OpenShellAtTarget("powershell.exe");
+        miCmd.Click        += (_, _) => OpenShellAtTarget("cmd.exe");
+
+        _resultsMenu = new ContextMenuStrip { Name = "ResultsMenu" };
+        _resultsMenu.Items.AddRange(new ToolStripItem[] { miExplorer, miPowerShell, miCmd });
+        _resultsMenu.Opening += ResultsMenu_Opening;
+        _resultsView.ContextMenuStrip = _resultsMenu;
 
         // ── Menu bar ─────────────────────────────────────────────────────────
 
@@ -623,7 +656,9 @@ public sealed class MainForm : Form
             IncludeMetadata:  _metadataChk.Checked,
             WriteSidecarHashes: _sidecarChk.Checked,
             SidecarExtension: _sidecarExtBox.Text.Trim(),
-            SidecarFormat:    _rdSha256Sum.Checked ? "sha256sum" : "hashonly",
+            SidecarFormat:    _rdHashOnly.Checked ? "hashonly"
+                            : _rdExtended.Checked ? "extended"
+                            : "sha256sum",
             ExportCsv:        _csvChk.Checked,
             CsvPath:          _csvPathBox.Text.Trim(),
             AllFileTypes:     _allTypesChk.Checked,
@@ -824,6 +859,10 @@ public sealed class MainForm : Form
             : $"[{Path.GetFileName(r.Container)}] {r.FilePath}";
 
         var item = new ListViewItem(displayPath);
+        // Context-menu target: inner-MSI files are extracted to a temp dir
+        // that is deleted before results are browsable, so those rows point
+        // at the containing .msi instead.
+        item.Tag = r.Container ?? r.FilePath;
         item.SubItems.Add(r.Success ? r.Hash : $"ERROR: {r.ErrorMessage}");
         item.SubItems.Add(r.Length.HasValue        ? r.Length.Value.ToString("N0")              : "");
         item.SubItems.Add(r.LastWriteUtc.HasValue  ? r.LastWriteUtc.Value.ToString("yyyy-MM-dd HH:mm:ss") : "");
@@ -1007,6 +1046,86 @@ public sealed class MainForm : Form
         if (_rdSha1.Checked)   return "SHA1";
         if (_rdSha512.Checked) return "SHA512";
         return "SHA256";
+    }
+
+    // ── Sidecar UI ↔ algorithm coupling ──────────────────────────────────────
+
+    private static readonly string[] StandardSidecarExtensions =
+        { ".md5", ".sha1", ".sha256", ".sha512" };
+
+    /// <summary>
+    /// Keeps the sidecar suggested extension and the "{algo}sum format" radio
+    /// label in step with the selected hash algorithm. The extension box is
+    /// only rewritten while it still holds one of the four standard values —
+    /// a custom extension the user typed is never clobbered.
+    /// </summary>
+    private void UpdateSidecarAlgorithmUi()
+    {
+        var algoLower = GetSelectedAlgorithm().ToLowerInvariant();
+
+        _rdSha256Sum.Text = $"{algoLower}sum format  (HASH *filename)";
+
+        if (StandardSidecarExtensions.Contains(_sidecarExtBox.Text.Trim(),
+                                               StringComparer.OrdinalIgnoreCase))
+            _sidecarExtBox.Text = "." + algoLower;
+    }
+
+    // ── Results context menu ─────────────────────────────────────────────────
+
+    private void ResultsMenu_Opening(object? sender, CancelEventArgs e)
+    {
+        // Prefer the row under the cursor (right-click); fall back to the
+        // focused row so the keyboard menu key works too.
+        var pos  = _resultsView.PointToClient(Cursor.Position);
+        var item = _resultsView.HitTest(pos).Item ?? _resultsView.FocusedItem;
+
+        _menuTargetPath = item?.Tag as string;
+
+        var dir = _menuTargetPath is null ? null : Path.GetDirectoryName(_menuTargetPath);
+        e.Cancel = dir is null || !Directory.Exists(dir);
+    }
+
+    private void OpenTargetInExplorer()
+    {
+        if (_menuTargetPath is null) return;
+
+        try
+        {
+            if (File.Exists(_menuTargetPath))
+            {
+                Process.Start("explorer.exe", $"/select,\"{_menuTargetPath}\"");
+                return;
+            }
+
+            // File gone since it was hashed — fall back to the folder alone.
+            var dir = Path.GetDirectoryName(_menuTargetPath);
+            if (dir is not null && Directory.Exists(dir))
+                Process.Start("explorer.exe", dir);
+        }
+        catch (Exception ex)
+        {
+            SetStatus($"Could not open Explorer: {ex.Message}");
+        }
+    }
+
+    private void OpenShellAtTarget(string shellExe)
+    {
+        var dir = _menuTargetPath is null ? null : Path.GetDirectoryName(_menuTargetPath);
+        if (dir is null || !Directory.Exists(dir)) return;
+
+        try
+        {
+            Process.Start(new ProcessStartInfo
+            {
+                FileName         = shellExe,
+                WorkingDirectory = dir,
+                UseShellExecute  = true
+            });
+        }
+        catch (Exception ex)
+        {
+            SetStatus($"Could not open {shellExe}: {ex.Message}");
+        }
     }
 
     private static bool IsAdmin()
