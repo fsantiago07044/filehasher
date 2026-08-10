@@ -41,12 +41,11 @@ public sealed class MainFormContextMenuTests : IDisposable
             var row = HashAndGetSingleRow(tmp);
             row.RightClick();
 
-            var menu = TestHelpers.GetOpenContextMenu(Win, TimeSpan.FromSeconds(5));
-            Assert.NotNull(menu);
+            var menu = RequireOpenMenu();
 
             foreach (var (id, text) in AllMenuItems)
             {
-                var item = TestHelpers.FindMenuItem(menu!, id, text);
+                var item = TestHelpers.FindMenuItem(menu, id, text);
                 Assert.True(item is not null, $"Menu item '{id}' ('{text}') not found.");
                 Assert.True(item!.IsEnabled,  $"Menu item '{id}' should be enabled for a hashed row.");
             }
@@ -69,9 +68,8 @@ public sealed class MainFormContextMenuTests : IDisposable
             var row = HashAndGetSingleRow(tmp);
             row.RightClick();
 
-            var menu = TestHelpers.GetOpenContextMenu(Win, TimeSpan.FromSeconds(5));
-            Assert.NotNull(menu);
-            TestHelpers.FindMenuItem(menu!, "MiCopyHash", "Copy Hash")!.AsMenuItem().Invoke();
+            var menu = RequireOpenMenu();
+            TestHelpers.FindMenuItem(menu, "MiCopyHash", "Copy Hash")!.AsMenuItem().Invoke();
 
             Assert.True(TestHelpers.WaitUntilClipboardText(expected, TimeSpan.FromSeconds(5)),
                 $"Clipboard should hold the hash '{expected}', got '{TestHelpers.GetClipboardTextSta()}'.");
@@ -90,9 +88,8 @@ public sealed class MainFormContextMenuTests : IDisposable
             var row = HashAndGetSingleRow(tmp);
             row.RightClick();
 
-            var menu = TestHelpers.GetOpenContextMenu(Win, TimeSpan.FromSeconds(5));
-            Assert.NotNull(menu);
-            TestHelpers.FindMenuItem(menu!, "MiCopyPath", "Copy File Path")!.AsMenuItem().Invoke();
+            var menu = RequireOpenMenu();
+            TestHelpers.FindMenuItem(menu, "MiCopyPath", "Copy File Path")!.AsMenuItem().Invoke();
 
             Assert.True(TestHelpers.WaitUntilClipboardText(tmp, TimeSpan.FromSeconds(5)),
                 $"Clipboard should hold the path '{tmp}', got '{TestHelpers.GetClipboardTextSta()}'.");
@@ -113,12 +110,11 @@ public sealed class MainFormContextMenuTests : IDisposable
                 var row = HashAndGetSingleRow(tmp);
                 row.RightClick();
 
-                var menu = TestHelpers.GetOpenContextMenu(Win, TimeSpan.FromSeconds(5));
-                Assert.NotNull(menu);
+                var menu = RequireOpenMenu();
 
-                Assert.False(TestHelpers.FindMenuItem(menu!, "MiCopyHash", "Copy Hash")!.IsEnabled,
+                Assert.False(TestHelpers.FindMenuItem(menu, "MiCopyHash", "Copy Hash")!.IsEnabled,
                     "Copy Hash should be disabled on an error row.");
-                Assert.True(TestHelpers.FindMenuItem(menu!, "MiCopyPath", "Copy File Path")!.IsEnabled,
+                Assert.True(TestHelpers.FindMenuItem(menu, "MiCopyPath", "Copy File Path")!.IsEnabled,
                     "Copy File Path should stay enabled on an error row.");
 
                 Keyboard.Type(VirtualKeyShort.ESCAPE);
@@ -150,6 +146,20 @@ public sealed class MainFormContextMenuTests : IDisposable
     }
 
     // ── helpers ──────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Returns the open context menu, failing with a dump of the app's
+    /// top-level UIA elements when it can't be found — so a failure on the
+    /// CI runner tells us what the tree actually looked like.
+    /// </summary>
+    private AutomationElement RequireOpenMenu()
+    {
+        var menu = TestHelpers.GetOpenContextMenu(Win, TimeSpan.FromSeconds(5));
+        if (menu is null)
+            Assert.Fail("Context menu not found after right-click. App top-level UIA elements:\n" +
+                        TestHelpers.DescribeAppTopLevels(Win));
+        return menu!;
+    }
 
     private AutomationElement HashAndGetSingleRow(string filePath)
     {

@@ -277,9 +277,58 @@ internal static class TestHelpers
                 catch { /* popup can vanish mid-scan */ }
             }
 
+            // Some providers parent the popup inside the app window's own
+            // UIA subtree instead — look for a known item there and return
+            // its containing popup.
+            try
+            {
+                var item = win.FindFirstDescendant(cf => cf.ByName(knownItemText));
+                if (item?.Parent is not null) return item.Parent;
+            }
+            catch { /* keep looking */ }
+
             Thread.Sleep(100);
         }
         return null;
+    }
+
+    /// <summary>
+    /// Diagnostic dump of every top-level UIA element owned by the app's
+    /// process (control type, name, class, automation id, and first-level
+    /// children) — attach to assertion messages when a popup can't be found.
+    /// </summary>
+    internal static string DescribeAppTopLevels(Window win)
+    {
+        static string Safe(Func<object?> f)
+        {
+            try { return f()?.ToString() ?? "<null>"; }
+            catch { return "<err>"; }
+        }
+
+        var sb = new System.Text.StringBuilder();
+        try
+        {
+            var desktop = win.Automation.GetDesktop();
+            var pid     = win.Properties.ProcessId.Value;
+
+            foreach (var el in desktop.FindAllChildren(cf => cf.ByProcessId(pid)))
+            {
+                sb.Append($"- type={Safe(() => el.ControlType)} name='{Safe(() => el.Name)}' " +
+                          $"class='{Safe(() => el.ClassName)}' id='{Safe(() => el.AutomationId)}' children=[");
+                try
+                {
+                    sb.Append(string.Join(" | ",
+                        el.FindAllChildren().Select(c => $"{Safe(() => c.ControlType)}:'{Safe(() => c.Name)}'")));
+                }
+                catch { sb.Append("<err>"); }
+                sb.AppendLine("]");
+            }
+        }
+        catch (Exception ex)
+        {
+            sb.AppendLine($"<dump failed: {ex.Message}>");
+        }
+        return sb.Length == 0 ? "<no top-level elements found for the app's process>" : sb.ToString();
     }
 
     /// <summary>
