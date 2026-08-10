@@ -307,10 +307,26 @@ package-msi:
       }
       New-Item -ItemType Directory -Force msi-out | Out-Null
 
+      # MSI ProductVersion must be purely numeric — Windows Installer rejects
+      # semver prerelease labels (WIX1148 / ICE24). A prerelease version maps
+      # to a 4th (revision) field instead: 0.3.1-beta -> 0.3.1.1. The revision
+      # is ignored by Windows Installer's version comparisons (so beta and
+      # final are the SAME version to MajorUpgrade — uninstall a beta MSI
+      # before installing the same-numbered release), but it keeps the beta
+      # visibly distinct in Apps & Features / MSI properties. The full semver
+      # string still flows into filenames and the MSI's display strings.
+      $parts      = $env:VERSION -split '-', 2
+      $msiVersion = $parts[0]
+      if ($parts.Count -gt 1) {
+        $msiVersion = "$($parts[0]).1"
+        Write-Host "Prerelease version $env:VERSION -> MSI ProductVersion $msiVersion"
+      }
+
       Write-Host "Building MSI from installer/FileHasher.wxs"
       & $env:WIX build installer/FileHasher.wxs `
         -arch x64 `
-        -d Version=$env:VERSION `
+        -d Version=$msiVersion `
+        -d DisplayVersion=$env:VERSION `
         -d SignedExe=$signedExe `
         -pdbtype none `
         -o "msi-out/$basename-unsigned.msi"

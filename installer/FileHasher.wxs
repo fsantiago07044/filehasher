@@ -39,6 +39,20 @@
   (wix msi validate) and fails the pipeline on ICE errors.
 -->
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <!--
+    Version        → Package/@Version: the MSI ProductVersion, which Windows
+                     Installer requires to be purely numeric x.y.z — semver
+                     prerelease labels like "0.3.1-beta" are invalid
+                     (WIX1148 / ICE24). The package-msi job strips any
+                     "-suffix" before passing this in.
+    DisplayVersion → free-text spots only (SummaryInformation description):
+                     carries the full version including any prerelease
+                     suffix. Defaults to Version when not defined, so ad-hoc
+                     local `wix build -d Version=x.y.z` still works.
+  -->
+  <?ifndef DisplayVersion ?>
+    <?define DisplayVersion = "$(var.Version)" ?>
+  <?endif?>
   <Package
       Name="FileHasher"
       Manufacturer="FSP Productions, LLC"
@@ -49,7 +63,7 @@
       Compressed="yes">
 
     <SummaryInformation
-        Description="FileHasher $(var.Version) installer"
+        Description="FileHasher $(var.DisplayVersion) installer"
         Manufacturer="FSP Productions, LLC" />
 
     <MajorUpgrade
