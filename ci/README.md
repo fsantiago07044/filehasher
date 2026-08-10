@@ -334,6 +334,26 @@ gitlab-runner start
 systemctl status gitlab-runner
 ```
 
+> **⚠ After every gitlab-runner package upgrade, re-verify step 7.** The
+> 18.11.3 → 19.2.1 upgrade (2026-08-04) regenerated
+> `/etc/systemd/system/gitlab-runner.service` with the default
+> `--user gitlab-runner`, silently reverting step 7 and breaking the next
+> sign job ("Cert chain not found" — the job user could no longer traverse
+> `/root`). Check with:
+>
+> ```sh
+> systemctl cat gitlab-runner | grep ExecStart   # must show --user root
+> ```
+>
+> If it was reset, re-run step 7 (`uninstall` / `install --user root` /
+> `daemon-reload` / `restart`), then delete the stale builds checkout the
+> wrong-user run left behind — root's git refuses it with
+> "detected dubious ownership":
+>
+> ```sh
+> rm -rf /home/gitlab-runner/builds/*/0/root/filehasher
+> ```
+
 ### GitHub release mirroring (one-time)
 
 The `mirror` stage uses the `gh` CLI on the Linux signer host to push each `vX.Y.Z`
