@@ -34,6 +34,7 @@ public sealed class MainForm : Form
     // Actions
     private readonly Button _runAsAdminBtn;
     private readonly Button _clearBtn;
+    private readonly Button _verifyBtn;
     private readonly Button _runBtn;
     private readonly Button _stopBtn;
 
@@ -44,7 +45,9 @@ public sealed class MainForm : Form
     // Results
     private readonly ListView    _resultsView;
     private readonly ColumnHeader _colPath, _colHash, _colSize, _colModified, _colMsiDir;
-    private readonly ContextMenuStrip _resultsMenu;
+    private readonly ContextMenuStrip  _resultsMenu;
+    private readonly ToolStripMenuItem _miOpenExplorer, _miOpenPowerShell, _miOpenCmd,
+                                       _miCopyHash, _miCopyPath;
 
     // Status strip
     private readonly ToolStripStatusLabel _logStripLabel;
@@ -56,9 +59,16 @@ public sealed class MainForm : Form
     private Logger?                  _logger;
     private readonly List<HashResult> _allResults = new();
 
-    // Full on-disk path the currently open results context menu targets
+    /// <summary>
+    /// Per-row payload stored in ListViewItem.Tag: the row's real on-disk path
+    /// (the parent .msi for inner-MSI rows) and, when available, its hash for
+    /// the Copy Hash menu item. Warning rows carry no payload (Tag stays null).
+    /// </summary>
+    private sealed record ResultRowInfo(string Path, string? Hash);
+
+    // Row payload the currently open results context menu targets
     // (resolved in ResultsMenu_Opening; null cancels the menu).
-    private string? _menuTargetPath;
+    private ResultRowInfo? _menuTarget;
 
     // ── Constructor ──────────────────────────────────────────────────────────
 
@@ -330,6 +340,15 @@ public sealed class MainForm : Form
             Width  = 110,
             Height = 30
         };
+        _verifyBtn = new Button
+        {
+            Name   = "VerifyBtn",
+            Text   = "Verify Sidecars",
+            Top    = 0,
+            Width  = 120,
+            Height = 30,
+            Anchor = AnchorStyles.Right | AnchorStyles.Top
+        };
         _stopBtn = new Button
         {
             Name    = "StopBtn",
@@ -350,11 +369,12 @@ public sealed class MainForm : Form
             Font   = new Font("Segoe UI", 9.5F, FontStyle.Bold),
             Anchor = AnchorStyles.Right | AnchorStyles.Top
         };
-        _clearBtn.Click += ClearResults_Click;
-        _stopBtn.Click  += Stop_Click;
-        _runBtn.Click   += Run_Click;
+        _clearBtn.Click  += ClearResults_Click;
+        _verifyBtn.Click += Verify_Click;
+        _stopBtn.Click   += Stop_Click;
+        _runBtn.Click    += Run_Click;
 
-        actionsPanel.Controls.AddRange(new Control[] { _runAsAdminBtn, _clearBtn, _stopBtn, _runBtn });
+        actionsPanel.Controls.AddRange(new Control[] { _runAsAdminBtn, _clearBtn, _verifyBtn, _stopBtn, _runBtn });
 
         // --- Progress bar ---
         _progressBar = new ColorProgressBar
@@ -406,22 +426,38 @@ public sealed class MainForm : Form
         _resultsView.Columns.AddRange(new[] { _colPath, _colHash, _colSize, _colModified, _colMsiDir });
 
         // Right-click context menu on result rows: open Explorer / PowerShell /
-        // cmd at the item's location. Rows carry their on-disk path in Tag
-        // (the parent .msi for inner-MSI rows, whose extracted temp files are
-        // gone by the time results are visible); rows without one ([WARN])
-        // cancel the menu in ResultsMenu_Opening.
-        var miExplorer   = new ToolStripMenuItem("Open in File &Explorer")   { Name = "MiOpenExplorer" };
-        var miPowerShell = new ToolStripMenuItem("Open &PowerShell here")    { Name = "MiOpenPowerShell" };
-        var miCmd        = new ToolStripMenuItem("Open &Command Prompt here") { Name = "MiOpenCmd" };
+        // cmd at the item's location, or copy the row's hash / path. Rows carry
+        // a ResultRowInfo in Tag (path is the parent .msi for inner-MSI rows,
+        // whose extracted temp files are gone by the time results are visible);
+        // rows without one ([WARN]) cancel the menu in ResultsMenu_Opening.
+        _miOpenExplorer   = new ToolStripMenuItem("Open in File &Explorer")    { Name = "MiOpenExplorer" };
+        _miOpenPowerShell = new ToolStripMenuItem("Open &PowerShell here")     { Name = "MiOpenPowerShell" };
+        _miOpenCmd        = new ToolStripMenuItem("Open &Command Prompt here") { Name = "MiOpenCmd" };
+        _miCopyHash       = new ToolStripMenuItem("Copy &Hash")                { Name = "MiCopyHash" };
+        _miCopyPath       = new ToolStripMenuItem("Copy File &Path")           { Name = "MiCopyPath" };
 
-        miExplorer.Click   += (_, _) => OpenTargetInExplorer();
-        miPowerShell.Click += (_, _) => OpenShellAtTarget("powershell.exe");
-        miCmd.Click        += (_, _) => OpenShellAtTarget("cmd.exe");
+        _miOpenExplorer.Click   += (_, _) => { if (_menuTarget is not null) OpenInExplorer(_menuTarget.Path); };
+        _miOpenPowerShell.Click += (_, _) => { if (_menuTarget is not null) OpenShellAt("powershell.exe", _menuTarget.Path); };
+        _miOpenCmd.Click        += (_, _) => { if (_menuTarget is not null) OpenShellAt("cmd.exe", _menuTarget.Path); };
+        _miCopyHash.Click       += (_, _) => CopyToClipboard(_menuTarget?.Hash, "Hash");
+        _miCopyPath.Click       += (_, _) => CopyToClipboard(_menuTarget?.Path, "Path");
 
         _resultsMenu = new ContextMenuStrip { Name = "ResultsMenu" };
-        _resultsMenu.Items.AddRange(new ToolStripItem[] { miExplorer, miPowerShell, miCmd });
+        _resultsMenu.Items.AddRange(new ToolStripItem[]
+        {
+            _miOpenExplorer, _miOpenPowerShell, _miOpenCmd,
+            new ToolStripSeparator(),
+            _miCopyHash, _miCopyPath
+        });
         _resultsMenu.Opening += ResultsMenu_Opening;
         _resultsView.ContextMenuStrip = _resultsMenu;
+
+        // Double-click (or Enter) on a row = the Explorer action.
+        _resultsView.ItemActivate += (_, _) =>
+        {
+            if (_resultsView.FocusedItem?.Tag is ResultRowInfo info)
+                OpenInExplorer(info.Path);
+        };
 
         // ── Menu bar ─────────────────────────────────────────────────────────
 
@@ -484,11 +520,12 @@ public sealed class MainForm : Form
         _csvBrowseBtn.Left  = csvBrowseLeft;
         _csvPathBox.Width   = csvBrowseLeft - 4;
 
-        // Actions: Stop and Run right-aligned; Clear centered in the gap
-        _stopBtn.Left  = gbWidth - _runBtn.Width - 4 - _stopBtn.Width;
-        _runBtn.Left   = gbWidth - _runBtn.Width;
-        int clearMid   = (_runAsAdminBtn.Right + _stopBtn.Left) / 2;
-        _clearBtn.Left = clearMid - _clearBtn.Width / 2;
+        // Actions: Verify, Stop and Run right-aligned; Clear centered in the gap
+        _runBtn.Left    = gbWidth - _runBtn.Width;
+        _stopBtn.Left   = _runBtn.Left - 4 - _stopBtn.Width;
+        _verifyBtn.Left = _stopBtn.Left - 4 - _verifyBtn.Width;
+        int clearMid    = (_runAsAdminBtn.Right + _verifyBtn.Left) / 2;
+        _clearBtn.Left  = clearMid - _clearBtn.Width / 2;
     }
 
     // ── Drag-and-drop onto the path field ────────────────────────────────────
@@ -828,6 +865,170 @@ public sealed class MainForm : Form
         }
     }
 
+    // ── Verify sidecars ───────────────────────────────────────────────────────
+
+    private async void Verify_Click(object? sender, EventArgs e)
+    {
+        var path = _pathBox.Text.Trim();
+        if (string.IsNullOrEmpty(path))
+        {
+            MessageBox.Show("Please select a file or folder first.",
+                            "No target", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
+
+        bool isFile = File.Exists(path);
+        bool isDir  = Directory.Exists(path);
+
+        if (!isFile && !isDir)
+        {
+            MessageBox.Show($"Path does not exist:\n{path}",
+                            "Invalid path", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
+
+        var sidecarExt = _sidecarExtBox.Text.Trim();
+        if (string.IsNullOrEmpty(sidecarExt))
+        {
+            MessageBox.Show("Please specify the sidecar extension to verify (Options → Extension).",
+                            "Missing extension", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
+
+        // ── Reset UI ─────────────────────────────────────────────────────────
+
+        _allResults.Clear();
+        _resultsView.Items.Clear();
+        _colHash.Text      = "Verification";
+        _progressBar.Value = 0;
+        _progressBar.State = ColorProgressBar.BarState.Marquee;
+        SetRunning(true);
+        SetStatus("Enumerating sidecars…");
+
+        _logger?.Dispose();
+        _logger = new Logger();
+        _logger.LogInfo($"Verify sidecars — Target: {path}  |  Extension: {sidecarExt}  |  AllTypes: {_allTypesChk.Checked}");
+        _logStripLabel.Text = $"Log: {_logger.LogPath}  — click to open folder";
+
+        _cts = new CancellationTokenSource();
+        var verifier = new SidecarVerifier(path, isFile, sidecarExt, _allTypesChk.Checked, _logger);
+
+        verifier.WarningRaised   += w => SafeInvoke(() => AppendWarning(w));
+        verifier.SidecarVerified += v => SafeInvoke(() => AddVerifyResult(v));
+
+        try
+        {
+            var work = await verifier.EnumerateAsync(_cts.Token);
+
+            if (work.Count == 0)
+            {
+                SetStatus($"No \"{sidecarExt}\" sidecars or matching files found.");
+                return;
+            }
+
+            SetStatus($"Verifying {work.Count:N0} item(s)…");
+            _progressBar.State   = ColorProgressBar.BarState.Normal;
+            _progressBar.Maximum = work.Count;
+            _progressBar.Value   = 0;
+
+            var progress = new Progress<int>(n =>
+            {
+                _progressBar.Value = Math.Min(n, _progressBar.Maximum);
+                SetStatus($"Verifying {n:N0} / {work.Count:N0}…");
+            });
+
+            var s      = await verifier.VerifyAllAsync(work, progress, _cts.Token);
+            int failed = s.Mismatch + s.MissingFile + s.ParseError + s.ReadError;
+
+            _logger.LogSessionEnd(s.Ok, failed);
+
+            // Same drain as Run_Click: flush queued Progress callbacks before
+            // the final status so the modal pump can't overwrite "Done…".
+            Application.DoEvents();
+            SetStatus($"Done — {s.Ok:N0} OK, {failed:N0} problem(s), {s.NoSidecar:N0} without sidecar.  Log: {_logger.LogPath}");
+            _progressBar.State = ColorProgressBar.BarState.Complete;
+
+            var msg = new StringBuilder();
+            msg.AppendLine("Verification complete!\n");
+            msg.AppendLine($"OK:                {s.Ok:N0}");
+            msg.AppendLine($"Mismatches:     {s.Mismatch:N0}");
+            msg.AppendLine($"Missing files:    {s.MissingFile:N0}");
+            msg.AppendLine($"No sidecar:      {s.NoSidecar:N0}");
+            if (s.ParseError > 0)
+                msg.AppendLine($"Parse errors:    {s.ParseError:N0}");
+            if (s.ReadError > 0)
+                msg.AppendLine($"Read errors:     {s.ReadError:N0}");
+            msg.Append($"\nLog: {_logger.LogPath}");
+
+            MessageBox.Show(msg.ToString(), "Verification complete", MessageBoxButtons.OK,
+                            failed > 0 ? MessageBoxIcon.Warning : MessageBoxIcon.Information);
+        }
+        catch (OperationCanceledException)
+        {
+            SetStatus("Cancelled.");
+            _logger?.LogWarning("Verification cancelled by user.");
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            var ask = MessageBox.Show(
+                $"Access denied:\n{ex.Message}\n\nWould you like to restart as Administrator?",
+                "Elevation required",
+                MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+
+            if (ask == DialogResult.Yes)
+                RelaunchAsAdmin();
+            else
+                SetStatus("Access denied — try running as Administrator.");
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Unexpected error:\n{ex.Message}",
+                            "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            SetStatus($"Error: {ex.Message}");
+        }
+        finally
+        {
+            _progressBar.State = ColorProgressBar.BarState.Normal;
+            SetRunning(false);
+            _cts?.Dispose();
+            _cts = null;
+        }
+    }
+
+    private void AddVerifyResult(VerifyResult v)
+    {
+        var item = new ListViewItem(v.FilePath)
+        {
+            Tag = new ResultRowInfo(v.FilePath, v.ComputedHash)
+        };
+
+        var verdict = v.Status switch
+        {
+            VerifyStatus.Ok          => $"OK ({v.Algorithm})",
+            VerifyStatus.Mismatch    => $"MISMATCH ({v.Algorithm})",
+            VerifyStatus.MissingFile => "MISSING FILE",
+            VerifyStatus.NoSidecar   => "NO SIDECAR",
+            VerifyStatus.ParseError  => "PARSE ERROR",
+            _                        => "READ ERROR"
+        };
+        if (v.Detail is not null)
+            verdict += $" — {v.Detail}";
+
+        item.SubItems.Add(verdict);
+        item.SubItems.Add("");
+        item.SubItems.Add("");
+        item.SubItems.Add("");
+
+        item.ForeColor = v.Status switch
+        {
+            VerifyStatus.Ok        => Color.DarkGreen,
+            VerifyStatus.NoSidecar => Color.DarkOrange,
+            _                      => Color.Firebrick
+        };
+
+        _resultsView.Items.Add(item);
+    }
+
     private void Stop_Click(object? sender, EventArgs e)
     {
         _cts?.Cancel();
@@ -859,10 +1060,10 @@ public sealed class MainForm : Form
             : $"[{Path.GetFileName(r.Container)}] {r.FilePath}";
 
         var item = new ListViewItem(displayPath);
-        // Context-menu target: inner-MSI files are extracted to a temp dir
-        // that is deleted before results are browsable, so those rows point
-        // at the containing .msi instead.
-        item.Tag = r.Container ?? r.FilePath;
+        // Context-menu / double-click target: inner-MSI files are extracted to
+        // a temp dir that is deleted before results are browsable, so those
+        // rows point at the containing .msi instead.
+        item.Tag = new ResultRowInfo(r.Container ?? r.FilePath, r.Success ? r.Hash : null);
         item.SubItems.Add(r.Success ? r.Hash : $"ERROR: {r.ErrorMessage}");
         item.SubItems.Add(r.Length.HasValue        ? r.Length.Value.ToString("N0")              : "");
         item.SubItems.Add(r.LastWriteUtc.HasValue  ? r.LastWriteUtc.Value.ToString("yyyy-MM-dd HH:mm:ss") : "");
@@ -1015,6 +1216,7 @@ public sealed class MainForm : Form
     private void SetRunning(bool running)
     {
         _runBtn.Enabled       = !running;
+        _verifyBtn.Enabled    = !running;
         _stopBtn.Enabled      = running;
         _browseFileBtn.Enabled   = !running;
         _browseFolderBtn.Enabled = !running;
@@ -1079,26 +1281,36 @@ public sealed class MainForm : Form
         var pos  = _resultsView.PointToClient(Cursor.Position);
         var item = _resultsView.HitTest(pos).Item ?? _resultsView.FocusedItem;
 
-        _menuTargetPath = item?.Tag as string;
+        _menuTarget = item?.Tag as ResultRowInfo;
+        if (_menuTarget is null)
+        {
+            e.Cancel = true;
+            return;
+        }
 
-        var dir = _menuTargetPath is null ? null : Path.GetDirectoryName(_menuTargetPath);
-        e.Cancel = dir is null || !Directory.Exists(dir);
+        // The open actions need the containing folder to still exist; the
+        // copy actions only need the row data itself.
+        var  dir       = Path.GetDirectoryName(_menuTarget.Path);
+        bool dirExists = dir is not null && Directory.Exists(dir);
+
+        _miOpenExplorer.Enabled   = dirExists;
+        _miOpenPowerShell.Enabled = dirExists;
+        _miOpenCmd.Enabled        = dirExists;
+        _miCopyHash.Enabled       = _menuTarget.Hash is not null;
     }
 
-    private void OpenTargetInExplorer()
+    private void OpenInExplorer(string path)
     {
-        if (_menuTargetPath is null) return;
-
         try
         {
-            if (File.Exists(_menuTargetPath))
+            if (File.Exists(path))
             {
-                Process.Start("explorer.exe", $"/select,\"{_menuTargetPath}\"");
+                Process.Start("explorer.exe", $"/select,\"{path}\"");
                 return;
             }
 
             // File gone since it was hashed — fall back to the folder alone.
-            var dir = Path.GetDirectoryName(_menuTargetPath);
+            var dir = Path.GetDirectoryName(path);
             if (dir is not null && Directory.Exists(dir))
                 Process.Start("explorer.exe", dir);
         }
@@ -1108,9 +1320,9 @@ public sealed class MainForm : Form
         }
     }
 
-    private void OpenShellAtTarget(string shellExe)
+    private void OpenShellAt(string shellExe, string path)
     {
-        var dir = _menuTargetPath is null ? null : Path.GetDirectoryName(_menuTargetPath);
+        var dir = Path.GetDirectoryName(path);
         if (dir is null || !Directory.Exists(dir)) return;
 
         try
@@ -1125,6 +1337,21 @@ public sealed class MainForm : Form
         catch (Exception ex)
         {
             SetStatus($"Could not open {shellExe}: {ex.Message}");
+        }
+    }
+
+    private void CopyToClipboard(string? text, string what)
+    {
+        if (string.IsNullOrEmpty(text)) return;
+
+        try
+        {
+            Clipboard.SetText(text);
+            SetStatus($"{what} copied to clipboard.");
+        }
+        catch (Exception ex)
+        {
+            SetStatus($"Clipboard error: {ex.Message}");
         }
     }
 

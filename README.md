@@ -217,7 +217,8 @@ For the full security model (file-size / total-size / file-count / disk-headroom
 | Control | Behaviour |
 | --- | --- |
 | **▶ Run** | Starts enumeration then hashing. Most controls are disabled while a run is in progress. |
-| **Stop** | Cancels the current run cleanly. Files already hashed are retained in the results list. |
+| **Verify Sidecars** | Verifies previously written sidecar hash files against the current state of the files — see [Verifying sidecars](#verifying-sidecars). |
+| **Stop** | Cancels the current run cleanly. Files already hashed (or verified) are retained in the results list. |
 | **Clear Results** | Clears all rows from the results list, resets the progress bar, and returns the status to "Ready." Available before and after a run. |
 
 The progress bar shows indeterminate (marquee) progress during folder enumeration, then switches to a percentage bar during hashing. When hashing completes successfully the bar turns **blue**.
@@ -229,6 +230,29 @@ A completion dialog is shown at the end of every run summarising:
 - **Sidecars skipped** — shown only when at least one existing sidecar was left in place
 - **Sidecars overwritten** — shown only when at least one existing sidecar was replaced
 - **Log** — path to the current log file
+
+---
+
+#### Verifying sidecars
+
+**Verify Sidecars** re-hashes files and compares the result against their existing sidecar files, using the current **Target** path and the **Extension** configured under the sidecar options (the *Write sidecar hash files* checkbox does not need to be checked). For a folder target the scan is recursive; targeting a single file verifies that file's sidecar, and targeting a sidecar file directly verifies it against its base file.
+
+The hash algorithm is **auto-detected per sidecar** from the length of the stored hash (32 hex characters = MD5, 40 = SHA1, 64 = SHA256, 128 = SHA512), so the algorithm radio selection is ignored during verification and a folder with mixed-algorithm sidecars verifies correctly in one pass. All three sidecar formats are recognized: bare hash, `HASH *filename`, and the extended `HASH *filename *lastModified *sizeBytes`.
+
+Each verified item appears as one results row (the hash column header becomes **Verification**):
+
+| Verdict | Color | Meaning |
+| --- | --- | --- |
+| `OK (ALGO)` | green | Re-computed hash matches the sidecar. |
+| `MISMATCH (ALGO)` | red | Hash differs — the row shows both the expected and the computed value. |
+| `MISSING FILE` | red | A sidecar exists but the file it attests to is gone. |
+| `NO SIDECAR` | orange | The file matches the current scan filter (`.exe`/`.msi`, or everything when **Scan all file types** is checked) but has no sidecar — a completeness audit. |
+| `PARSE ERROR` | red | The sidecar's content is not recognized as any supported format. |
+| `READ ERROR` | red | The file or its sidecar could not be read. |
+
+**The hash alone decides pass/fail.** For extended-format sidecars, a differing embedded filename, modified date, or size on an otherwise-matching row is appended as an informational note — a file's modified date often changes legitimately on copy or restore.
+
+Verification runs are logged like hashing runs and end with the same style of summary dialog (per-verdict counts). The **Export results to CSV** option does not apply to verification runs.
 
 ---
 
@@ -245,13 +269,17 @@ The results list shows one row per file:
 
 Warnings (e.g. inaccessible subdirectories) appear as orange rows.
 
-Right-clicking a result row opens a context menu with three actions, each targeting the row's file location:
+Right-clicking a result row opens a context menu:
 
 - **Open in File Explorer** — opens the containing folder with the file pre-selected (`explorer /select`). If the file has been deleted since it was hashed, the folder is opened plainly instead.
 - **Open PowerShell here** — opens a Windows PowerShell window in the containing folder.
 - **Open Command Prompt here** — opens a `cmd` window in the containing folder.
+- **Copy Hash** — copies the row's hash to the clipboard (disabled on error rows and on verification rows where no hash was computed).
+- **Copy File Path** — copies the row's full on-disk path to the clipboard.
 
-For inner-MSI rows (experimental MSI scan), the actions target the containing `.msi` file's location — the extracted temp copies are already deleted by the time results are browsable. Warning rows have no location, so no menu appears for them.
+**Double-clicking a row** (or pressing Enter on it) performs the Explorer action directly.
+
+For inner-MSI rows (experimental MSI scan), the location-based actions target the containing `.msi` file — the extracted temp copies are already deleted by the time results are browsable — and **Copy File Path** copies that `.msi` path. Warning rows have no payload, so no menu appears for them. The three *Open* items are greyed out when the row's folder no longer exists; the copy items keep working.
 
 ---
 
@@ -359,6 +387,7 @@ window.FindFirstDescendant(cf => cf.ByAutomationId("RunBtn")).AsButton()
 | `CsvBrowseBtn` | Button | Opens CSV save dialog |
 | `RunAsAdminBtn` | Button | Relaunches as Administrator |
 | `ClearBtn` | Button | Clears results list |
+| `VerifyBtn` | Button | Starts sidecar verification |
 | `StopBtn` | Button | Cancels active run |
 | `RunBtn` | Button | Starts hashing |
 | `StatusLabel` | Label | Status text (accessible name = label text) |
@@ -367,6 +396,8 @@ window.FindFirstDescendant(cf => cf.ByAutomationId("RunBtn")).AsButton()
 | `MiOpenExplorer` | MenuItem | Open in File Explorer (select the file) |
 | `MiOpenPowerShell` | MenuItem | Open PowerShell at the row's location |
 | `MiOpenCmd` | MenuItem | Open Command Prompt at the row's location |
+| `MiCopyHash` | MenuItem | Copy the row's hash to the clipboard |
+| `MiCopyPath` | MenuItem | Copy the row's file path to the clipboard |
 
 ---
 
