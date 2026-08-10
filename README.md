@@ -462,6 +462,7 @@ window.FindFirstDescendant(cf => cf.ByAutomationId("RunBtn")).AsButton()
 | `SidecarWrite_CreatesFileNextToTarget` | `.sha256` sidecar is created alongside the source file |
 | `SidecarWrite_Sha256SumFormat_ContainsHashAndFilename` | sha256sum format: `HASH *filename` |
 | `SidecarWrite_HashOnlyFormat_ContainsHashOnly` | Hash-only format: bare hash string, no filename or `*` |
+| `SidecarWrite_ExtendedFormat_ContainsHashFilenameDateAndSize` | Extended format: `HASH *filename *ISO-8601-UTC-date *sizeBytes`, each field verified against the real file |
 | `SidecarWrite_CustomExtension_UsesCorrectExtension` | Custom extension is respected; default `.sha256` is not created |
 | `SidecarWrite_NeverCreatesSidecarOfSidecar` | Second run does not create `.sha256.sha256` |
 | `SidecarConflict_Overwrite_UpdatesSidecarContent` | Overwrite: existing sidecar is replaced |
@@ -497,6 +498,55 @@ window.FindFirstDescendant(cf => cf.ByAutomationId("RunBtn")).AsButton()
 | `CompletionDialog_ShowsAfterSuccessfulRun` | Completion dialog title contains "Complete" |
 | `StatusLabel_ShowsDoneAfterSuccessfulRun` | Status label contains "Done" after the completion dialog is dismissed |
 | `AllTypesCheckbox_EnabledAfterFolderDropped_DisabledAfterFileSelected` | AllTypesChk is unchecked at launch |
+
+**`MainFormSidecarAlgoUiTests`** — the sidecar suggested extension and the `{algo}sum format` radio label follow the selected hash algorithm. Each test gets its own app process.
+
+| Test | What it covers |
+| --- | --- |
+| `AlgorithmSwitch_UpdatesExtensionAndSumRadioLabel (MD5/SHA1/SHA512)` | Selecting an algorithm updates the extension to `.md5`/`.sha1`/`.sha512` and the radio label to `md5sum format` etc. |
+| `AlgorithmSwitch_RoundTrip_RestoresSha256Suggestion` | Switching away and back to SHA256 restores `.sha256` and `sha256sum format` |
+| `AlgorithmSwitch_CustomExtension_IsNeverClobbered` | A hand-typed extension survives algorithm switches while the label still follows |
+
+**`MainFormContextMenuTests`** — the right-click context menu on result rows and double-click activation. The three *Open* items are deliberately never invoked (they would spawn real Explorer/PowerShell/cmd processes on the test host); their presence and enabled state are asserted instead. Each test gets its own app process.
+
+| Test | What it covers |
+| --- | --- |
+| `ContextMenu_OnHashedRow_ShowsAllItemsEnabled` | All five menu items exist and are enabled on a successfully hashed row |
+| `ContextMenu_CopyHash_PutsHashOnClipboard` | Copy Hash places the row's exact hash on the clipboard |
+| `ContextMenu_CopyPath_PutsFullPathOnClipboard` | Copy File Path places the row's full on-disk path on the clipboard |
+| `ContextMenu_CopyHash_DisabledOnErrorRow_CopyPathStillEnabled` | On a failed-hash row (file locked exclusively), Copy Hash is disabled while Copy File Path stays enabled |
+| `RowDoubleClick_WithDeletedFolder_IsSafeNoOp` | Double-clicking a row whose file and folder are gone is a safe no-op (exercises the Explorer fallback chain without spawning a window) |
+
+**`MainFormVerifyTests`** — end-to-end tests for the **Verify Sidecars** button through the UI: button flow, completion dialog, status-line counts, and row counts. Verdict-level precision lives in `SidecarVerifierTests`. Each test gets its own app process.
+
+| Test | What it covers |
+| --- | --- |
+| `VerifyButton_EnabledAtStart` | The Verify Sidecars button is present and enabled |
+| `VerifyWithNoPath_ShowsWarningDialog` | Clicking Verify with an empty path shows a warning dialog |
+| `Verify_FolderWithMixedStates_ReportsCountsInStatusAndRows` | Good + bad + sidecar-less files → "1 OK, 1 problem(s), 1 without sidecar" and three rows |
+| `Verify_MixedAlgorithmSidecars_AutoDetectedInOnePass` | MD5 and SHA512 sidecars (both `.sha256`) verify OK together — algorithm auto-detection through the UI |
+| `Verify_SidecarFileTargetedDirectly_VerifiesItsBaseFile` | Targeting a sidecar file verifies the file it attests to |
+| `Verify_OrphanSidecar_ReportsProblem` | A sidecar whose base file is gone counts as a problem |
+| `Verify_ThenHashRun_BothCompleteCleanly` | A hash run immediately after a verify run still works end-to-end |
+
+**`SidecarVerifierTests`** — direct unit tests against the internal `SidecarVerifier` class (via `InternalsVisibleTo`, no UI, parallelizable): sidecar parsing across all three formats, hash-length algorithm auto-detection, status classification, informational metadata notes, and folder enumeration/filtering.
+
+| Test | What it covers |
+| --- | --- |
+| `Ok_BareHashFormat` / `Ok_SumFormat_WithMatchingFilename` / `Ok_ExtendedFormat_AllMetadataMatching_NoNotes` | All three formats verify OK with no notes when everything matches |
+| `Ok_LowercaseHash_ComparedCaseInsensitively` | Hash comparison is case-insensitive |
+| `Ok_LeadingBlankLines_AreSkipped` | The first non-empty sidecar line is used |
+| `Ok_ExtendedFormat_DifferingDateAndSize_NotedButStillOk` | Metadata differences produce notes, never failures |
+| `Ok_SumFormat_DifferentEmbeddedFilename_Noted` | Embedded-filename difference is noted, row stays OK |
+| `Mismatch_ReportsExpectedAndComputedHashes` | Mismatch detail carries both hashes |
+| `MissingFile_WhenSidecarHasNoBaseFile` | Orphan sidecar → MISSING FILE |
+| `NoSidecar_ForSingleFileTargetWithoutSidecar` | Sidecar-less file target → NO SIDECAR |
+| `ParseError_NonHexContent` / `ParseError_UnsupportedHashLength` | Unrecognizable sidecar content → PARSE ERROR |
+| `AlgorithmAutoDetected_FromHashLength (MD5/SHA1/SHA256/SHA512)` | 32/40/64/128 hex chars map to the right algorithm |
+| `SidecarTargetedDirectly_VerifiesItsBaseFile` | Sidecar-file target resolves to its base file |
+| `Folder_MixedStatuses_ClassifiedAndCounted` | Mixed folder classifies every row and the summary counts match |
+| `Folder_AllTypes_AuditsNonExeFilesToo` | The scan-all-types flag widens the NO SIDECAR audit |
+| `Folder_ResultsAreSortedByPath` | Folder results are emitted in path order |
 
 ---
 

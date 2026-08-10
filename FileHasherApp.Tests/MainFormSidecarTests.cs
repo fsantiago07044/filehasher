@@ -76,6 +76,40 @@ public sealed class MainFormSidecarTests : IDisposable
     }
 
     [Fact]
+    public void SidecarWrite_ExtendedFormat_ContainsHashFilenameDateAndSize()
+    {
+        var content = new byte[] { 11, 22, 33, 44, 55 };
+        var tmp     = TestHelpers.CreateTempFile(content);
+        var sidecar = tmp + ".sha256";
+        try
+        {
+            EnableSidecar(formatId: "SidecarFmtExtended");
+            TestHelpers.RunHashOnFile(Win, tmp);
+
+            var text   = File.ReadAllText(sidecar).Trim();
+            var fields = text.Split(" *");
+
+            Assert.Equal(4, fields.Length);
+            Assert.Equal(Convert.ToHexString(SHA256.HashData(content)), fields[0],
+                         StringComparer.OrdinalIgnoreCase);
+            Assert.Equal(Path.GetFileName(tmp), fields[1]);
+
+            // Field 3: last-modified as ISO-8601 UTC, whole-second precision.
+            var parsed = DateTime.ParseExact(fields[2], "yyyy-MM-dd'T'HH:mm:ss'Z'",
+                System.Globalization.CultureInfo.InvariantCulture,
+                System.Globalization.DateTimeStyles.AssumeUniversal |
+                System.Globalization.DateTimeStyles.AdjustToUniversal);
+            var fileUtc = File.GetLastWriteTimeUtc(tmp);
+            fileUtc = fileUtc.AddTicks(-(fileUtc.Ticks % TimeSpan.TicksPerSecond));
+            Assert.Equal(fileUtc, parsed);
+
+            // Field 4: size in bytes.
+            Assert.Equal(content.Length.ToString(), fields[3]);
+        }
+        finally { Cleanup(tmp, sidecar); }
+    }
+
+    [Fact]
     public void SidecarWrite_CustomExtension_UsesCorrectExtension()
     {
         var tmp     = TestHelpers.CreateTempFile(new byte[] { 99 });
@@ -225,12 +259,12 @@ public sealed class MainFormSidecarTests : IDisposable
 
     // ── helpers ──────────────────────────────────────────────────────────────
 
-    private void EnableSidecar(string ext = ".sha256", bool hashOnly = false)
+    private void EnableSidecar(string ext = ".sha256", bool hashOnly = false, string? formatId = null)
     {
         var chk = Win.FindFirstDescendant(cf => cf.ByAutomationId("SidecarChk")).AsCheckBox();
         if (chk.IsChecked != true) chk.Toggle();
         Win.FindFirstDescendant(cf => cf.ByAutomationId("SidecarExtBox")).AsTextBox().Text = ext;
-        var fmtId = hashOnly ? "SidecarFmtHashOnly" : "SidecarFmtSha256Sum";
+        var fmtId = formatId ?? (hashOnly ? "SidecarFmtHashOnly" : "SidecarFmtSha256Sum");
         Win.FindFirstDescendant(cf => cf.ByAutomationId(fmtId)).AsRadioButton().Click();
     }
 

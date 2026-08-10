@@ -180,22 +180,30 @@ internal static class TestHelpers
     /// only recovery.
     /// </summary>
     internal static Window ClickRunAndReturnModal(Window win, TimeSpan modalTimeout)
-    {
-        var runBtn = win.FindFirstDescendant(cf => cf.ByAutomationId("RunBtn")).AsButton();
-        runBtn.Click();
+        => ClickButtonAndReturnModal(win, "RunBtn", modalTimeout);
 
-        bool runStarted   = false;
+    /// <summary>
+    /// Generalization of <see cref="ClickRunAndReturnModal"/> for any button
+    /// whose click eventually produces a modal (Run, Verify Sidecars, or a
+    /// validation warning), with the same missed-first-click retry.
+    /// </summary>
+    internal static Window ClickButtonAndReturnModal(Window win, string automationId, TimeSpan modalTimeout)
+    {
+        var btn = win.FindFirstDescendant(cf => cf.ByAutomationId(automationId)).AsButton();
+        btn.Click();
+
+        bool started       = false;
         var  startDeadline = DateTime.UtcNow.AddSeconds(3);
         while (DateTime.UtcNow < startDeadline)
         {
-            if (!runBtn.IsEnabled || win.ModalWindows.Length > 0)
+            if (!btn.IsEnabled || win.ModalWindows.Length > 0)
             {
-                runStarted = true;
+                started = true;
                 break;
             }
             Thread.Sleep(100);
         }
-        if (!runStarted) runBtn.Click();
+        if (!started) btn.Click();
 
         return WaitForModal(win, modalTimeout);
     }
@@ -213,6 +221,96 @@ internal static class TestHelpers
     {
         win.FindFirstDescendant(cf => cf.ByAutomationId("PathBox")).AsTextBox().Text = filePath;
         ClickRunAndWaitForModal(win, TimeSpan.FromSeconds(30));
+    }
+
+    // ── Text boxes ───────────────────────────────────────────────────────────
+
+    /// <summary>Polls until the named text box's value equals <paramref name="expected"/>.</summary>
+    internal static bool WaitUntilTextBoxText(Window win, string automationId, string expected, TimeSpan timeout)
+    {
+        var deadline = DateTime.UtcNow + timeout;
+        while (DateTime.UtcNow < deadline)
+        {
+            var tb = win.FindFirstDescendant(cf => cf.ByAutomationId(automationId))?.AsTextBox();
+            if (tb?.Text == expected) return true;
+            Thread.Sleep(50);
+        }
+        return false;
+    }
+
+    // ── Context menu ─────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Polls for the window's currently open context menu (opened by a prior
+    /// right-click). FlaUI's Window.ContextMenu throws while the popup is still
+    /// materializing, so poll-with-catch. Returns null if none appears.
+    /// </summary>
+    internal static Menu? GetOpenContextMenu(Window win, TimeSpan timeout)
+    {
+        var deadline = DateTime.UtcNow + timeout;
+        while (DateTime.UtcNow < deadline)
+        {
+            try
+            {
+                var menu = win.ContextMenu;
+                if (menu is not null) return menu;
+            }
+            catch { /* not open yet */ }
+            Thread.Sleep(100);
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// Finds a context-menu item by AutomationId, falling back to its visible
+    /// text — WinForms ToolStripMenuItems don't reliably surface their Name
+    /// property as the UIA AutomationId the way real Controls do.
+    /// </summary>
+    internal static AutomationElement? FindMenuItem(Menu menu, string automationId, string visibleText)
+        => menu.FindFirstDescendant(cf => cf.ByAutomationId(automationId))
+        ?? menu.FindFirstDescendant(cf => cf.ByName(visibleText));
+
+    // ── Clipboard (STA) ──────────────────────────────────────────────────────
+    // WinForms Clipboard requires an STA thread; xUnit test threads are MTA.
+
+    internal static void ClearClipboardSta()
+        => RunSta(System.Windows.Forms.Clipboard.Clear);
+
+    internal static string GetClipboardTextSta()
+    {
+        var text = string.Empty;
+        RunSta(() => text = System.Windows.Forms.Clipboard.ContainsText()
+            ? System.Windows.Forms.Clipboard.GetText()
+            : string.Empty);
+        return text;
+    }
+
+    /// <summary>Polls the clipboard until its text equals <paramref name="expected"/> (case-insensitive).</summary>
+    internal static bool WaitUntilClipboardText(string expected, TimeSpan timeout)
+    {
+        var deadline = DateTime.UtcNow + timeout;
+        while (DateTime.UtcNow < deadline)
+        {
+            if (string.Equals(GetClipboardTextSta(), expected, StringComparison.OrdinalIgnoreCase))
+                return true;
+            Thread.Sleep(100);
+        }
+        return false;
+    }
+
+    private static void RunSta(Action action)
+    {
+        Exception? error = null;
+        var thread = new Thread(() =>
+        {
+            try { action(); }
+            catch (Exception ex) { error = ex; }
+        });
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        if (!thread.Join(TimeSpan.FromSeconds(5)))
+            throw new TimeoutException("STA clipboard operation timed out.");
+        if (error is not null) throw error;
     }
 
     // ── Temp file / folder factories ─────────────────────────────────────────
