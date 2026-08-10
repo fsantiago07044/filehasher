@@ -242,20 +242,41 @@ internal static class TestHelpers
 
     /// <summary>
     /// Polls for the window's currently open context menu (opened by a prior
-    /// right-click). FlaUI's Window.ContextMenu throws while the popup is still
-    /// materializing, so poll-with-catch. Returns null if none appears.
+    /// right-click). FlaUI's Window.ContextMenu only resolves native Win32
+    /// menus; a WinForms ContextMenuStrip popup is a top-level window owned by
+    /// the app's process — a desktop-level sibling of the main window — so
+    /// fall back to scanning the desktop for an app-owned element containing
+    /// <paramref name="knownItemText"/>. Returns null if none appears.
     /// </summary>
-    internal static Menu? GetOpenContextMenu(Window win, TimeSpan timeout)
+    internal static AutomationElement? GetOpenContextMenu(
+        Window win, TimeSpan timeout, string knownItemText = "Copy File Path")
     {
         var deadline = DateTime.UtcNow + timeout;
+        var desktop  = win.Automation.GetDesktop();
+        var pid      = win.Properties.ProcessId.Value;
+
         while (DateTime.UtcNow < deadline)
         {
+            // FlaUI's own resolution first (covers native menus, throws or
+            // returns null while the popup is still materializing).
             try
             {
                 var menu = win.ContextMenu;
                 if (menu is not null) return menu;
             }
-            catch { /* not open yet */ }
+            catch { /* keep looking */ }
+
+            foreach (var el in desktop.FindAllChildren(cf => cf.ByProcessId(pid)))
+            {
+                try
+                {
+                    if (!el.Equals(win) &&
+                        el.FindFirstDescendant(cf => cf.ByName(knownItemText)) is not null)
+                        return el;
+                }
+                catch { /* popup can vanish mid-scan */ }
+            }
+
             Thread.Sleep(100);
         }
         return null;
@@ -266,7 +287,7 @@ internal static class TestHelpers
     /// text — WinForms ToolStripMenuItems don't reliably surface their Name
     /// property as the UIA AutomationId the way real Controls do.
     /// </summary>
-    internal static AutomationElement? FindMenuItem(Menu menu, string automationId, string visibleText)
+    internal static AutomationElement? FindMenuItem(AutomationElement menu, string automationId, string visibleText)
         => menu.FindFirstDescendant(cf => cf.ByAutomationId(automationId))
         ?? menu.FindFirstDescendant(cf => cf.ByName(visibleText));
 
