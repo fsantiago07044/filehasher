@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Reflection;
 using System.Security.Principal;
 using System.Text;
 
@@ -1193,8 +1194,25 @@ public sealed class MainForm : Form
 
     private void ShowAboutDialog()
     {
-        var ver = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
-        string version = ver is null ? "0.1" : $"{ver.Major}.{ver.Minor}.{ver.Build}";
+        // Prefer the informational version so a prerelease suffix in the
+        // csproj <Version> (e.g. "0.3.1-beta") is visible during test cycles.
+        // Release builds carry a plain "X.Y.Z" here, so this renders exactly
+        // like the numeric fallback below — no code change needed per release.
+        var asm     = System.Reflection.Assembly.GetExecutingAssembly();
+        var info    = asm.GetCustomAttribute<System.Reflection.AssemblyInformationalVersionAttribute>()
+                         ?.InformationalVersion;
+        string version;
+        if (!string.IsNullOrEmpty(info))
+        {
+            // Strip "+<metadata>" (e.g. a source-revision id) if present.
+            var plus = info.IndexOf('+');
+            version  = plus >= 0 ? info[..plus] : info;
+        }
+        else
+        {
+            var ver = asm.GetName().Version;
+            version = ver is null ? "0.1" : $"{ver.Major}.{ver.Minor}.{ver.Build}";
+        }
 
         var page = new TaskDialogPage
         {
