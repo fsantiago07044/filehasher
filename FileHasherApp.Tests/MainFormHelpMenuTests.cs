@@ -140,6 +140,6 @@ public sealed class MainFormHelpMenuTests : IDisposable
         _ = OpenHelpWindow();   // second invocation must not create a duplicate
 
         Thread.Sleep(500);      // give a hypothetical duplicate time to appear
-        Assert.Equal(1, _fixture.CountTopLevelWindows("FileHasher Help"));
+        Assert.Equal(1, _fixture.CountTopLevelWindows("FileHasher Help", "HelpForm"));
     }
 }

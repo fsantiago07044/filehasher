@@ -33,9 +33,14 @@ AutomationId and test class. Hard-won specifics:
   (`TestHelpers.FindMenuItem`) and expect to match on the visible text
   (ampersands stripped, real `…` ellipsis character).
 - **Finding app popups/secondary windows**: do not trust FlaUI's
-  `GetAllTopLevelWindows`. Scan `desktop.FindAllChildren(ByProcessId(pid))`
-  like `TestHelpers.GetOpenContextMenu` does, and remember some providers
-  parent popups inside the main window's own UIA subtree instead.
+  `GetAllTopLevelWindows`. Scan BOTH `desktop.FindAllChildren(ByProcessId)`
+  AND the main window's own UIA subtree (see AppFixture.FindAppWindows and
+  TestHelpers.GetOpenContextMenu). Owner-owned windows (`Form.Show(owner)`)
+  are parented UNDER THE OWNER in the UIA tree, not as desktop children;
+  this cost two VM round trips to learn.
+- An open owned window can sit on top of the main window and swallow
+  coordinate-based clicks aimed at the menu bar; check for an existing
+  window before driving menus.
 - Menu items in popups: prefer `.AsMenuItem().Invoke()` over `.Click()`.
 - Tests launch the real exe: `AppFixture.FindExe` checks **Debug before
   Release** at each directory level, so a stale Debug build shadows a fresh
