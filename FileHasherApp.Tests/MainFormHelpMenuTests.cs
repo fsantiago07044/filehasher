@@ -21,10 +21,33 @@ public sealed class MainFormHelpMenuTests : IDisposable
 
     // ── Helpers ──────────────────────────────────────────────────────────────
 
+    /// <summary>
+    /// Locates a Help-menu dropdown item after the Help menu has been clicked
+    /// open. Mirrors TestHelpers.FindMenuItem: ToolStripMenuItems don't
+    /// reliably surface their Name as a UIA AutomationId, so fall back to the
+    /// visible text; poll briefly because the dropdown popup populates the
+    /// UIA tree asynchronously.
+    /// </summary>
+    private AutomationElement? FindHelpMenuItem(string automationId, string visibleText)
+    {
+        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(5);
+        while (DateTime.UtcNow < deadline)
+        {
+            var el = Win.FindFirstDescendant(cf => cf.ByAutomationId(automationId))
+                  ?? Win.FindFirstDescendant(cf => cf.ByName(visibleText));
+            if (el is not null) return el;
+            Thread.Sleep(100);
+        }
+        return null;
+    }
+
     private Window OpenHelpWindow()
     {
         Win.FindFirstDescendant(cf => cf.ByName("Help")).AsMenuItem().Click();
-        Win.FindFirstDescendant(cf => cf.ByAutomationId("MiHelpContents")).AsMenuItem().Click();
+
+        var item = FindHelpMenuItem("MiHelpContents", "FileHasher Help…");
+        Assert.NotNull(item);
+        item!.AsMenuItem().Invoke();
 
         var help = _fixture.WaitForTopLevelWindow("FileHasher Help", TimeSpan.FromSeconds(10));
         Assert.NotNull(help);
@@ -54,9 +77,9 @@ public sealed class MainFormHelpMenuTests : IDisposable
     {
         Win.FindFirstDescendant(cf => cf.ByName("Help")).AsMenuItem().Click();
 
-        Assert.NotNull(Win.FindFirstDescendant(cf => cf.ByAutomationId("MiHelpContents")));
-        Assert.NotNull(Win.FindFirstDescendant(cf => cf.ByAutomationId("MiSupportWebsite")));
-        Assert.NotNull(Win.FindFirstDescendant(cf => cf.ByAutomationId("MiPrivacyPolicy")));
+        Assert.NotNull(FindHelpMenuItem("MiHelpContents",  "FileHasher Help…"));
+        Assert.NotNull(FindHelpMenuItem("MiSupportWebsite", "Support Website"));
+        Assert.NotNull(FindHelpMenuItem("MiPrivacyPolicy",  "Privacy Policy"));
         // The About item must survive the menu expansion too.
         Assert.NotNull(Win.FindFirstDescendant(cf => cf.ByName("About FileHasher…")));
     }
