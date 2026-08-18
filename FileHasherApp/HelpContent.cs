@@ -5,13 +5,20 @@ namespace FileHasher;
 /// <summary>One section within a help topic: an optional heading, paragraphs,
 /// and an optional bullet list. Paragraph and bullet strings may use inline
 /// markup which HelpForm renders: **bold** and `code`.</summary>
-internal sealed record HelpSection(
-    string?  Heading,
-    string[] Paragraphs,
-    string[] Bullets)
+internal sealed class HelpSection
 {
-    public HelpSection(string? heading = null, string[]? paragraphs = null, string[]? bullets = null)
-        : this(heading, paragraphs ?? Array.Empty<string>(), bullets ?? Array.Empty<string>()) { }
+    public string?  Heading    { get; }
+    public string[] Paragraphs { get; }
+    public string[] Bullets    { get; }
+
+    public HelpSection(string? heading = null,
+                       string[]? paragraphs = null,
+                       string[]? bullets = null)
+    {
+        Heading    = heading;
+        Paragraphs = paragraphs ?? Array.Empty<string>();
+        Bullets    = bullets ?? Array.Empty<string>();
+    }
 }
 
 /// <summary>One topic in the help window's sidebar.</summary>

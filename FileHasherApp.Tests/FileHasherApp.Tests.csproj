@@ -8,6 +8,12 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <IsPackable>false</IsPackable>
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <!--
+      Match the app project's x64 target. Without this the test assembly
+      builds as AnyCPU/MSIL and MSBuild warns about the architecture mismatch
+      against the x64 FileHasher.dll project reference on every build.
+    -->
+    <PlatformTarget>x64</PlatformTarget>
   </PropertyGroup>
 
   <ItemGroup>
