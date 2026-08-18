@@ -464,9 +464,38 @@ public sealed class MainForm : Form
 
         var menuStrip = new MenuStrip();
         var helpMenu  = new ToolStripMenuItem("&Help");
+
+        var helpContentsItem = new ToolStripMenuItem("FileHasher &Help…")
+        {
+            Name         = "MiHelpContents",
+            ShortcutKeys = Keys.F1,
+        };
+        helpContentsItem.Click += (_, _) => ShowHelpWindow();
+
+        var supportSiteItem = new ToolStripMenuItem("&Support Website")
+        {
+            Name = "MiSupportWebsite",
+        };
+        supportSiteItem.Click += (_, _) => OpenUrl(HelpContent.SupportUrl);
+
+        var privacyItem = new ToolStripMenuItem("&Privacy Policy")
+        {
+            Name = "MiPrivacyPolicy",
+        };
+        privacyItem.Click += (_, _) => OpenUrl(HelpContent.PrivacyUrl);
+
         var aboutItem = new ToolStripMenuItem("About FileHasher…");
         aboutItem.Click += (_, _) => ShowAboutDialog();
-        helpMenu.DropDownItems.Add(aboutItem);
+
+        helpMenu.DropDownItems.AddRange(new ToolStripItem[]
+        {
+            helpContentsItem,
+            new ToolStripSeparator(),
+            supportSiteItem,
+            privacyItem,
+            new ToolStripSeparator(),
+            aboutItem,
+        });
         menuStrip.Items.Add(helpMenu);
         MainMenuStrip = menuStrip;
 
@@ -1190,29 +1219,45 @@ public sealed class MainForm : Form
         return SidecarConflictAction.Skip;
     }
 
+    // ── Help window ──────────────────────────────────────────────────────────
+
+    private HelpForm? _helpForm;
+
+    private void ShowHelpWindow()
+    {
+        if (_helpForm is null || _helpForm.IsDisposed)
+        {
+            _helpForm = new HelpForm();
+            _helpForm.Show(this);
+        }
+        else
+        {
+            if (_helpForm.WindowState == FormWindowState.Minimized)
+                _helpForm.WindowState = FormWindowState.Normal;
+            _helpForm.Activate();
+        }
+    }
+
+    private void OpenUrl(string url)
+    {
+        try
+        {
+            Process.Start(new ProcessStartInfo { FileName = url, UseShellExecute = true });
+        }
+        catch (Exception ex)
+        {
+            SetStatus($"Could not open link: {ex.Message}");
+        }
+    }
+
     // ── About dialog ─────────────────────────────────────────────────────────
 
     private void ShowAboutDialog()
     {
-        // Prefer the informational version so a prerelease suffix in the
-        // csproj <Version> (e.g. "0.3.1-beta") is visible during test cycles.
-        // Release builds carry a plain "X.Y.Z" here, so this renders exactly
-        // like the numeric fallback below — no code change needed per release.
-        var asm     = System.Reflection.Assembly.GetExecutingAssembly();
-        var info    = asm.GetCustomAttribute<System.Reflection.AssemblyInformationalVersionAttribute>()
-                         ?.InformationalVersion;
-        string version;
-        if (!string.IsNullOrEmpty(info))
-        {
-            // Strip "+<metadata>" (e.g. a source-revision id) if present.
-            var plus = info.IndexOf('+');
-            version  = plus >= 0 ? info[..plus] : info;
-        }
-        else
-        {
-            var ver = asm.GetName().Version;
-            version = ver is null ? "0.1" : $"{ver.Major}.{ver.Minor}.{ver.Build}";
-        }
+        // Version display logic (informational version with any "+metadata"
+        // stripped) lives in HelpContent.AppVersion, shared with the help
+        // window's version-stamped support email subject.
+        var version = HelpContent.AppVersion;
 
         var page = new TaskDialogPage
         {

@@ -18,6 +18,7 @@ A utility to hash files and folders, write sidecar hash files, and export result
     - [Results](#results)
     - [Logs](#logs)
     - [UAC elevation](#uac-elevation)
+    - [Help menu](#help-menu)
     - [About dialog](#about-dialog)
 - [Automated Testing](#automated-testing)
   - [Test project overview](#test-project-overview)
@@ -313,6 +314,21 @@ When already running as Administrator, the button is disabled and the status bar
 
 ---
 
+#### Help menu
+
+**Help → FileHasher Help…** (or **F1**) opens the in-app help window: a topic
+list on the left and rendered content on the right, covering every feature
+(getting started, targets, scan filtering, algorithms, sidecar formats and
+conflicts, verification verdicts, the experimental MSI scan, CSV export, the
+results list, logs, and Administrator mode). A link bar at the bottom offers
+**Email Support** (pre-addressed to support@fabianasantiago.com with the
+subject pre-filled as `FileHasher-Windows-<version>`, where the version is
+read from the assembly at runtime so it tracks every release automatically),
+**Support Website**, and **Privacy Policy**. The same website and privacy
+links also live directly in the Help menu.
+
+---
+
 #### About dialog
 
 Open **Help → About FileHasher…** from the menu bar to view the application version, author, and copyright information.
@@ -398,6 +414,15 @@ window.FindFirstDescendant(cf => cf.ByAutomationId("RunBtn")).AsButton()
 | `MiOpenCmd` | MenuItem | Open Command Prompt at the row's location |
 | `MiCopyHash` | MenuItem | Copy the row's hash to the clipboard |
 | `MiCopyPath` | MenuItem | Copy the row's file path to the clipboard |
+| `MiHelpContents` | MenuItem | Help menu: opens the help window (F1) |
+| `MiSupportWebsite` | MenuItem | Help menu: opens the support website |
+| `MiPrivacyPolicy` | MenuItem | Help menu: opens the privacy policy |
+| `HelpForm` | Window | The help window ("FileHasher Help") |
+| `HelpTopicsList` | ListBox | Help window topic list |
+| `HelpContentBox` | RichTextBox | Help window rendered topic content |
+| `HelpEmailLink` | LinkLabel | Email Support (version-stamped subject) |
+| `HelpSupportSiteLink` | LinkLabel | Opens the support website |
+| `HelpPrivacyLink` | LinkLabel | Opens the privacy policy |
 
 ---
 
@@ -483,6 +508,16 @@ window.FindFirstDescendant(cf => cf.ByAutomationId("RunBtn")).AsButton()
 | `CsvExport_WithMetadata_DataRowContainsSizeAndDate` | Metadata data row contains file size and modification date |
 | `CsvExport_Algorithm_HeaderReflectsSelectedAlgorithm` | Column header updates when algorithm changes (e.g. MD5) |
 | `CsvExport_OnlySuccessfulRowsIncluded` | Only hashed files appear in CSV; errors are excluded |
+
+**`MainFormHelpMenuTests`**: Help menu and in-app help window. Each test gets its own app process.
+
+| Test | What it covers |
+| --- | --- |
+| `HelpMenu_ContainsContentsSupportAndPrivacyItems` | Help menu lists Help contents, Support Website, Privacy Policy, and About |
+| `HelpWindow_OpensAndListsEveryTopic` | Help window opens via the menu; topic count matches `HelpContent.Topics` |
+| `HelpWindow_TopicSelectionUpdatesContent` | Selecting a topic renders its content (verification verdicts shown) |
+| `HelpWindow_SupportTopicShowsVersionStampedSubject` | Support topic and mailto carry `FileHasher-Windows-<version>` |
+| `HelpWindow_ReopeningActivatesExistingInstance` | Re-invoking Help activates the existing window instead of duplicating it |
 
 **`MainFormEdgeCaseTests`** — edge cases, error paths, and miscellaneous UI invariants.
 

@@ -9,6 +9,15 @@ Release tags use the form `vMAJOR.MINOR.PATCH`. The release pipeline strips the
 leading `v` when injecting the version into the .NET build and validates the
 result against `<Version>` in `FileHasherApp/FileHasherApp.csproj`.
 
+## Unreleased
+
+- In-app help: Help menu gains "FileHasher Help…" (F1), opening a help window
+  with a topic list covering every feature, plus Support Website and Privacy
+  Policy links. The Email Support link pre-fills its subject with the
+  installed version (FileHasher-Windows-x.y.z), read from the assembly so it
+  updates itself on every release. About dialog now shares the same version
+  helper. New UIA test class MainFormHelpMenuTests (5 tests).
+
 ## [Unreleased]
 
 ### Added

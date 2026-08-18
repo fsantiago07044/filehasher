@@ -26,6 +26,27 @@ public sealed class AppFixture : IDisposable
         MainWindow  = _app.GetMainWindow(_automation, TimeSpan.FromSeconds(10));
     }
 
+    /// <summary>
+    /// Waits for a non-modal top-level window of the app (e.g. the help
+    /// window) to appear, matched by exact title. Returns null on timeout.
+    /// </summary>
+    public Window? WaitForTopLevelWindow(string title, TimeSpan timeout)
+    {
+        var deadline = DateTime.UtcNow + timeout;
+        while (DateTime.UtcNow < deadline)
+        {
+            var match = _app.GetAllTopLevelWindows(_automation)
+                            .FirstOrDefault(w => w.Title == title);
+            if (match is not null) return match;
+            Thread.Sleep(100);
+        }
+        return null;
+    }
+
+    /// <summary>Counts the app's current top-level windows with the given title.</summary>
+    public int CountTopLevelWindows(string title) =>
+        _app.GetAllTopLevelWindows(_automation).Count(w => w.Title == title);
+
     public void Dispose()
     {
         // Test fixture has no persistent state to flush — kill outright instead
