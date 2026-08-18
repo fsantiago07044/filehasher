@@ -28,24 +28,45 @@ public sealed class AppFixture : IDisposable
 
     /// <summary>
     /// Waits for a non-modal top-level window of the app (e.g. the help
-    /// window) to appear, matched by exact title. Returns null on timeout.
+    /// window) to appear, matched by exact title or AutomationId. Scans
+    /// desktop children by process id, the same approach as
+    /// TestHelpers.GetOpenContextMenu, rather than FlaUI's
+    /// GetAllTopLevelWindows, whose ControlType filter can miss windows
+    /// while they are still materializing. Returns null on timeout.
     /// </summary>
-    public Window? WaitForTopLevelWindow(string title, TimeSpan timeout)
+    public Window? WaitForTopLevelWindow(string title, string automationId, TimeSpan timeout)
     {
         var deadline = DateTime.UtcNow + timeout;
+        var desktop  = _automation.GetDesktop();
+
         while (DateTime.UtcNow < deadline)
         {
-            var match = _app.GetAllTopLevelWindows(_automation)
-                            .FirstOrDefault(w => w.Title == title);
-            if (match is not null) return match;
+            foreach (var el in desktop.FindAllChildren(cf => cf.ByProcessId(_app.ProcessId)))
+            {
+                try
+                {
+                    if (el.Name == title || el.AutomationId == automationId)
+                        return el.AsWindow();
+                }
+                catch { /* window can vanish or refuse properties mid-scan */ }
+            }
             Thread.Sleep(100);
         }
         return null;
     }
 
     /// <summary>Counts the app's current top-level windows with the given title.</summary>
-    public int CountTopLevelWindows(string title) =>
-        _app.GetAllTopLevelWindows(_automation).Count(w => w.Title == title);
+    public int CountTopLevelWindows(string title)
+    {
+        var count = 0;
+        foreach (var el in _automation.GetDesktop()
+                     .FindAllChildren(cf => cf.ByProcessId(_app.ProcessId)))
+        {
+            try { if (el.Name == title) count++; }
+            catch { /* ignore transient elements */ }
+        }
+        return count;
+    }
 
     public void Dispose()
     {

@@ -43,14 +43,25 @@ public sealed class MainFormHelpMenuTests : IDisposable
 
     private Window OpenHelpWindow()
     {
-        Win.FindFirstDescendant(cf => cf.ByName("Help")).AsMenuItem().Click();
+        // Primary route: the documented F1 shortcut.
+        Win.Focus();
+        FlaUI.Core.Input.Keyboard.Type(FlaUI.Core.WindowsAPI.VirtualKeyShort.F1);
+        var help = _fixture.WaitForTopLevelWindow(
+            "FileHasher Help", "HelpForm", TimeSpan.FromSeconds(5));
+        if (help is not null) return help;
 
+        // Fallback route: through the Help menu.
+        Win.FindFirstDescendant(cf => cf.ByName("Help")).AsMenuItem().Click();
         var item = FindHelpMenuItem("MiHelpContents", "FileHasher Help…");
         Assert.NotNull(item);
         item!.AsMenuItem().Invoke();
 
-        var help = _fixture.WaitForTopLevelWindow("FileHasher Help", TimeSpan.FromSeconds(10));
-        Assert.NotNull(help);
+        help = _fixture.WaitForTopLevelWindow(
+            "FileHasher Help", "HelpForm", TimeSpan.FromSeconds(10));
+        if (help is null)
+            Assert.Fail("Help window did not appear via F1 or the Help menu. " +
+                        "App top-level UIA elements:\n" +
+                        TestHelpers.DescribeAppTopLevels(Win));
         return help!;
     }
 
