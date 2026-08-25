@@ -12,9 +12,14 @@ default filter and always-recursive scans).
   Win10 VM is the authoritative build/test machine; it keeps a private copy at
   `C:\dotnet-8.0.420` (Windows Terminal profile "cmd (.NET 8.0.420)" sets
   DOTNET_ROOT/PATH), immune to Microsoft Update and VS updates.
-- On macOS you can still **compile-gate** changes (do this before every push):
-  `mv global.json /tmp/gj && dotnet build <proj> -c Debug; mv /tmp/gj global.json`
-  (SDK 10 builds net8.0-windows; EnableWindowsTargeting is set in both csproj).
+- On macOS, **compile-gate** changes before every push with
+  `dotnet build filehasher.sln -c Debug`, leaving `global.json` in place: the Mac
+  has SDK 8.0.420 installed alongside 10.0.201 as of 2026-08-25, so the pin
+  resolves natively (EnableWindowsTargeting is set in both csproj, so
+  net8.0-windows compiles cross-platform). Do not revive the old
+  `mv global.json /tmp/gj` workaround; because rollForward is `disable`, building
+  on SDK 10 can go green on code the runner's 8.0.420 rejects, which defeats the
+  point of the gate.
 - Two pre-existing CS8602 warnings in MainForm.cs (ctor-ordering lambdas) are
   known and harmless; don't chase them.
 - C# gotcha that already cost a round trip: nullability annotations are erased
