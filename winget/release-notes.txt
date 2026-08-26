@@ -1,0 +1,2 @@
+v0.3.1
+Adds an in-app help window (F1), a Verify Sidecars mode that re-checks files against their existing sidecar hash files, a results context menu (open Explorer/PowerShell/cmd at a file, copy hash or path), an extended sidecar format carrying modified date and size, and sidecar suggestions that follow the selected hash algorithm.

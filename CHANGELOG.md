@@ -9,6 +9,11 @@ Release tags use the form `vMAJOR.MINOR.PATCH`. The release pipeline strips the
 leading `v` when injecting the version into the .NET build and validates the
 result against `<Version>` in `FileHasherApp/FileHasherApp.csproj`.
 
+## [Unreleased]
+
+### Fixed
+- `winget-update` no longer drops the `ReleaseNotes` property carried over from the previous version's manifest; the winget-pkgs validation bot flags the missing property as a metadata inconsistency (seen on the v0.3.1 PR, fixed there by hand). The job now injects the release's summary from a new `winget/release-notes.txt` (first line: the exact tag, as a staleness gate the job enforces; remaining lines: the prose summary), and the release runbook gains the corresponding step.
+
 ## [0.3.1] - 2026-08-25
 
 ### Added

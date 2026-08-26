@@ -492,19 +492,46 @@ winget-update:
       }
 
       # Patch version-specific locale fields carried over from the previous
-      # version's merged manifest. Assumes single-line values (which is what
-      # our manifests use); a future block-scalar ReleaseNotes would need a
-      # smarter edit than this line filter.
+      # version's merged manifest. ReleaseNotes is REPLACED (not dropped) with
+      # this release's summary from winget/release-notes.txt: the winget-pkgs
+      # validation bot flags a version that removes a property the published
+      # previous version had ("Missing property ReleaseNotes", seen on the
+      # v0.3.1 PR). The file's first line must be the current tag (a staleness
+      # gate, so a forgotten update fails loudly instead of submitting the
+      # previous release's notes); the remaining non-blank lines are joined
+      # into the single-line note. Assumes single-line manifest values, which
+      # is what our manifests use.
+      $notesFile = 'winget/release-notes.txt'
+      if (-not (Test-Path $notesFile)) {
+        Write-Error "winget/release-notes.txt not found; it must be updated as part of every release commit (see ci/README.md, Releasing a new version)."
+        exit 1
+      }
+      $nf = @(Get-Content $notesFile | Where-Object { $_.Trim() })
+      if ($nf.Count -lt 2 -or $nf[0].Trim() -ne "v$($env:VERSION)") {
+        Write-Error "winget/release-notes.txt is stale: first line is '$($nf[0])', expected 'v$($env:VERSION)'. Update it as part of the release commit (see ci/README.md, Releasing a new version)."
+        exit 1
+      }
+      $releaseNotes = (($nf | Select-Object -Skip 1) -join ' ') -replace "'", "''"
+
       $locale = Join-Path $manifestDir "$($env:PACKAGE_ID).locale.en-US.yaml"
       if (Test-Path $locale) {
-        $lines = Get-Content $locale |
-          Where-Object { $_ -notmatch '^ReleaseNotes:' } |
-          ForEach-Object {
-            if ($_ -match '^ReleaseNotesUrl:') {
-              "ReleaseNotesUrl: https://github.com/fsantiago07044/filehasher/releases/tag/v$($env:VERSION)"
-            } else { $_ }
+        $patched  = @()
+        $hadNotes = $false
+        foreach ($line in Get-Content $locale) {
+          if ($line -match '^ReleaseNotes:') {
+            $patched += "ReleaseNotes: '$releaseNotes'"
+            $hadNotes = $true
+          } elseif ($line -match '^ReleaseNotesUrl:') {
+            if (-not $hadNotes) {
+              $patched += "ReleaseNotes: '$releaseNotes'"
+              $hadNotes = $true
+            }
+            $patched += "ReleaseNotesUrl: https://github.com/fsantiago07044/filehasher/releases/tag/v$($env:VERSION)"
+          } else {
+            $patched += $line
           }
-        Set-Content -Path $locale -Value $lines -Encoding utf8
+        }
+        Set-Content -Path $locale -Value $patched -Encoding utf8
         Write-Host "Patched version-specific locale fields in $locale"
       }
 

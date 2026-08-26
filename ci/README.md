@@ -456,8 +456,13 @@ public-mirror copy of this repo. Both variables carry all three privacy flags:
 1. Bump `<Version>` in `FileHasherApp/FileHasherApp.csproj`.
 2. In `CHANGELOG.md`, move entries from `## [Unreleased]` into a new
    `## [X.Y.Z] - YYYY-MM-DD` section, and update the compare-link footer at the bottom of the file.
-3. Commit and push to `main`.
-4. Tag (GPG-signed; release tags are always signed) and push:
+3. Update `winget/release-notes.txt`: first line `vX.Y.Z` (the exact new tag),
+   second line a one-sentence prose summary of the release. The `winget-update`
+   job injects it as the manifest's `ReleaseNotes` and fails if the version
+   line does not match the tag; the winget-pkgs validation bot flags a
+   submission that drops the property the previous version had.
+4. Commit and push to `main`.
+5. Tag (GPG-signed; release tags are always signed) and push:
    ```sh
    git tag -s vX.Y.Z -m "FileHasher vX.Y.Z"
    git push origin vX.Y.Z
@@ -465,19 +470,19 @@ public-mirror copy of this repo. Both variables carry all three privacy flags:
    The repo also sets `tag.gpgsign=true` locally, so a plain `git tag` would
    sign too; the explicit `-s` keeps the runbook correct on a fresh clone
    without that config. Verify with `git tag -v vX.Y.Z` before pushing.
-5. Watch the pipeline. When `release` finishes:
+6. Watch the pipeline. When `release` finishes:
    - `/src/filehasher/signed-builds/FileHasher-X.Y.Z.{exe,exe.sha256,zip,zip.sha256,msi,msi.sha256}`
      exist on the Ubuntu host.
    - `FileHasher-latest.*` symlinks point at the new files.
    - A GitLab Release for `vX.Y.Z` exists with the six assets attached as Generic
      Package links.
-6. Before (or right after) tagging, glance at the `fsantiago07044/winget-pkgs`
+7. Before (or right after) tagging, glance at the `fsantiago07044/winget-pkgs`
    fork on GitHub and click **Sync fork** if it is behind upstream.
    `wingetcreate` attempts the sync itself, but on a fork that has drifted for
    weeks the GitHub fast-forward can fail ("The forked repository could not be
    synced with the upstream commits"), which fails the `winget-update` job;
    the fix is the one-click UI sync followed by a job retry.
-7. Once `mirror-github` finishes, the `winget-update` job automatically opens
+8. Once `mirror-github` finishes, the `winget-update` job automatically opens
    the version's PR against `microsoft/winget-pkgs` (the job log prints the PR
    URL). Watch it for `Needs-Author-Feedback` labels; version updates usually
    merge within hours. If the job yellow-flags, the generated manifests are
