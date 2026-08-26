@@ -469,7 +469,7 @@ winget-update:
       # an Administrator install and cannot be self-healed here; see 1c.
       $toolsDll = Join-Path (Split-Path $env:WINGETCREATE) 'WinGetUtil.dll'
       if (-not (Test-Path $toolsDll)) {
-        Write-Host "WinGetUtil.dll not found next to wingetcreate — fetching into job workspace"
+        Write-Host "WinGetUtil.dll not found next to wingetcreate; fetching into job workspace"
         $v = '1.29.280'
         Invoke-WebRequest "https://api.nuget.org/v3-flatcontainer/microsoft.windowspackagemanager.utils/$v/microsoft.windowspackagemanager.utils.$v.nupkg" -OutFile wpm-utils.zip
         Expand-Archive wpm-utils.zip wpm-utils -Force
