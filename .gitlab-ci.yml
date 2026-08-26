@@ -460,6 +460,24 @@ winget-update:
         Write-Error "wingetcreate not found at $env:WINGETCREATE — one-time install in ci/README.md section 1c."
         exit 1
       }
+
+      # Self-heal a missing WinGetUtil.dll (wingetcreate's native manifest
+      # validator; NOT bundled into the standalone exe) by downloading it into
+      # the job workspace and putting that dir on PATH, which native P/Invoke
+      # resolution searches. A rebuilt runner missing the ci/README 1c step
+      # then still works. Its OTHER prerequisite, the VC++ x64 runtime, needs
+      # an Administrator install and cannot be self-healed here; see 1c.
+      $toolsDll = Join-Path (Split-Path $env:WINGETCREATE) 'WinGetUtil.dll'
+      if (-not (Test-Path $toolsDll)) {
+        Write-Host "WinGetUtil.dll not found next to wingetcreate — fetching into job workspace"
+        $v = '1.29.280'
+        Invoke-WebRequest "https://api.nuget.org/v3-flatcontainer/microsoft.windowspackagemanager.utils/$v/microsoft.windowspackagemanager.utils.$v.nupkg" -OutFile wpm-utils.zip
+        Expand-Archive wpm-utils.zip wpm-utils -Force
+        New-Item -ItemType Directory -Force wingetutil | Out-Null
+        Copy-Item wpm-utils\runtimes\win-x64\native\WinGetUtil.dll wingetutil\
+        $env:Path = "$pwd\wingetutil;$env:Path"
+      }
+
       $url = "https://github.com/fsantiago07044/filehasher/releases/download/v$($env:VERSION)/FileHasher-$($env:VERSION).msi"
 
       Write-Host "Generating winget manifests for $($env:PACKAGE_ID) $($env:VERSION)"

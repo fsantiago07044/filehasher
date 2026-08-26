@@ -125,6 +125,33 @@ If `wingetcreate --version` complains a newer `Microsoft.NETCore.App`
 framework is missing after a future re-download, install the matching newer
 runtime the same way.
 
+The standalone exe also needs two native prerequisites that the MSIX install
+would have carried along; both were discovered on the v0.3.1 maiden run,
+where `wingetcreate` crashed at manifest validation with
+`DllNotFoundException: WinGetUtil.dll` (0x8007007E):
+
+```powershell
+# WinGetUtil.dll (native manifest-validation library) next to the exe; it is
+# distributed via the Microsoft.WindowsPackageManager.Utils NuGet package,
+# not bundled into the standalone wingetcreate.exe. Pick the latest stable
+# version from https://www.nuget.org/packages/Microsoft.WindowsPackageManager.Utils
+$v = '1.29.280'; $t = "$env:TEMP\wpm-utils"
+Invoke-WebRequest "https://api.nuget.org/v3-flatcontainer/microsoft.windowspackagemanager.utils/$v/microsoft.windowspackagemanager.utils.$v.nupkg" -OutFile "$t.zip"
+Expand-Archive "$t.zip" $t -Force
+Copy-Item "$t\runtimes\win-x64\native\WinGetUtil.dll" 'C:\GitLab-Runner\tools\WinGetUtil.dll'
+
+# VC++ 2015-2022 x64 runtime: WinGetUtil.dll is native C++ and fails to load
+# without msvcp140.dll / vcruntime140*.dll, which a from-scratch Server
+# install does not have. Same 0x8007007E error ("or one of its dependencies").
+Invoke-WebRequest https://aka.ms/vs/17/release/vc_redist.x64.exe -OutFile "$env:TEMP\vc_redist.x64.exe"
+Start-Process "$env:TEMP\vc_redist.x64.exe" -ArgumentList '/install','/quiet','/norestart' -Wait
+```
+
+The `winget-update` job also self-heals a missing `WinGetUtil.dll` by
+downloading it into the job workspace (see `.gitlab-ci.yml`), but the VC++
+runtime needs the Administrator install above; the runner user cannot
+install it mid-job.
+
 To update it later, re-run the download. The job references the tool via its
 `WINGETCREATE` variable in `.gitlab-ci.yml`; also see the `WINGET_PAT`
 variable under "GitLab project settings".
@@ -444,7 +471,13 @@ public-mirror copy of this repo. Both variables carry all three privacy flags:
    - `FileHasher-latest.*` symlinks point at the new files.
    - A GitLab Release for `vX.Y.Z` exists with the six assets attached as Generic
      Package links.
-6. Once `mirror-github` finishes, the `winget-update` job automatically opens
+6. Before (or right after) tagging, glance at the `fsantiago07044/winget-pkgs`
+   fork on GitHub and click **Sync fork** if it is behind upstream.
+   `wingetcreate` attempts the sync itself, but on a fork that has drifted for
+   weeks the GitHub fast-forward can fail ("The forked repository could not be
+   synced with the upstream commits"), which fails the `winget-update` job;
+   the fix is the one-click UI sync followed by a job retry.
+7. Once `mirror-github` finishes, the `winget-update` job automatically opens
    the version's PR against `microsoft/winget-pkgs` (the job log prints the PR
    URL). Watch it for `Needs-Author-Feedback` labels; version updates usually
    merge within hours. If the job yellow-flags, the generated manifests are
