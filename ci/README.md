@@ -430,11 +430,14 @@ public-mirror copy of this repo. Both variables carry all three privacy flags:
 2. In `CHANGELOG.md`, move entries from `## [Unreleased]` into a new
    `## [X.Y.Z] - YYYY-MM-DD` section, and update the compare-link footer at the bottom of the file.
 3. Commit and push to `main`.
-4. Tag and push:
+4. Tag (GPG-signed; release tags are always signed) and push:
    ```sh
-   git tag vX.Y.Z
+   git tag -s vX.Y.Z -m "FileHasher vX.Y.Z"
    git push origin vX.Y.Z
    ```
+   The repo also sets `tag.gpgsign=true` locally, so a plain `git tag` would
+   sign too; the explicit `-s` keeps the runbook correct on a fresh clone
+   without that config. Verify with `git tag -v vX.Y.Z` before pushing.
 5. Watch the pipeline. When `release` finishes:
    - `/src/filehasher/signed-builds/FileHasher-X.Y.Z.{exe,exe.sha256,zip,zip.sha256,msi,msi.sha256}`
      exist on the Ubuntu host.
