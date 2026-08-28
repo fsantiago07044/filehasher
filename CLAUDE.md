@@ -8,20 +8,57 @@ default filter and always-recursive scans).
 
 ## Build and toolchain
 
-- SDK pinned by `global.json` to **8.0.420, rollForward: disable**. Fabian's
-  Win10 VM is the authoritative build/test machine; it keeps a private copy at
-  `C:\dotnet-8.0.420` (Windows Terminal profile "cmd (.NET 8.0.420)" sets
-  DOTNET_ROOT/PATH), immune to Microsoft Update and VS updates.
-- On macOS, **compile-gate** changes before every push with
-  `dotnet build filehasher.sln -c Debug`, leaving `global.json` in place: the Mac
-  has SDK 8.0.420 installed alongside 10.0.201 as of 2026-08-25, so the pin
-  resolves natively (EnableWindowsTargeting is set in both csproj, so
-  net8.0-windows compiles cross-platform). Do not revive the old
-  `mv global.json /tmp/gj` workaround; because rollForward is `disable`, building
-  on SDK 10 can go green on code the runner's 8.0.420 rejects, which defeats the
-  point of the gate.
+- Target framework is **net10.0-windows**, SDK pinned by `global.json` to
+  **10.0.400, rollForward: disable**. The 0.4.0 cycle moved the project off
+  net8.0-windows/8.0.420 because .NET 8 goes EOL 2026-11-10; .NET 10 is LTS
+  (EOL 2028-11-14). Fabian's Win10 VM is the authoritative build/test machine;
+  it keeps a private SDK copy at `C:\dotnet-10.0.400` (Windows Terminal profile
+  sets DOTNET_ROOT/PATH), immune to Microsoft Update and VS updates. Install or
+  refresh that copy with:
+
+  ```powershell
+  Invoke-WebRequest https://dot.net/v1/dotnet-install.ps1 -OutFile "$env:TEMP\dotnet-install.ps1"
+  & "$env:TEMP\dotnet-install.ps1" -Version 10.0.400 -InstallDir C:\dotnet-10.0.400
+  ```
+
+  Tags before v0.4.0 pin 8.0.420, so keep the old private copy
+  (`C:\dotnet-8.0.420`) around to rebuild older releases. Any schtasks-driven
+  test run must set DOTNET_ROOT and PATH to the private copy it wants, or
+  dotnet exits 0x8000809B (SdkResolveFailure).
+- Reproducibility is pinned at two levels: `global.json` fixes the SDK, and
+  `<RuntimeFrameworkVersion>` in FileHasherApp.csproj fixes the runtime packs
+  embedded in the self-contained exe (10.0.11, the runtime bundled with SDK
+  10.0.400). Bump the two together; the property drives both
+  Microsoft.NETCore.App and Microsoft.WindowsDesktop.App.
+- On macOS, **compile-gate** changes before every push, leaving `global.json`
+  in place. The system dotnet root (`/usr/local/share/dotnet`, root-owned) has
+  8.0.420 and 10.0.201, neither of which satisfies the pin, so 10.0.400 lives
+  in the user-local root `~/.dotnet` (installed with `dotnet-install.sh
+  --install-dir "$HOME/.dotnet"`, no sudo needed). Gate with:
+
+  ```sh
+  DOTNET_ROOT="$HOME/.dotnet" PATH="$HOME/.dotnet:$PATH" \
+    dotnet build filehasher.sln -c Debug
+  ```
+
+  EnableWindowsTargeting is set in both csproj, so net10.0-windows compiles
+  (and even `publish -r win-x64 --self-contained`) cross-platform. Never gate
+  on a different SDK than the pin: with rollForward `disable`, a build on some
+  other patch can go green on code the runner rejects, which defeats the gate.
 - Two pre-existing CS8602 warnings in MainForm.cs (ctor-ordering lambdas) are
   known and harmless; don't chase them.
+- **.NET 10 WinForms analyzers are errors, not warnings.** WFO1000 ("does not
+  configure the code serialization for its property content") fired on all
+  three settable properties of the owner-drawn `ColorProgressBar` and broke the
+  build on the first net10 compile; every public settable property on a control
+  now needs `[DesignerSerializationVisibility(...)]` (this form builds its UI
+  in code, so Hidden is the right answer) or a `[DefaultValue]`.
+- The .NET 10 SDK **prunes framework-provided packages** from the restore
+  graph, so FlaUI's transitive System.Drawing.Common 5.0.2 (advisory
+  GHSA-rxg9-xrhp-64gj) no longer appears and `dotnet list package --vulnerable`
+  comes back clean. The reviewed `<NuGetAuditSuppress>` and the audit job's
+  parallel list are inert for now; they are kept as a safety net, not because
+  the finding is still live.
 - C# gotcha that already cost a round trip: nullability annotations are erased
   at the IL level, so constructors/overloads differing only by `?` collide
   (CS0111).

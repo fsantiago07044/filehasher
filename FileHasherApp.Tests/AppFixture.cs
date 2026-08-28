@@ -114,7 +114,7 @@ public sealed class AppFixture : IDisposable
             {
                 var candidate = Path.Combine(
                     dir.FullName, "FileHasherApp", "bin", config,
-                    "net8.0-windows", "FileHasher.exe");
+                    "net10.0-windows", "FileHasher.exe");
                 if (File.Exists(candidate))
                     return candidate;
             }

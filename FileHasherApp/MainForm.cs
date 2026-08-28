@@ -1448,18 +1448,28 @@ public sealed class MainForm : Form
         private static readonly Color CompleteColor = Color.FromArgb(0,   120, 215);   // Windows blue
         private static readonly Color TrackColor    = Color.FromArgb(225, 225, 225);   // light grey track
 
+        //
+        // The three properties below are driven entirely from code; this form
+        // builds its whole UI in the constructor and no .Designer.cs file ever
+        // serializes them. The .NET 10 WinForms analyzer (WFO1000, an error by
+        // default) requires every settable property on a control to say how the
+        // designer should serialize it, so each one is marked Hidden.
+        //
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
         public int Maximum
         {
             get => _maximum;
             set { _maximum = Math.Max(1, value); Invalidate(); }
         }
 
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
         public int Value
         {
             get => _value;
             set { _value = Math.Max(0, Math.Min(value, _maximum)); Invalidate(); }
         }
 
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
         public BarState State
         {
             get => _state;

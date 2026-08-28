@@ -72,17 +72,24 @@ Prerequisite: the host is Windows Server 2025 with the Desktop Experience role
 Run all commands from an elevated (Administrator) PowerShell session unless a step
 is explicitly tagged `[as gitlab-runner]`.
 
-#### 1. Install .NET 8 SDK
+#### 1. Install the pinned .NET SDK
+
+`global.json` pins the SDK with `rollForward: disable`, so the runner needs the
+**exact** patch it names (10.0.400 as of the 0.4.0 cycle) or every build fails
+fast. Install that patch explicitly rather than whatever the feed calls latest:
 
 ```powershell
-winget install --id Microsoft.DotNet.SDK.8 --silent --accept-package-agreements --accept-source-agreements
+Invoke-WebRequest https://dot.net/v1/dotnet-install.ps1 -OutFile "$env:TEMP\dotnet-install.ps1"
+& "$env:TEMP\dotnet-install.ps1" -Version 10.0.400 -InstallDir 'C:\Program Files\dotnet'
 # Open a fresh PowerShell window so PATH picks up dotnet, then verify:
-dotnet --version
+dotnet --list-sdks    # the pinned patch must appear verbatim
 ```
 
-If `winget` is unavailable on the freshly installed Server 2025, download the
-.NET 8 SDK x64 installer from <https://dotnet.microsoft.com/download/dotnet/8.0>
-and run it interactively.
+`winget install --id Microsoft.DotNet.SDK.10` also works, but it tracks the
+newest 10.0.x feature band, which drifts away from the pin; if you use it,
+check `dotnet --list-sdks` against `global.json` afterwards. SDKs install
+side-by-side, so leaving the old .NET 8 SDK in place is harmless (and lets the
+runner still build pre-0.4.0 tags, whose `global.json` pins 8.0.420).
 
 #### 1b. Install the WiX toolset
 
@@ -111,7 +118,7 @@ The `winget-update` job submits each release to `microsoft/winget-pkgs` with
 `wingetcreate`. Use the standalone exe at a fixed path (no MSIX/user-PATH
 dependency); download as Administrator, the runner user only needs to execute
 it. The exe is framework-dependent and (as of wingetcreate 1.12) requires the
-**.NET 9 runtime**, which is not covered by the .NET 8 SDK from step 1 —
+**.NET 9 runtime**, which is not covered by the .NET 10 SDK from step 1 —
 install it alongside (builds are unaffected; `global.json` pins the SDK):
 
 ```powershell
@@ -453,7 +460,13 @@ public-mirror copy of this repo. Both variables carry all three privacy flags:
 
 ## Releasing a new version
 
-1. Bump `<Version>` in `FileHasherApp/FileHasherApp.csproj`.
+1. Bump `<Version>` in `FileHasherApp/FileHasherApp.csproj`. If the working
+   version carries a prerelease suffix (`X.Y.Z-beta` during a test cycle),
+   strip it to plain `X.Y.Z` here: the tag glob and the `build` job's
+   tag-versus-csproj check both accept only `MAJOR.MINOR.PATCH`, so a tag
+   pipeline cannot run against a suffixed version. Nothing else needs
+   reverting; the About dialog and support-email subject read the version at
+   runtime.
 2. In `CHANGELOG.md`, move entries from `## [Unreleased]` into a new
    `## [X.Y.Z] - YYYY-MM-DD` section, and update the compare-link footer at the bottom of the file.
 3. Update `winget/release-notes.txt`: first line `vX.Y.Z` (the exact new tag),

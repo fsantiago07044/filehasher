@@ -42,7 +42,7 @@
 # Runners required
 # ────────────────
 #   • Tag "windows"      — Windows Server runner, shell/powershell executor,
-#                          .NET 8 SDK, the wix dotnet tool (MSI build + ICE
+#                          .NET 10 SDK, the wix dotnet tool (MSI build + ICE
 #                          validation), interactive desktop session for FlaUI.
 #   • Tag "linux-signer" — Ubuntu host with HSM token, osslsigncode, the cert
 #                          chain at the path configured via the SIGNING_BASE_PATH
@@ -65,7 +65,7 @@
 variables:
   DOTNET_CLI_TELEMETRY_OPTOUT: "1"
   NUGET_PACKAGES: "$CI_PROJECT_DIR/.nuget/packages"
-  PUBLISH_DIR: "FileHasherApp/bin/Release/net8.0-windows/win-x64/publish"
+  PUBLISH_DIR: "FileHasherApp/bin/Release/net10.0-windows/win-x64/publish"
   SIGNED_DIR: "/src/filehasher/signed-builds"
 
 stages:
@@ -226,7 +226,7 @@ test:
     # Tell FileHasherApp.Tests/AppFixture.cs to launch the published self-contained
     # binary, not a side-effect bin output. This makes the FlaUI tests verify the
     # exact .exe that the sign stage will sign.
-    FILEHASHER_EXE: "$CI_PROJECT_DIR/FileHasherApp/bin/Release/net8.0-windows/win-x64/publish/FileHasher.exe"
+    FILEHASHER_EXE: "$CI_PROJECT_DIR/FileHasherApp/bin/Release/net10.0-windows/win-x64/publish/FileHasher.exe"
   script:
     - dotnet test FileHasherApp.Tests/FileHasherApp.Tests.csproj `
         -c Release `

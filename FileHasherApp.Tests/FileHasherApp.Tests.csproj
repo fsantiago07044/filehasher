@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <OutputType>Library</OutputType>
-    <TargetFramework>net8.0-windows</TargetFramework>
+    <TargetFramework>net10.0-windows</TargetFramework>
     <UseWindowsForms>true</UseWindowsForms>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
@@ -19,9 +19,9 @@
   <ItemGroup>
     <PackageReference Include="FlaUI.Core"                  Version="4.0.0" />
     <PackageReference Include="FlaUI.UIA3"                  Version="4.0.0" />
-    <PackageReference Include="Microsoft.NET.Test.Sdk"      Version="17.9.0" />
-    <PackageReference Include="xunit"                       Version="2.8.1" />
-    <PackageReference Include="xunit.runner.visualstudio"   Version="2.8.1">
+    <PackageReference Include="Microsoft.NET.Test.Sdk"      Version="18.9.0" />
+    <PackageReference Include="xunit"                       Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio"   Version="3.1.5">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
@@ -34,7 +34,7 @@
     tests still launch the built FileHasher.exe out-of-process via FlaUI;
     they don't depend on the project reference. AppFixture.FindExe walks up
     from AppContext.BaseDirectory looking for the canonical exe in
-    FileHasherApp\bin\<config>\net8.0-windows\, so the duplicate that the
+    FileHasherApp\bin\<config>\net10.0-windows\, so the duplicate that the
     project reference drops next to the test assembly is incidental and
     ignored at runtime.
   -->
@@ -58,6 +58,11 @@
       Test-only dependency, never shipped to end users. The test process does
       not load attacker-controlled images or otherwise reach the vulnerable
       GDI+ paths described in the advisory. Reviewed 2026-05.
+      Inert since the net10.0-windows move: the .NET 10 SDK prunes
+      framework-provided packages from the restore graph, so
+      System.Drawing.Common no longer resolves at all and the vulnerability
+      scan comes back clean. Kept as a safety net in case a future dependency
+      reintroduces it.
     -->
     <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-rxg9-xrhp-64gj" />
   </ItemGroup>

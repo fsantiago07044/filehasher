@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net8.0-windows</TargetFramework>
+    <TargetFramework>net10.0-windows</TargetFramework>
     <UseWindowsForms>true</UseWindowsForms>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
@@ -10,12 +10,24 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <AssemblyName>FileHasher</AssemblyName>
     <RootNamespace>FileHasher</RootNamespace>
-    <Version>0.3.1</Version>
+    <Version>0.4.0-beta</Version>
     <Company>FileHasher</Company>
     <Product>FileHasher</Product>
     <Copyright>Copyright © 2026 FSP Productions, LLC</Copyright>
     <ApplicationIcon>assets\app-icon\hash-icon.ico</ApplicationIcon>
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <!--
+      Reproducibility: pin the runtime patch, not just the SDK. global.json
+      pins the SDK to 10.0.400, whose bundled runtime is 10.0.11; naming that
+      version here keeps the self-contained publish bound to the exact
+      Microsoft.NETCore.App and Microsoft.WindowsDesktop.App runtime packs
+      (verified: this property drives both) instead of leaving it implied by
+      whatever SDK build resolves the framework references. Bump this together
+      with the global.json SDK pin, and keep the pair consistent: a version
+      that does not match the SDK's bundled runtime still builds, but the packs
+      then come from nuget.org rather than the local SDK install.
+    -->
+    <RuntimeFrameworkVersion>10.0.11</RuntimeFrameworkVersion>
     <!--
       Bundle native libraries (wpfgfx_cor3.dll, D3DCompiler_47_cor3.dll, etc.)
       inside FileHasher.exe instead of shipping them as sidecars. Only takes
@@ -65,7 +77,7 @@
 
       dotnet publish -c Release -r win-x64 -p:SelfContained=true -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true -p:DebugType=embedded
 
-    Output: bin\Release\net8.0-windows\win-x64\publish\FileHasher.exe
+    Output: bin\Release\net10.0-windows\win-x64\publish\FileHasher.exe
   -->
 
 </Project>

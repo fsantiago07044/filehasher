@@ -35,16 +35,16 @@ A utility to hash files and folders, write sidecar hash files, and export result
 
 ## Windows GUI Application
 
-A self-contained, portable 64-bit Windows executable built on .NET 8 and WinForms. No installer or runtime dependency required.
+A self-contained, portable 64-bit Windows executable built on .NET 10 and WinForms. No installer or runtime dependency required.
 
 ### Requirements
 
 - Windows 10 or Windows 11 (64-bit)
-- [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0) — only needed to **build**; the published `.exe` is fully self-contained
+- [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0) — only needed to **build**; the published `.exe` is fully self-contained
 
 ### Building
 
-From a Windows machine with the .NET 8 SDK installed, open a terminal in the `FileHasherApp` folder and run:
+From a Windows machine with the .NET 10 SDK installed, open a terminal in the `FileHasherApp` folder and run:
 
 ```powershell
 # Self-contained single-file executable (recommended)
@@ -55,7 +55,7 @@ dotnet publish -c Release -r win-x64 `
     -p:DebugType=embedded
 ```
 
-Output: `bin\Release\net8.0-windows\win-x64\publish\FileHasher.exe`
+Output: `bin\Release\net10.0-windows\win-x64\publish\FileHasher.exe`
 
 Copy `FileHasher.exe` anywhere you like — it has no external dependencies.
 
@@ -78,12 +78,14 @@ The CI pipeline passes `-p:Deterministic=true -p:ContinuousIntegrationBuild=true
    ```json
    {
      "sdk": {
-       "version": "8.0.420",
+       "version": "10.0.400",
        "rollForward": "disable"
      }
    }
    ```
    `rollForward: "disable"` means `dotnet` will refuse to build if that exact patch isn't installed, so you can't accidentally use a different SDK. Each release tag carries the `global.json` content the CI used at that time; checking out the tag and installing the SDK it names is all the version-matching you need.
+
+   The app project additionally pins the runtime patch that gets embedded in the self-contained executable (`<RuntimeFrameworkVersion>` in `FileHasherApp/FileHasherApp.csproj`, kept equal to the runtime bundled with the pinned SDK). So the two versions that decide the output bytes, the SDK and the runtime packs, are both recorded in the source tree at every tag.
 3. Build from `FileHasherApp\`:
    ```powershell
    dotnet publish -c Release -r win-x64 `
@@ -98,7 +100,7 @@ The CI pipeline passes `-p:Deterministic=true -p:ContinuousIntegrationBuild=true
    The two flags beyond the regular [Building](#building) command are what make the output stable across machines:
    - `Deterministic=true` — replaces build timestamps and random GUIDs in PE/PDB metadata with content-derived values.
    - `ContinuousIntegrationBuild=true` — normalizes embedded source paths so the PDB content doesn't depend on your build machine's directory layout.
-4. The output at `FileHasherApp\bin\Release\net8.0-windows\win-x64\publish\FileHasher.exe` should be byte-identical to:
+4. The output at `FileHasherApp\bin\Release\net10.0-windows\win-x64\publish\FileHasher.exe` should be byte-identical to:
    - the **unsigned** `FileHasher.exe` artifact uploaded by the CI's `build` stage (available on the pipeline's job page for 30 days after the release), or
    - the signed release `.exe` with its trailing Authenticode certificate table stripped — for example via `osslsigncode remove-signature signed.exe unsigned.exe`.
 
@@ -106,7 +108,7 @@ Compare with any SHA-256 utility. A match means the published bytes came from th
 
 #### Caveats
 
-- **Match the SDK first.** Patch-level SDK drift is the single biggest source of size and byte differences; even one patch apart will diverge by tens or hundreds of KB after compression. The SDK version the CI used to produce a given release is recorded in that pipeline's `build` job log.
+- **Match the SDK first.** Patch-level SDK drift is the single biggest source of size and byte differences; even one patch apart will diverge by tens or hundreds of KB after compression. The SDK version the CI used to produce a given release is recorded in that pipeline's `build` job log. The runtime packs are pinned in the csproj rather than left to the SDK's default, so an SDK that matches `global.json` and a clean `obj/` are together enough to reproduce the build.
 - **Applies only to releases built after the CI adopted deterministic flags.** Binaries from tags cut before `.gitlab-ci.yml` started passing `-p:Deterministic=true -p:ContinuousIntegrationBuild=true` (initial release `v0.1.1` predates the change) cannot be reproduced byte-for-byte regardless of the local flags used.
 - **The signature itself can't be reproduced** without access to the same code-signing certificate and HSM token. Verification of the signature, separate from binary reproduction, is done with standard tools like `signtool verify` or `osslsigncode verify` against the signed release `.exe`.
 
@@ -344,8 +346,8 @@ FileHasher's GUI is covered by a UI automation test suite built on [FlaUI](https
 | Item | Value |
 | --- | --- |
 | Project | `FileHasherApp.Tests\FileHasherApp.Tests.csproj` |
-| Target framework | `net8.0-windows` |
-| Test runner | xUnit 2.8 |
+| Target framework | `net10.0-windows` |
+| Test runner | xUnit 2.9 |
 | Automation library | FlaUI.UIA3 4.0 |
 
 Key packages:
@@ -353,8 +355,8 @@ Key packages:
 ```xml
 <PackageReference Include="FlaUI.Core"                Version="4.0.0" />
 <PackageReference Include="FlaUI.UIA3"                Version="4.0.0" />
-<PackageReference Include="xunit"                     Version="2.8.1" />
-<PackageReference Include="xunit.runner.visualstudio" Version="2.8.1" />
+<PackageReference Include="xunit"                     Version="2.9.3" />
+<PackageReference Include="xunit.runner.visualstudio" Version="3.1.5" />
 ```
 
 ---
