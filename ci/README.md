@@ -507,9 +507,18 @@ fix the csproj or recreate the tag at the right commit and push again.
 
 ## Manual / ad-hoc re-build
 
-Use **Build → Pipelines → Run pipeline** in the GitLab UI. Pick any ref. The output
-will be named `FileHasher-X.Y.Z-build.<short_sha>.*` so it never overwrites release
-artifacts. `latest` symlinks are unchanged. No GitLab Release is created.
+Use **Build → Pipelines → Run pipeline** in the GitLab UI. The output will be named
+`FileHasher-X.Y.Z-build.<short_sha>.*` so it never overwrites release artifacts.
+`latest` symlinks are unchanged. No GitLab Release is created.
+
+**Run it on `main`, or on another protected ref.** `HSM_PIN`, `SIGNING_BASE_PATH`
+and `WINGET_PAT` are Protected variables, and GitLab injects those only into
+pipelines on protected branches and tags; `main` and the `v*` tag glob are the
+only protected refs on this project. A web pipeline on an ordinary feature branch
+runs audit, build and test normally and then dies nine seconds into `sign` with
+`required variable SIGNING_BASE_PATH is not set`, which looks like a signer-host
+problem and is not one. To smoke-test a branch through the signing stages, merge
+it to `main` first and run the pipeline there.
 
 ## Security notes
 
