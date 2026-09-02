@@ -17,7 +17,7 @@ Linux signer additionally needs outbound access to the timestamp authority
 
 | Trigger                                | What runs                                          | `latest` symlinks | GitLab Release | GitHub Release |
 |----------------------------------------|----------------------------------------------------|-------------------|----------------|----------------|
-| Push a tag matching `vMAJOR.MINOR.PATCH` | `audit → build → test → sign → package-msi → sign-msi → release → mirror → winget` | updated           | created        | created (mirrored) |
+| Push a tag matching `vMAJOR.MINOR.PATCH` | `audit → build → test → sign → package-msi → sign-msi → release → mirror → winget → chocolatey` | updated           | created        | created (mirrored) |
 | "Run pipeline" web button (any ref)    | `audit → build → test → sign → package-msi → sign-msi` | unchanged         | not created    | not created    |
 
 Manual web-button runs produce output suffixed with `-build.<short_sha>` so they cannot
@@ -162,6 +162,44 @@ install it mid-job.
 To update it later, re-run the download. The job references the tool via its
 `WINGETCREATE` variable in `.gitlab-ci.yml`; also see the `WINGET_PAT`
 variable under "GitLab project settings".
+
+#### 1d. Install the Chocolatey CLI (community-repository push)
+
+The `chocolatey-push` job packs and pushes each release to the
+[Chocolatey Community Repository](https://community.chocolatey.org/packages/filehasher).
+Install the CLI as Administrator (it goes to `C:\ProgramData\chocolatey` and
+puts itself on the machine PATH, so the runner user picks it up):
+
+```powershell
+Set-ExecutionPolicy Bypass -Scope Process -Force
+[System.Net.ServicePointManager]::SecurityProtocol = 3072
+Invoke-Expression ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
+choco --version
+```
+
+Only `choco pack` and `choco push` are used, both of which are in the free
+CLI; nothing here needs a Chocolatey licence. The push itself needs two things
+that are not on the runner:
+
+1. **A community.chocolatey.org account.** Register at
+   <https://community.chocolatey.org/account/Register>, then copy the API key
+   from <https://community.chocolatey.org/account> and store it in Bitwarden.
+   The account that first publishes `filehasher` owns the package id; a push
+   with any other account's key returns
+   `403 The specified API key does not provide the authority to push packages`.
+2. **The `CHOCO_API_KEY` CI/CD variable** (Settings → CI/CD → Variables),
+   marked Masked + Hidden + Protected like `HSM_PIN`, so it is only injected
+   into pipelines on the protected `v*` tag glob. The job checks for it first
+   and fails fast with a pointer to this section if it is missing; since the
+   job is `allow_failure: true`, releases keep working (yellow-flagged) until
+   the account exists.
+
+The key is passed to `choco push` on the command line, which is acceptable on
+this private single-user runner and is masked in job logs by the variable's
+Masked flag. Do not run the job with `-dv`.
+
+The submission and moderation workflow, and the manual fallback, are in
+[`../chocolatey/README.md`](../chocolatey/README.md).
 
 #### 2. Create the runner user account
 
@@ -432,6 +470,7 @@ In **Settings → CI/CD → Variables**, add:
 | `HSM_PIN`           | the PKCS#11 token PIN                                            | Variable | **Masked**, **Hidden**, **Protected**            |
 | `SIGNING_BASE_PATH` | absolute path on the signer host to the dir holding `chain.pem`  | Variable | **Masked**, **Hidden**, **Protected**            |
 | `WINGET_PAT`        | classic GitHub PAT (`public_repo` scope) on the `fsantiago07044` account, used by `winget-update` to push the manifest branch to the winget-pkgs fork and open the upstream PR | Variable | **Masked**, **Hidden**, **Protected**            |
+| `CHOCO_API_KEY`     | push key from the community.chocolatey.org account that owns the `filehasher` package id, used by `chocolatey-push` (see section 1d) | Variable | **Masked**, **Hidden**, **Protected**            |
 
 `WINGET_PAT` is deliberately a separate token from the mirror-stage PAT (which
 is a fine-grained token scoped to Contents on the mirror repo and lives in the
@@ -440,12 +479,12 @@ because fine-grained tokens cannot open pull requests against repositories
 they don't own (`microsoft/winget-pkgs`). Rotate it in the GitLab variable
 when it expires; nothing on the runners stores it.
 
-In **Settings → Repository → Protected tags**, add a wildcard `v*` so both variables
+In **Settings → Repository → Protected tags**, add a wildcard `v*` so these variables
 are only injected into pipelines triggered by those tags.
 
 `SIGNING_BASE_PATH` is held in CI/CD variables (rather than hardcoded in
 `.gitlab-ci.yml`) so the internal disk layout of the signer host doesn't appear in the
-public-mirror copy of this repo. Both variables carry all three privacy flags:
+public-mirror copy of this repo. All of them carry all three privacy flags:
 
 - **Masked** — redacts the value from job log output so a runaway echo or stack
   trace cannot leak it into the pipeline logs.
@@ -473,7 +512,9 @@ public-mirror copy of this repo. Both variables carry all three privacy flags:
    second line a one-sentence prose summary of the release. The `winget-update`
    job injects it as the manifest's `ReleaseNotes` and fails if the version
    line does not match the tag; the winget-pkgs validation bot flags a
-   submission that drops the property the previous version had.
+   submission that drops the property the previous version had. The
+   `chocolatey-push` job reads the same file for the nuspec's `releaseNotes`
+   and applies the same staleness gate, so one edit covers both channels.
 4. Commit and push to `main`.
 5. Tag (GPG-signed; release tags are always signed) and push:
    ```sh
@@ -501,6 +542,15 @@ public-mirror copy of this repo. Both variables carry all three privacy flags:
    merge within hours. If the job yellow-flags, the generated manifests are
    attached as job artifacts and the manual fallback workflow is in
    [`../winget/README.md`](../winget/README.md).
+9. The `chocolatey-push` job runs off `mirror-github` too. It re-downloads the
+   published MSI to pin its checksum, packs, and pushes to
+   community.chocolatey.org. Watch the review at
+   `https://community.chocolatey.org/packages/filehasher/X.Y.Z`: automated
+   validation starts about 30 minutes after the push, and a moderator reviews
+   it after that. A reviewer's required change is fixed by pushing the **same**
+   version again, not a new one. If the job yellow-flags, the packed nupkg is a
+   job artifact and the manual fallback is in
+   [`../chocolatey/README.md`](../chocolatey/README.md).
 
 If the `test` job fails because the tag does not match `<Version>` in the csproj,
 fix the csproj or recreate the tag at the right commit and push again.

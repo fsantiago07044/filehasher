@@ -121,6 +121,11 @@ GitHub releases on this repo are immutable).
 - **ProductCode changes every build** by design (`MajorUpgrade` authoring), so
   each version's installer manifest pins its own ProductCode. Never reuse a
   previous version's value.
+- **`release-notes.txt` is shared with the Chocolatey channel.** The
+  `chocolatey-push` job reads the same file for the nuspec's `releaseNotes`
+  and enforces the same first-line staleness gate, so the one edit in the
+  release commit covers both. It stays under `winget/` for history; see
+  [`../chocolatey/README.md`](../chocolatey/README.md).
 - The `manifest-templates/` files are reference copies so the manifest content
   is reviewable in this repo; the authoritative manifests are whatever is
   merged into `microsoft/winget-pkgs`. If a static field changes (publisher

@@ -5,7 +5,8 @@
 # Triggers
 # ────────
 #   • A pushed tag matching   vMAJOR.MINOR.PATCH   → full pipeline
-#       audit → build → test → sign → package-msi → sign-msi → release → mirror → winget
+#       audit → build → test → sign → package-msi → sign-msi → release → mirror
+#       → winget → chocolatey
 #     Produces signed deliverables under /src/filehasher/signed-builds/ on the
 #     Linux signer host (exe + zip + msi, each with a .sha256 sidecar), a
 #     GitLab Release with package assets attached, AND a mirrored GitHub
@@ -78,6 +79,7 @@ stages:
   - release
   - mirror
   - winget
+  - chocolatey
 
 workflow:
   rules:
@@ -423,8 +425,8 @@ mirror-github:
 # the previous version's merged manifests, and opens the PR from the
 # fsantiago07044 fork. Version-specific locale fields that would carry over
 # stale are patched between generate and submit: ReleaseNotesUrl is rewritten
-# to this tag and any freeform ReleaseNotes line is dropped (the CHANGELOG
-# lives at the URL). allow_failure like the mirror stage — a winget-side
+# to this tag and the ReleaseNotes line is replaced with this release's summary
+# from winget/release-notes.txt. allow_failure like the mirror stage — a winget-side
 # failure yellow-flags the pipeline, and the manual fallback is documented in
 # winget/README.md. Note: needs on mirror-github still runs this job if that
 # allow_failure job failed; wingetcreate then fails fast on the missing asset
@@ -543,5 +545,180 @@ winget-update:
     name: "FileHasher-$CI_COMMIT_SHORT_SHA-winget-manifests"
     paths:
       - winget-out/
+    expire_in: 30 days
+    when: always
+
+# ── CHOCOLATEY ───────────────────────────────────────────────────────────────
+#
+# Packs and pushes the version to the Chocolatey Community Repository
+# (community.chocolatey.org/packages/filehasher). Chocolatey hosts no
+# binaries here: the nupkg is a few KB of metadata plus
+# tools/chocolateyinstall.ps1, which downloads the signed MSI from the GitHub
+# Release at install time and refuses to proceed unless its SHA256 matches
+# the checksum baked into the script. So this must run after mirror-github,
+# same as winget-update, and for the same reason.
+#
+# The job downloads the published MSI and recomputes its SHA256 rather than
+# trusting the sidecar: that pins the checksum to the bytes users will
+# actually fetch and proves the release URL is live before a package pointing
+# at it goes public. A sidecar/recomputed mismatch fails the job.
+#
+# The package sources in chocolatey/ are templates; {VERSION}, {SHA256} and
+# {RELEASE_NOTES} are substituted into a staged copy under chocolatey-out/,
+# and the pack is refused if any placeholder survives. Release notes come
+# from winget/release-notes.txt, shared with winget-update (same staleness
+# gate: first line must be this tag).
+#
+# Pushing an already-published version returns a 409, which would make a
+# retry of this job fail on nothing, so the job queries the repository first
+# and skips the push if the version is already there. Everything up to the
+# pack still runs, so the nupkg is always in the artifacts.
+#
+# allow_failure like mirror-github and winget-update. Note that unlike winget,
+# a Chocolatey submission is a push, not a PR: the version lands in the
+# repository's moderation queue immediately and there is nothing to re-open if
+# a later step needs fixing, so a rejected review is corrected by pushing the
+# SAME version again (see chocolatey/README.md).
+#
+# One-time prerequisites (ci/README.md section 1d): the Chocolatey CLI on the
+# Windows runner, a community.chocolatey.org account, and the CHOCO_API_KEY
+# Protected + Masked variable holding that account's push key. With the key
+# absent the job fails fast and yellow-flags, which is the intended state
+# until the account exists.
+
+chocolatey-push:
+  stage: chocolatey
+  tags:
+    - windows
+  rules:
+    - if: '$CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+\.[0-9]+$/'
+  allow_failure: true
+  needs:
+    # artifacts: true is what carries the build job's dotenv $VERSION, same as
+    # winget-update; the published binary itself is not used here.
+    - job: build
+      artifacts: true
+    - job: mirror-github
+  variables:
+    PACKAGE_ID: 'filehasher'
+    CHOCO_SOURCE: 'https://push.chocolatey.org/'
+    GITHUB_REPO: 'fsantiago07044/filehasher'
+  script:
+    - |
+      if (-not $env:CHOCO_API_KEY) {
+        Write-Error "CHOCO_API_KEY is not set. It is a Protected + Masked CI/CD variable holding the community.chocolatey.org push key; see ci/README.md section 1d."
+        exit 1
+      }
+      if (-not (Get-Command choco -ErrorAction SilentlyContinue)) {
+        Write-Error "The Chocolatey CLI is not on PATH; one-time install in ci/README.md section 1d."
+        exit 1
+      }
+
+      $tag     = "v$($env:VERSION)"
+      $msiName = "FileHasher-$($env:VERSION).msi"
+      $base    = "https://github.com/$($env:GITHUB_REPO)/releases/download/$tag"
+
+      # Pin the checksum to the bytes actually published, and cross-check the
+      # sidecar that ships next to them. Invoke-WebRequest renders a progress
+      # bar even to a non-interactive host, at a large cost on a 60 MB
+      # download, so silence it first.
+      $ProgressPreference = 'SilentlyContinue'
+      Write-Host "Downloading $base/$msiName"
+      Invoke-WebRequest "$base/$msiName"         -OutFile $msiName
+      Invoke-WebRequest "$base/$msiName.sha256"  -OutFile "$msiName.sha256"
+
+      $computed = (Get-FileHash $msiName -Algorithm SHA256).Hash.ToLower()
+      # Sidecar is `sha256sum -b` format: "<hash> *<filename>".
+      $sidecar  = ((Get-Content "$msiName.sha256" -TotalCount 1) -split '\s+')[0].ToLower()
+      if ($computed -ne $sidecar) {
+        Write-Error "SHA256 mismatch on the published MSI. Sidecar says $sidecar, the downloaded file hashes to $computed."
+        exit 1
+      }
+      Write-Host "SHA256 $computed (matches the published sidecar)"
+      # The MSI itself is not part of the package; drop the 60 MB now that it
+      # has been hashed.
+      Remove-Item $msiName, "$msiName.sha256" -Force
+
+      # Release notes, shared with winget-update. Same first-line staleness
+      # gate so a forgotten update fails loudly instead of publishing the
+      # previous release's notes.
+      $notesFile = 'winget/release-notes.txt'
+      if (-not (Test-Path $notesFile)) {
+        Write-Error "winget/release-notes.txt not found; it must be updated as part of every release commit (see ci/README.md, Releasing a new version)."
+        exit 1
+      }
+      $nf = @(Get-Content $notesFile | Where-Object { $_.Trim() })
+      if ($nf.Count -lt 2 -or $nf[0].Trim() -ne $tag) {
+        Write-Error "winget/release-notes.txt is stale: first line is '$($nf[0])', expected '$tag'. Update it as part of the release commit (see ci/README.md, Releasing a new version)."
+        exit 1
+      }
+      $prose = ($nf | Select-Object -Skip 1) -join ' '
+      $notes = "$prose`n`nFull release notes: https://github.com/$($env:GITHUB_REPO)/releases/tag/$tag"
+      # The notes land inside a nuspec element, so escape XML metacharacters.
+      $notes = $notes.Replace('&', '&amp;').Replace('<', '&lt;').Replace('>', '&gt;')
+
+      # Stage the package: templates from chocolatey/, plus the repo's own
+      # LICENSE (copied rather than duplicated in the tree, so it can't drift).
+      if (Test-Path chocolatey-out) { Remove-Item chocolatey-out -Recurse -Force }
+      New-Item -ItemType Directory -Force chocolatey-out | Out-Null
+      Copy-Item chocolatey/* chocolatey-out -Recurse -Force
+      Remove-Item chocolatey-out/README.md -Force -ErrorAction SilentlyContinue
+      Copy-Item LICENSE chocolatey-out/tools/LICENSE.txt -Force
+
+      foreach ($f in Get-ChildItem chocolatey-out -Recurse -File) {
+        $text = Get-Content $f.FullName -Raw
+        $text = $text.Replace('{VERSION}', $env:VERSION).Replace('{SHA256}', $computed).Replace('{RELEASE_NOTES}', $notes)
+        Set-Content -Path $f.FullName -Value $text -Encoding utf8   # CPMR0054: the nuspec must be UTF-8
+      }
+
+      # Nothing may reach the repository with a placeholder still in it
+      # (CPMR0019 rejects templated values, and a stale URL would install the
+      # wrong version).
+      $left = Select-String -Path (Get-ChildItem chocolatey-out -Recurse -File).FullName -Pattern '\{VERSION\}|\{SHA256\}|\{RELEASE_NOTES\}'
+      if ($left) {
+        $left | ForEach-Object { Write-Host $_.Line }
+        Write-Error "Unsubstituted placeholders remain in the staged package."
+        exit 1
+      }
+
+      Write-Host "Packing $($env:PACKAGE_ID) $($env:VERSION)"
+      choco pack chocolatey-out\filehasher.nuspec --output-directory chocolatey-out
+      if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      $nupkg = "chocolatey-out\$($env:PACKAGE_ID).$($env:VERSION).nupkg"
+      if (-not (Test-Path $nupkg)) {
+        Write-Error "Expected package not found: $nupkg"
+        exit 1
+      }
+
+      # Skip the push when this version is already on the repository, so a
+      # retry of this job is a no-op rather than a 409.
+      $q = "https://community.chocolatey.org/api/v2/Packages(Id='$($env:PACKAGE_ID)',Version='$($env:VERSION)')"
+      $published = $false
+      try {
+        Invoke-WebRequest $q -UseBasicParsing | Out-Null
+        $published = $true
+      } catch {
+        $code = $_.Exception.Response.StatusCode.value__
+        if ($code -eq 404) {
+          Write-Host "$($env:PACKAGE_ID) $($env:VERSION) is not on the repository yet; pushing."
+        } else {
+          Write-Host "Could not determine whether $($env:PACKAGE_ID) $($env:VERSION) is published (HTTP $code); pushing anyway. A 409 from the push means it already is."
+        }
+      }
+      if ($published) {
+        Write-Host "$($env:PACKAGE_ID) $($env:VERSION) is already on community.chocolatey.org; skipping the push. The packed nupkg is in this job's artifacts."
+        exit 0
+      }
+
+      choco push $nupkg --source $env:CHOCO_SOURCE --api-key $env:CHOCO_API_KEY
+      if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      Write-Host "Pushed. Watch the review at https://community.chocolatey.org/packages/$($env:PACKAGE_ID)/$($env:VERSION)"
+  # Keep the packed nupkg and the substituted sources for audit and for a
+  # manual re-push if the push itself failed.
+  artifacts:
+    name: "FileHasher-$CI_COMMIT_SHORT_SHA-chocolatey-package"
+    paths:
+      - chocolatey-out/
     expire_in: 30 days
     when: always

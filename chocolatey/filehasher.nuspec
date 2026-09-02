@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  chocolatey/filehasher.nuspec: package metadata for the Chocolatey
+  Community Repository (https://community.chocolatey.org/packages/filehasher).
+
+  This file is a TEMPLATE. Two values are version-specific and are
+  substituted by the `chocolatey-push` CI job before `choco pack` runs
+  (see chocolatey/README.md for the local-render snippet):
+
+    {VERSION}        the release version, e.g. 0.4.0 (no leading "v")
+    {RELEASE_NOTES}  prose summary + release URL, built from
+                     winget/release-notes.txt (shared with the winget job)
+
+  Everything else is static and should stay in sync with the csproj metadata,
+  installer/FileHasher.wxs, and winget/manifest-templates/.
+
+  Chocolatey naming conventions applied here (docs.chocolatey.org, "Naming
+  Your Package"): the id is the CamelCase app name lowercased with no dots
+  ("filehasher"), and the title carries the official spelling ("FileHasher").
+  No .install/.portable suffix: only one form of the package is published, so
+  the plain id is correct.
+
+  packageSourceUrl, projectSourceUrl, docsUrl and bugTrackerUrl are Chocolatey
+  extensions that NuGet's own nuspec schema does not define, so this file must
+  be packed with `choco pack`; `nuget pack` errors on them.
+
+  The iconUrl is pinned to the icon file's own commit SHA on the GitHub
+  mirror, served through jsDelivr. GitHub raw links are a hard rejection
+  (CPMR0076) and branch URLs defeat the CDN's permanent cache, so the SHA
+  form is the one to keep. Only change it if the icon artwork changes.
+-->
+<package xmlns="http://schemas.microsoft.com/packaging/2015/06/nuspec.xsd">
+  <metadata>
+    <id>filehasher</id>
+    <version>{VERSION}</version>
+    <packageSourceUrl>https://github.com/fsantiago07044/filehasher/tree/main/chocolatey</packageSourceUrl>
+    <!--
+      authors = the software vendor; owners = the package maintainer. They are
+      deliberately the same organization here, which the validator flags as a
+      Note (CPMR0068) for the reviewer's benefit; no action is needed, the
+      vendor maintains this package.
+    -->
+    <owners>FSP Productions, LLC</owners>
+    <title>FileHasher</title>
+    <authors>FSP Productions, LLC</authors>
+    <projectUrl>https://www.fspproductions.com/software-projects</projectUrl>
+    <iconUrl>https://cdn.jsdelivr.net/gh/fsantiago07044/filehasher@41f3e822e071029f5f986b02465de3c99690a28e/FileHasherApp/assets/app-icon/hash-icon-128.png</iconUrl>
+    <copyright>Copyright © 2026 FSP Productions, LLC</copyright>
+    <licenseUrl>https://github.com/fsantiago07044/filehasher/blob/main/LICENSE</licenseUrl>
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <projectSourceUrl>https://github.com/fsantiago07044/filehasher</projectSourceUrl>
+    <docsUrl>https://github.com/fsantiago07044/filehasher/blob/main/README.md</docsUrl>
+    <bugTrackerUrl>https://github.com/fsantiago07044/filehasher/issues</bugTrackerUrl>
+    <tags>filehasher hash hashing checksum sha256 sha512 md5 sha1 integrity verification sidecar csv gui foss admin</tags>
+    <summary>Windows GUI utility to hash files and folders, write sidecar hash files, verify them, and export results to CSV.</summary>
+    <description><![CDATA[
+FileHasher is a Windows desktop utility for computing and checking
+cryptographic file hashes. It hashes a single file or an entire folder tree,
+writes and verifies `sha256sum`-style sidecar files, and exports full results
+to CSV.
+
+**Features**
+
+* MD5, SHA1, SHA256, and SHA512, selected per run.
+* Recursive folder scans with an extension filter (defaults to `.exe` and
+  `.msi`; one checkbox widens it to every file type).
+* Sidecar hash files in three formats: `sha256sum` style, hash only, and an
+  extended format that also records the file's last-modified timestamp (ISO
+  8601 UTC) and size in bytes. The suggested extension follows the selected
+  algorithm.
+* **Verify Sidecars** re-hashes a tree and compares it against the sidecars
+  already on disk, auto-detecting each sidecar's algorithm from its hash
+  length, so a mixed-algorithm tree verifies in a single pass. Per-file
+  verdicts cover matches, mismatches, missing files, and files that have no
+  sidecar at all.
+* CSV export of every result, including file size and last-modified time.
+* Right-click a result to open its folder in File Explorer, open a PowerShell
+  or Command Prompt there, or copy the hash or the file path.
+* Experimental option to open `.msi` packages read-only and hash the files
+  contained inside them individually, in addition to the `.msi` itself.
+* Per-run logs, and in-app help covering every feature.
+
+**Licensing**
+
+Free and open source under the MIT license. Not trial software; there is
+nothing to activate and no license key to enter.
+
+**Package notes**
+
+* This package downloads the Authenticode-signed MSI from the project's
+  official GitHub release and verifies its SHA256 checksum before installing.
+* Per-machine install (administrator rights required) to
+  `%ProgramFiles%\FileHasher`, with a Start Menu shortcut and an Add/Remove
+  Programs entry. Upgrades replace the previous version in place, leaving a
+  single entry.
+* The executable is self-contained: no .NET runtime needs to be installed.
+* 64-bit Windows only. Windows 10 1809 (build 17763) or newer.
+]]></description>
+    <releaseNotes>{RELEASE_NOTES}</releaseNotes>
+  </metadata>
+  <files>
+    <file src="tools\**" target="tools" />
+  </files>
+</package>

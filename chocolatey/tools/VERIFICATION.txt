@@ -1,0 +1,44 @@
+VERIFICATION
+
+This package embeds no binaries. At install time it downloads
+
+    FileHasher-{VERSION}.msi
+
+from the project's official GitHub release,
+
+    https://github.com/fsantiago07044/filehasher/releases/tag/v{VERSION}
+
+and Chocolatey refuses to install it unless the file's SHA256 matches the
+checksum pinned in tools\chocolateyinstall.ps1.
+
+To verify the same MSI by hand:
+
+1. Download the MSI and its sidecar from the release page above:
+
+       FileHasher-{VERSION}.msi
+       FileHasher-{VERSION}.msi.sha256
+
+2. Compare the checksum. The sidecar is in `sha256sum -b` format
+   ("<hash> *<filename>"); only the hash matters:
+
+       Get-FileHash .\FileHasher-{VERSION}.msi -Algorithm SHA256
+       Get-Content  .\FileHasher-{VERSION}.msi.sha256
+
+   The same hash is pinned in tools\chocolateyinstall.ps1 in this package,
+   and in the winget manifest for this version.
+
+3. Check the Authenticode signature. Both the MSI and the FileHasher.exe
+   inside it are signed by FSP Productions, LLC with an RFC 3161 timestamp:
+
+       Get-AuthenticodeSignature .\FileHasher-{VERSION}.msi | Format-List
+
+   Status should be `Valid` and SignerCertificate's subject should name
+   FSP Productions, LLC.
+
+The MSI is built and signed by the project's own release pipeline; its WiX
+source is public at installer/FileHasher.wxs in the repository, and the
+executable it wraps is a reproducible build (see the "Reproducible builds"
+section of the project README).
+
+The MIT license text shipped alongside this file as tools\LICENSE.txt is a
+verbatim copy of LICENSE at the repository root, copied in at package time.
