@@ -624,8 +624,20 @@ chocolatey-push:
       # download, so silence it first.
       $ProgressPreference = 'SilentlyContinue'
       Write-Host "Downloading $base/$msiName"
-      Invoke-WebRequest "$base/$msiName"         -OutFile $msiName
-      Invoke-WebRequest "$base/$msiName.sha256"  -OutFile "$msiName.sha256"
+      # A bare Invoke-WebRequest failure here surfaces as a raw WebException
+      # that names no URL, and GitHub's 404 for a missing asset can arrive as
+      # the misleading "connection was closed unexpectedly", so say what was
+      # being fetched and what it usually means.
+      function Get-ReleaseAsset($url, $out) {
+        try {
+          Invoke-WebRequest $url -OutFile $out -UseBasicParsing
+        } catch {
+          Write-Error "Could not download $url ($($_.Exception.Message)). The GitHub Release for $tag must exist with all six assets before this job runs; mirror-github creates it, so check that job first."
+          exit 1
+        }
+      }
+      Get-ReleaseAsset "$base/$msiName"        $msiName
+      Get-ReleaseAsset "$base/$msiName.sha256" "$msiName.sha256"
 
       $computed = (Get-FileHash $msiName -Algorithm SHA256).Hash.ToLower()
       # Sidecar is `sha256sum -b` format: "<hash> *<filename>".
@@ -678,6 +690,15 @@ chocolatey-push:
       if ($left) {
         $left | ForEach-Object { Write-Host $_.Line }
         Write-Error "Unsubstituted placeholders remain in the staged package."
+        exit 1
+      }
+
+      # Catch a substitution that breaks the XML before choco pack reports it
+      # as a bare parser error with a line number and no context. An
+      # unescaped character in the release notes is the likely culprit.
+      try { [xml](Get-Content chocolatey-out\filehasher.nuspec -Raw) | Out-Null }
+      catch {
+        Write-Error "The rendered nuspec is not well-formed XML: $($_.Exception.Message). Check the substituted releaseNotes for characters that need escaping."
         exit 1
       }
 

@@ -93,34 +93,56 @@ ways worth knowing before the first submission:
 
 ## Manual fallback workflow (per release)
 
+This doubles as the **pre-release rehearsal**: because `chocolatey-push` only
+runs on a `v*` tag, the job cannot be exercised before the release it publishes,
+so the way to shake out packaging problems first is to run steps 1 to 3 against
+the previously published version and stop before step 4. Never push a rehearsal
+nupkg; it would spend the first-version moderator review on a version you are
+not releasing.
+
 Run on a Windows box with the Chocolatey CLI, after the tag pipeline's
 `mirror-github` job has finished (the install script points at the GitHub
 Release asset, so it must exist and be final first; GitHub releases on this
 repo are immutable).
 
-1. **Render the templates.** From the repo root, with `$v` set to the release
-   version:
+1. **Render the templates.** Edit the first line to the release version before
+   running any of this; the block refuses to continue on the placeholder,
+   because pasting it unedited produces a URL for a release that does not
+   exist, and GitHub answers that with a 404 that Windows PowerShell reports
+   as the thoroughly unhelpful "The connection was closed unexpectedly".
 
    ```powershell
-   $v = 'X.Y.Z'
+   $v = 'EDIT-ME'                  # e.g. 0.3.1
+
+   if ($v -notmatch '^\d+\.\d+\.\d+$') { throw "Set `$v to a real version first (got '$v')." }
+   $msi = "FileHasher-$v.msi"
+   $url = "https://github.com/fsantiago07044/filehasher/releases/download/v$v/$msi"
+   try { Invoke-WebRequest $url -OutFile $msi -UseBasicParsing }
+   catch { throw "Could not download $url ($($_.Exception.Message)). Check the release exists and has its assets." }
+   $sha = (Get-FileHash $msi -Algorithm SHA256).Hash.ToLower()
+
    Remove-Item chocolatey-out -Recurse -Force -ErrorAction SilentlyContinue
    New-Item -ItemType Directory chocolatey-out | Out-Null
    Copy-Item chocolatey/* chocolatey-out -Recurse -Force
    Remove-Item chocolatey-out/README.md
    Copy-Item LICENSE chocolatey-out/tools/LICENSE.txt
 
-   $msi = "FileHasher-$v.msi"
-   Invoke-WebRequest "https://github.com/fsantiago07044/filehasher/releases/download/v$v/$msi" -OutFile $msi
-   $sha = (Get-FileHash $msi -Algorithm SHA256).Hash.ToLower()
-   $notes = "<one-line summary>`n`nFull release notes: https://github.com/fsantiago07044/filehasher/releases/tag/v$v"
+   # The notes land inside a nuspec element, so escape XML metacharacters
+   # exactly as the CI job does. Substituting anything containing < or > raw
+   # makes `choco pack` fail with "'>' is an unexpected token".
+   $summary = 'One-line summary of this release.'
+   $notes = "$summary`n`nFull release notes: https://github.com/fsantiago07044/filehasher/releases/tag/v$v"
+   $notes = $notes.Replace('&', '&amp;').Replace('<', '&lt;').Replace('>', '&gt;')
 
    Get-ChildItem chocolatey-out -Recurse -File | ForEach-Object {
      (Get-Content $_.FullName -Raw).Replace('{VERSION}', $v).Replace('{SHA256}', $sha).Replace('{RELEASE_NOTES}', $notes) |
        Set-Content $_.FullName -Encoding utf8
    }
+   $sha
    ```
 
-   Confirm `$sha` against the release's `.msi.sha256` sidecar before going on.
+   Confirm the printed `$sha` against the release's `.msi.sha256` sidecar
+   before going on.
 
 2. **Pack:**
 
@@ -128,8 +150,10 @@ repo are immutable).
    choco pack chocolatey-out\filehasher.nuspec --output-directory chocolatey-out
    ```
 
-3. **Test the real install path** on a scratch VM, not the build host, since it
-   installs machine-wide:
+3. **Test the real install path** on a scratch VM rather than the build host,
+   since this is a real machine-wide install (it will not disturb the FlaUI
+   suite, which runs the exe out of `bin`, but it does change what is installed
+   on that machine):
 
    ```powershell
    choco install filehasher --source .\chocolatey-out --version $v -y
