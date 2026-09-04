@@ -61,8 +61,32 @@ The Store listing follows the app, on the grounds that a user who found the
 support page from inside the app should not be sent somewhere else by the
 Store. Worth reconciling across all three channels at some point.
 
-**System requirements:** Windows 10 version 1809 (build 17763) or newer, 64-bit.
-About 150 MB free disk space during install.
+## System requirements
+
+**Leave this section blank.**
+
+Despite the name, the field is a hardware checklist only: touch screen,
+keyboard, mouse, camera, NFC, Bluetooth LE, telephony, microphone, memory,
+DirectX, dedicated GPU memory, processor, graphics. It is optional, and blank
+means no hardware requirements are published and the Store shows no
+hardware-based warnings.
+
+Do not be tempted to tick keyboard and mouse. Anything marked required appears
+in the listing as required hardware, and customers on a device lacking it
+cannot rate or review the app. FileHasher runs fine on a touch-only Windows
+tablet with the on-screen keyboard, so declaring those would be both inaccurate
+and self-harming.
+
+There is no field anywhere in the EXE/MSI flow for OS version or disk space:
+device family availability is fixed at Windows 10 and 11 desktop devices. If
+customers are to know the floor, it has to be prose in the description, which
+is why the description below carries a REQUIREMENTS block.
+
+The floor itself is 64-bit Windows 10 version 1809 or newer, which matches the
+winget manifest's `MinimumOSVersion: 10.0.17763.0`. .NET 10 formally lists
+Windows 10 1607 and 1809 (Enterprise/LTSC only, since the consumer editions are
+out of support), 21H2, and Windows 11, so 1809 is a defensible and slightly
+conservative statement of where the self-contained build runs.
 
 **Age rating:** run the questionnaire. Expect 3+ / Everyone. The honest answers
 are no user-generated content, no data collection or transmission, no
@@ -154,6 +178,10 @@ Every run is logged, and in-app help covers each feature with F1.
 WHAT IT DOES NOT DO
 
 FileHasher does not collect, transmit, or store any information about you or the files you hash. Everything happens on your machine. There is no account, no telemetry, and no network connection at all.
+
+REQUIREMENTS
+
+64-bit Windows 10 version 1809 or newer, or Windows 11. About 150 MB of free disk space. No .NET runtime installation is required; the app is self-contained.
 
 LICENSING
 
