@@ -1,0 +1,99 @@
+﻿Field,Type,en-us
+ProductName,Text,FileHasher - Checksum Utility
+ShortDescription,Text,"Hash files and whole folder trees, write and verify sidecar hash files, and export the results to CSV."
+Description,Text,"FileHasher computes cryptographic hashes for a single file or an entire folder tree, writes the sidecar hash files that go alongside them, verifies sidecars that already exist, and exports everything to CSV.
+
+It is built for the moment you need to prove a file is the file you think it is: checking a download against a published checksum, recording hashes for a set of installers before they go out, or re-verifying an archive months later to confirm nothing on disk has rotted or been altered.
+
+WHAT IT DOES
+
+Choose MD5, SHA1, SHA256, or SHA512 per run. Point it at a file or a folder and it scans recursively, filtered to .exe and .msi by default, or every file type with one checkbox.
+
+Write sidecar hash files in three formats: sha256sum style, hash only, or an extended format that also records the file's last-modified time in ISO 8601 UTC and its size in bytes. The suggested file extension follows the algorithm you picked, and a custom extension you type is never overwritten.
+
+Verify a tree against the sidecars already on disk. FileHasher detects each sidecar's algorithm from its hash length, so a folder holding a mix of MD5 and SHA256 sidecars verifies in a single pass. Every file gets a verdict: OK, MISMATCH with the expected and computed hashes shown, MISSING FILE, NO SIDECAR for a file that should have one, PARSE ERROR, or READ ERROR.
+
+Export any run to CSV, including file size and last-modified time.
+
+Right-click a result to open its folder in File Explorer with the file selected, open PowerShell or Command Prompt there, or copy the hash or the full path.
+
+Optionally open .msi packages read-only and hash the files inside them individually, in addition to the .msi itself, with each inner file's install-time path shown.
+
+Every run is logged, and in-app help covers each feature with F1.
+
+WHAT IT DOES NOT DO
+
+FileHasher does not collect, transmit, or store any information about you or the files you hash. Everything happens on your machine. There is no account, no telemetry, and no network connection at all.
+
+REQUIREMENTS
+
+64-bit Windows 10 version 1809 or newer, or Windows 11. About 150 MB of free disk space. No .NET runtime installation is required; the app is self-contained.
+
+LICENSING
+
+Free and open source under the MIT license. Not trial software, nothing to activate, no license key."
+WhatsNew,Text,"This release adds in-app help on F1 covering every feature, a Verify Sidecars button that re-checks a whole folder against the sidecar files already on disk and auto-detects each one's algorithm, a right-click menu on results for opening the file's folder, opening a terminal there, or copying the hash or path, and a third sidecar format that also records each file's last-modified time and size. The suggested sidecar extension now follows the algorithm you pick."
+ProductFeatures1,Text,"MD5, SHA1, SHA256, and SHA512, selected per run"
+ProductFeatures2,Text,"Recursive folder scans with an extension filter, or every file type with one checkbox"
+ProductFeatures3,Text,"Sidecar hash files in sha256sum, hash-only, or extended format with timestamp and size"
+ProductFeatures4,Text,"Verify a whole tree against existing sidecars, auto-detecting each one's algorithm"
+ProductFeatures5,Text,"Clear per-file verdicts: OK, mismatch with both hashes shown, missing file, or no sidecar"
+ProductFeatures6,Text,CSV export including file size and last-modified time
+ProductFeatures7,Text,"Right-click a result to open its folder, open a terminal there, or copy the hash or path"
+ProductFeatures8,Text,"Optionally hash the files contained inside .msi packages, individually"
+ProductFeatures9,Text,Per-run logs and in-app help on F1
+ProductFeatures10,Text,"No telemetry, no account, no network access; everything stays on your machine"
+ProductFeatures11,Text,Free and open source under the MIT license
+ProductFeatures12,Text,
+ProductFeatures13,Text,
+ProductFeatures14,Text,
+ProductFeatures15,Text,
+ProductFeatures16,Text,
+ProductFeatures17,Text,
+ProductFeatures18,Text,
+ProductFeatures19,Text,
+ProductFeatures20,Text,
+Screenshots1,Relative path,images/02-hash-run.png
+Screenshots2,Relative path,images/03-verify-sidecars.png
+Screenshots3,Relative path,images/01-main-window.png
+Screenshots4,Relative path,images/04-context-menu.png
+Screenshots5,Relative path,images/05-inner-msi-scan.png
+Screenshots6,Relative path,images/06-help-window.png
+Screenshots7,Relative path,
+Screenshots8,Relative path,
+Screenshots9,Relative path,
+Screenshots10,Relative path,
+StoreLogos1,Relative path,images/store-box-art-1080.png
+StoreLogos2,Relative path,
+RequirementsMinimum1,Text,
+RequirementsMinimum2,Text,
+RequirementsMinimum3,Text,
+RequirementsMinimum4,Text,
+RequirementsMinimum5,Text,
+RequirementsMinimum6,Text,
+RequirementsMinimum7,Text,
+RequirementsMinimum8,Text,
+RequirementsMinimum9,Text,
+RequirementsMinimum10,Text,
+RequirementsMinimum11,Text,
+RequirementsRecommended1,Text,
+RequirementsRecommended2,Text,
+RequirementsRecommended3,Text,
+RequirementsRecommended4,Text,
+RequirementsRecommended5,Text,
+RequirementsRecommended6,Text,
+RequirementsRecommended7,Text,
+RequirementsRecommended8,Text,
+RequirementsRecommended9,Text,
+RequirementsRecommended10,Text,
+RequirementsRecommended11,Text,
+SearchTerms1,Text,file hash
+SearchTerms2,Text,checksum
+SearchTerms3,Text,sha256
+SearchTerms4,Text,md5 sha1 sha512
+SearchTerms5,Text,sidecar hash file
+SearchTerms6,Text,integrity verification
+SearchTerms7,Text,hash folder
+Copyright,Text,"Copyright © 2026 FSP Productions, LLC"
+Applicable license terms,Text,MIT License. Free and open source; see https://github.com/fsantiago07044/filehasher/blob/main/LICENSE
+DevelopedBy,Text,"FSP Productions, LLC"
