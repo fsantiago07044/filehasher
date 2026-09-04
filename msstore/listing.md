@@ -15,7 +15,7 @@ Field limits shown are Partner Center's.
 | Field | Value |
 | --- | --- |
 | Product type | EXE/MSI app |
-| Reserved name | FileHasher |
+| Reserved name | `FileHasher` preferred; `FileHasher - Checksum Utility` reserved as the fallback (see README) |
 | Category | Utilities + tools |
 | Subcategory | File managers |
 

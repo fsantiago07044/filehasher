@@ -36,13 +36,31 @@ releases on this repo are immutable.
 Everything in this section happens in Partner Center; nothing touches the repo
 or the pipeline.
 
-1. **Reserve the name first**, before anything else. Name reservation is
-   first-come-first-served and instant. `FileHasher` as one word is not taken,
-   but the Store already carries **File Hasher** (publisher Aftnet) and
-   **Files Hasher** (Star Studio), so Partner Center may refuse ours as
-   confusingly similar. If it does, reserve a distinct fallback rather than
-   arguing: additional names can be reserved later and one of them chosen as
-   the display name.
+1. **Reserve the name first**, before anything else. Reservation is
+   first-come-first-served, instant, and Partner Center lets you hold several
+   names and choose the display name at publish time, so reserve both of
+   these:
+
+   - `FileHasher`. Try this one first. It is unclaimed, and it keeps the name
+     consistent with the winget and Chocolatey listings, which matters because
+     a Store listing also surfaces through winget's `msstore` source: if the
+     two names diverge, `winget search filehasher` returns what look like two
+     different products.
+   - `FileHasher - Checksum Utility`. Reserve this regardless, as the fallback.
+     The Store already carries **File Hasher** (Aftnet) and **Files Hasher**
+     (Star Studio), so the short name may be refused as confusingly similar,
+     and a name carrying its own descriptor clears that bar easily. It also
+     matches the Mac App Store listing, which is *FileHasher — Checksum
+     Utility* (id 6802073927).
+
+   Note the separator. The Mac name uses an em dash; use a plain hyphen here,
+   because Microsoft's naming rules state the Store does not allow emojis or
+   other unsupported special characters in app names, and an em dash is the
+   kind of character that fails the availability check with no explanation.
+   Also avoid trailing version numbers or dates, which the same rules call out
+   as getting truncated in some views.
+
+   Unused reservations lapse after three months.
 2. Create the app, choose product type **EXE/MSI app**, and fill in the fields
    from [`listing.md`](listing.md).
 3. Complete the **age ratings** questionnaire. This is required once and it
