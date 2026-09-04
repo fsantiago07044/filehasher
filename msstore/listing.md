@@ -74,6 +74,92 @@ The wider split is still worth reconciling some day: the app points at
 fabianasantiago.com, winget and Chocolatey point at fspproductions.com and
 GitHub issues.
 
+## System requirements
+
+**Leave this section blank.**
+
+Despite the name, the field is a hardware checklist only: touch screen,
+keyboard, mouse, camera, NFC, Bluetooth LE, telephony, microphone, memory,
+DirectX, dedicated GPU memory, processor, graphics. It is optional, and blank
+means no hardware requirements are published and the Store shows no
+hardware-based warnings.
+
+Do not be tempted to tick keyboard and mouse. Anything marked required appears
+in the listing as required hardware, and customers on a device lacking it
+cannot rate or review the app. FileHasher runs fine on a touch-only Windows
+tablet with the on-screen keyboard, so declaring those would be both inaccurate
+and self-harming.
+
+There is no field anywhere in the EXE/MSI flow for OS version or disk space:
+device family availability is fixed at Windows 10 and 11 desktop devices. If
+customers are to know the floor, it has to be prose in the description, which
+is why the description below carries a REQUIREMENTS block.
+
+The floor itself is 64-bit Windows 10 version 1809 or newer, which matches the
+winget manifest's `MinimumOSVersion: 10.0.17763.0`. .NET 10 formally lists
+Windows 10 1607 and 1809 (Enterprise/LTSC only, since the consumer editions are
+out of support), 21H2, and Windows 11, so 1809 is a defensible and slightly
+conservative statement of where the self-contained build runs.
+
+**Age rating:** run the questionnaire. Expect 3+ / Everyone. The honest answers
+are no user-generated content, no data collection or transmission, no
+advertising, no in-app purchases, no user-to-user communication.
+
+## Product declarations
+
+None of the four apply. Leave every box unchecked.
+
+| Declaration | Answer | Why |
+| --- | --- | --- |
+| Depends on non-Microsoft drivers or NT services | No | Plain user-mode WinForms app. Checking this triggers a dependency approval review that adds time to certification and can fail it. |
+| Tested to meet accessibility guidelines | No | See below. |
+| Supports pen and ink input | No | Nothing in the UI handles pen or ink specifically. |
+| Incorporates generative AI features | No | No AI models, local or remote. |
+
+On accessibility: it is tempting to check, because the FlaUI test suite means
+most controls already carry AutomationIds and every result verdict is conveyed
+by text (`OK`, `MISMATCH`, `NO SIDECAR`) rather than colour alone. But
+Microsoft's bar for that box is the full list, which includes verified keyboard
+navigation and tab order, a 4.5:1 contrast ratio throughout, a clean run of
+Inspect or AccChecker, and end-to-end verification with Narrator, Magnifier,
+High Contrast, and High DPI. None of that has been done, the menu items do not
+reliably surface AutomationIds, and the owner-drawn `ColorProgressBar` has no
+accessibility implementation at all. The docs are blunt that declaring an app
+accessible when it is not earns negative feedback. Leave it unchecked; it is a
+reasonable future goal given how much of the groundwork the test suite already
+laid.
+
+## Notes for certification
+
+Recommended, 2000 character limit, and worth writing here: the certification
+docs state that "any instructions in the certification notes will be followed",
+and one of the silent-install checks is that the app "can be successfully
+installed when logged in with a standard user account", which a per-machine MSI
+cannot do without elevation. Saying so up front is the difference between a
+tester understanding the UAC prompt and filing it as a failure.
+
+Update the date on every submission; the docs ask for it so testers can judge
+whether a transient problem still applies.
+
+```text
+Submitted 2026-09-04.
+
+FileHasher is a standalone desktop utility. No account, no sign-in, and no network connection is required or made. There is nothing to unlock, no hidden features, and no region-dependent behaviour.
+
+To exercise it in under a minute: launch it, click Browse and pick any folder, leave SHA256 selected, and click Run. Per-file results appear in the list. Tick "Write sidecar hash files" and run again to see .sha256 files written next to the hashed files, then click "Verify Sidecars" to have them checked back.
+
+Install:
+- The MSI is a per-machine install to %ProgramFiles%\FileHasher, so Windows shows a UAC prompt. This is by design: the app is meant to be available to every user of the machine, and no per-user variant is published.
+- It creates a Start Menu shortcut and an Add/Remove Programs entry carrying ProductName FileHasher, Publisher FSP Productions LLC, version, and icon. Uninstall removes the program folder and the shortcut.
+- The MSI and the FileHasher.exe inside it are Authenticode-signed by FSP Productions, LLC with an RFC 3161 timestamp. The exe is a self-contained single-file .NET 10 build, so no runtime install is needed.
+
+Two behaviours a scanner may notice. Both are intentional and both are user-initiated:
+- The optional "Hash files inside MSI installers" checkbox opens .msi files read-only through the Windows Installer database API and extracts their contents to %TEMP%\FileHasher_msi_<random> so each inner file can be hashed individually. That directory is deleted when the run finishes.
+- The app appends to a log at %AppData%\FileHasher\Logs\FileHasher_<date>.log, and writes sidecar hash files only beside files the user selected, and only when that option is ticked.
+
+No non-Microsoft drivers or NT services, no bundled third-party software, no advertising, and no telemetry. The same signed MSI is distributed through winget (FSPProductions.FileHasher) and Chocolatey (filehasher).
+```
+
 ## Store listing
 
 ### Short description (max 1000 characters)
