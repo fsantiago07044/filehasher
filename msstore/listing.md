@@ -141,6 +141,11 @@ tester understanding the UAC prompt and filing it as a failure.
 Update the date on every submission; the docs ask for it so testers can judge
 whether a transient problem still applies.
 
+The closing line names winget only. Chocolatey is not live yet (the package has
+never been pushed, and the job first runs on the v0.4.0 tag), and naming an
+unavailable channel to a certification tester invites a check that fails. Add it
+back once the first push is approved.
+
 ```text
 Submitted 2026-09-04.
 
@@ -157,7 +162,7 @@ Two behaviours a scanner may notice. Both are intentional and both are user-init
 - The optional "Hash files inside MSI installers" checkbox opens .msi files read-only through the Windows Installer database API and extracts their contents to %TEMP%\FileHasher_msi_<random> so each inner file can be hashed individually. That directory is deleted when the run finishes.
 - The app appends to a log at %AppData%\FileHasher\Logs\FileHasher_<date>.log, and writes sidecar hash files only beside files the user selected, and only when that option is ticked.
 
-No non-Microsoft drivers or NT services, no bundled third-party software, no advertising, and no telemetry. The same signed MSI is distributed through winget (FSPProductions.FileHasher) and Chocolatey (filehasher).
+No non-Microsoft drivers or NT services, no bundled third-party software, no advertising, and no telemetry. The same signed MSI is also distributed through winget (FSPProductions.FileHasher).
 ```
 
 ## Store listing
