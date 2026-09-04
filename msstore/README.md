@@ -16,7 +16,8 @@ already satisfies every requirement it imposes:
 | --- | --- |
 | Installer is `.msi` or `.exe` | signed MSI from the tag pipeline |
 | Binary and all PE files inside signed, chaining to a Microsoft Trusted Root CA | `ci/sign.sh` signs the exe, `ci/sign-msi.sh` signs the MSI, both on the HSM |
-| Versioned download URL that never changes after submission | GitHub Release assets, which are immutable on this repo |
+| Versioned download URL that never changes after submission | Wasabi S3, keyed by version; the job refuses to overwrite an existing version |
+| The URL must not redirect | Wasabi serves the object directly; **GitHub cannot be used for this field**, see below |
 | Silent install, UAC prompt allowed | MSI authors no UI; the Store runs `/qn` itself |
 | Standalone offline installer, no downloader stub | self-contained single-file exe wrapped in the MSI |
 
@@ -24,6 +25,28 @@ MSIX would buy free Microsoft signing and CDN hosting plus Store-managed
 updates, at the cost of a second packaging format to build, test, and keep in
 sync with the MSI. We already sign on our own HSM and already host on GitHub
 Releases, so the trade is not worth taking for a utility this size.
+
+### Why the download is not on GitHub
+
+Partner Center rejects a redirecting package URL outright: *"The package URL
+redirects to another URL. Provide a download URL without redirection."* Every
+GitHub release-download URL 302s to a signed, short-lived URL on
+release-assets.githubusercontent.com, and that target expires within the hour,
+so it cannot be pasted either. GitHub simply cannot serve this one field.
+
+The MSI is therefore mirrored to Wasabi S3 by the `wasabi-upload` pipeline job,
+at an immutable versioned key:
+
+```
+https://s3.wasabisys.com/fsp-productions-downloads/filehasher/windows/X.Y.Z/FileHasher-X.Y.Z.msi
+```
+
+**Only the Store uses it.** winget, Chocolatey and Scoop all follow redirects
+and stay pointed at GitHub, which matters because Wasabi's free egress policy
+covers monthly egress up to the account's stored volume. Repointing the other
+channels here would spend that budget for no benefit. Setup, the scoped
+upload-only credentials, and the egress arithmetic are in
+[`../ci/README.md`](../ci/README.md) section 1e.
 
 Because the Store hosts nothing, an update is not a package upload: it is a new
 versioned URL pointed at the new release. The Store keeps a copy of the

@@ -38,9 +38,10 @@ verifies integrity rather than protecting the machine.
 | Field | Value |
 | --- | --- |
 | App type | MSI |
-| Package URL | `https://github.com/fsantiago07044/filehasher/releases/download/vX.Y.Z/FileHasher-X.Y.Z.msi` |
+| Package URL | `https://s3.wasabisys.com/fsp-productions-downloads/filehasher/windows/X.Y.Z/FileHasher-X.Y.Z.msi` |
 | Architecture | x64 |
 | Languages | en-us |
+| | **Not** the GitHub release URL: it 302s and the Store rejects redirects |
 | Installer parameters | tick **"Installer runs in silent mode but does not require switches"**, and supply none |
 
 Installer parameters are an EXE concern: the docs say they are required "if you

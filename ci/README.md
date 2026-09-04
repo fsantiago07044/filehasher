@@ -17,7 +17,7 @@ Linux signer additionally needs outbound access to the timestamp authority
 
 | Trigger                                | What runs                                          | `latest` symlinks | GitLab Release | GitHub Release |
 |----------------------------------------|----------------------------------------------------|-------------------|----------------|----------------|
-| Push a tag matching `vMAJOR.MINOR.PATCH` | `audit → build → test → sign → package-msi → sign-msi → release → mirror → winget → chocolatey` | updated           | created        | created (mirrored) |
+| Push a tag matching `vMAJOR.MINOR.PATCH` | `audit → build → test → sign → package-msi → sign-msi → release → wasabi → mirror → winget → chocolatey` | updated           | created        | created (mirrored) |
 | "Run pipeline" web button (any ref)    | `audit → build → test → sign → package-msi → sign-msi` | unchanged         | not created    | not created    |
 
 Manual web-button runs produce output suffixed with `-build.<short_sha>` so they cannot
@@ -200,6 +200,47 @@ Masked flag. Do not run the job with `-dv`.
 
 The submission and moderation workflow, and the manual fallback, are in
 [`../chocolatey/README.md`](../chocolatey/README.md).
+
+#### 1e. Wasabi object storage (Microsoft Store package URL)
+
+The `wasabi-upload` job publishes the six signed assets to Wasabi S3 because
+the Microsoft Store refuses a package URL that redirects, and every GitHub
+release-download URL 302s to a short-lived signed URL. winget, Chocolatey and
+Scoop follow redirects and stay on GitHub; only the Store reads from Wasabi.
+
+`aws-cli` is already installed on the Linux signer, so nothing needs installing.
+What exists in the Wasabi account (personal, not the Activu one):
+
+- Bucket **`fsp-productions-downloads`**, region `us-east-1`, endpoint
+  `https://s3.wasabisys.com`. Object versioning is on, so an overwrite cannot
+  silently replace a binary the Store has certified.
+- A bucket policy granting anonymous `s3:GetObject` on the objects and nothing
+  else. There is no `s3:ListBucket` for anonymous callers, so the bucket cannot
+  be browsed or enumerated: you can fetch a URL you know and nothing more.
+- IAM sub-user **`filehasher-ci`** with an inline policy allowing only
+  `s3:PutObject` and `s3:AbortMultipartUpload` under `filehasher/*`, plus
+  `s3:ListBucket` limited to that prefix so the job can check whether a version
+  is already published. Deliberately **no `DeleteObject`** and no bucket-policy
+  rights: a leaked CI token can add a release, not remove or alter one.
+- Its access key is in the `WASABI_ACCESS_KEY_ID` and
+  `WASABI_SECRET_ACCESS_KEY` CI/CD variables, and a copy is in Bitwarden as
+  *"wasabi filehasher-ci release upload key"*. GitLab hidden variables cannot
+  be read back, so the Bitwarden copy is the only retrievable one.
+
+Key layout is `filehasher/windows/<version>/<filename>`, giving the immutable
+versioned URLs the Store requires:
+
+```
+https://s3.wasabisys.com/fsp-productions-downloads/filehasher/windows/0.3.1/FileHasher-0.3.1.msi
+```
+
+**Watch the egress budget.** Wasabi's free egress policy covers monthly egress
+up to the account's active storage volume, which is why only the Store points
+here. At roughly 599 GB stored, that is about 9,700 MSI downloads a month
+before the guideline bites, and your own large restores from the backup buckets
+count against the same figure. If it ever gets tight, put Cloudflare's free tier
+in front of the bucket so it is fetched from Wasabi once and served from the
+edge thereafter.
 
 #### 2. Create the runner user account
 
@@ -471,6 +512,7 @@ In **Settings → CI/CD → Variables**, add:
 | `SIGNING_BASE_PATH` | absolute path on the signer host to the dir holding `chain.pem`  | Variable | **Masked**, **Hidden**, **Protected**            |
 | `WINGET_PAT`        | classic GitHub PAT (`public_repo` scope) on the `fsantiago07044` account, used by `winget-update` to push the manifest branch to the winget-pkgs fork and open the upstream PR | Variable | **Masked**, **Hidden**, **Protected**            |
 | `CHOCO_API_KEY`     | push key from the community.chocolatey.org account that owns the `filehasher` package id, used by `chocolatey-push` (see section 1d) | Variable | **Masked**, **Hidden**, **Protected**            |
+| `WASABI_ACCESS_KEY_ID` / `WASABI_SECRET_ACCESS_KEY` | credentials for the Wasabi IAM sub-user `filehasher-ci`, used by `wasabi-upload` (see section 1e) | Variable | **Masked**, **Hidden**, **Protected**            |
 
 `WINGET_PAT` is deliberately a separate token from the mirror-stage PAT (which
 is a fine-grained token scoped to Contents on the mirror repo and lives in the
@@ -551,11 +593,12 @@ public-mirror copy of this repo. All of them carry all three privacy flags:
    version again, not a new one. If the job yellow-flags, the packed nupkg is a
    job artifact and the manual fallback is in
    [`../chocolatey/README.md`](../chocolatey/README.md).
-10. The Microsoft Store listing is **not** automated. In Partner Center, open
-    an Update submission for FileHasher and point the package URL at the new
-    release's MSI, then refresh "What's new in this version" from the CHANGELOG.
-    The Store hosts nothing itself, so this is a URL change rather than an
-    upload; the runbook and the reason it is manual are in
+10. The Microsoft Store listing is **not** automated, but its download is: the
+    `wasabi-upload` job has already published the MSI, and its log prints the
+    exact package URL. In Partner Center, open an Update submission, paste that
+    URL, and refresh "What's new in this version" from the CHANGELOG. The Store
+    hosts nothing itself, so this is a URL change rather than an upload; the
+    runbook and the reason it is manual are in
     [`../msstore/README.md`](../msstore/README.md).
 
 If the `test` job fails because the tag does not match `<Version>` in the csproj,

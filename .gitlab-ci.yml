@@ -5,8 +5,8 @@
 # Triggers
 # ────────
 #   • A pushed tag matching   vMAJOR.MINOR.PATCH   → full pipeline
-#       audit → build → test → sign → package-msi → sign-msi → release → mirror
-#       → winget → chocolatey
+#       audit → build → test → sign → package-msi → sign-msi → release → wasabi
+#       → mirror → winget → chocolatey
 #     Produces signed deliverables under /src/filehasher/signed-builds/ on the
 #     Linux signer host (exe + zip + msi, each with a .sha256 sidecar), a
 #     GitLab Release with package assets attached, AND a mirrored GitHub
@@ -77,6 +77,7 @@ stages:
   - package-msi
   - sign-msi
   - release
+  - wasabi
   - mirror
   - winget
   - chocolatey
@@ -392,6 +393,47 @@ release:
     - job: sign-msi
   script:
     - bash ci/release.sh
+
+# ── WASABI ───────────────────────────────────────────────────────────────────
+#
+# Publishes the six signed assets to Wasabi S3, which is where the Microsoft
+# Store listing's package URL points.
+#
+# Why this exists at all: the Store rejects a package URL that redirects ("The
+# package URL redirects to another URL. Provide a download URL without
+# redirection."), and every GitHub release-download URL 302s to a signed,
+# short-lived URL on release-assets.githubusercontent.com. So GitHub can serve
+# winget, Chocolatey and Scoop, which all follow redirects, but it cannot serve
+# that one Store field. Wasabi returns the object directly.
+#
+# Only the Store points here on purpose. Wasabi's free egress policy allows
+# monthly egress up to the account's stored volume, so keeping the other three
+# channels on GitHub keeps that budget almost untouched.
+#
+# The job refuses to overwrite an existing version prefix. A binary the Store
+# has certified must never change at its URL, so a re-run against a version
+# that is already up fails loudly instead of silently replacing it.
+#
+# One-time prerequisites (ci/README.md section 1e): the Wasabi IAM sub-user
+# `filehasher-ci` (upload-only, scoped to filehasher/*) and the
+# WASABI_ACCESS_KEY_ID / WASABI_SECRET_ACCESS_KEY Protected + Masked variables.
+# aws-cli is already present on the signer. allow_failure like the other
+# publish stages: a Wasabi hiccup yellow-flags rather than failing the release,
+# and the Store step is manual anyway.
+
+wasabi-upload:
+  stage: wasabi
+  tags:
+    - linux-signer
+  rules:
+    - if: '$CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+\.[0-9]+$/'
+  allow_failure: true
+  needs:
+    - job: build
+      artifacts: true
+    - job: sign-msi
+  script:
+    - bash ci/upload-wasabi.sh
 
 # ── MIRROR ───────────────────────────────────────────────────────────────────
 #
