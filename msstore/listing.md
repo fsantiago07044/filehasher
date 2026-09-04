@@ -49,7 +49,7 @@ verifies integrity rather than protecting the machine.
 | --- | --- |
 | Privacy policy URL | `https://fabianasantiago.com/privacy-policy/` |
 | Website | `https://www.fspproductions.com/software-projects` |
-| Support contact | `support@fabianasantiago.com` (see note) |
+| Support contact | `https://fabianasantiago.com/filehasher/support/` |
 | Copyright and trademark | Copyright © 2026 FSP Productions, LLC |
 | Additional license terms | MIT License: `https://github.com/fsantiago07044/filehasher/blob/main/LICENSE` |
 | Developed by | FSP Productions, LLC |
@@ -62,12 +62,13 @@ the same URL compiled into both shipped apps (`HelpContent.cs` on Windows,
 `FileHasherApp.swift` on macOS) and the same one submitted to the Mac App Store,
 so anything else would strand the in-app link in versions already installed.
 
-**Support.** The field takes an email address or a URL.
-`https://fabianasantiago.com/filehasher/support/` was macOS-only until the page
-was rewritten to cover both platforms; once that rewrite is live, use the URL,
-which is what the app's own Help menu points at. Until then use
-`support@fabianasantiago.com`, the address the app's Email Support link already
-uses.
+**Support.** Use the URL. `https://fabianasantiago.com/filehasher/support/` was
+macOS-only (it asked for your macOS version and explained the App Sandbox
+prompt), which would have read as a broken listing to a Windows customer. It was
+rewritten on 2026-09-04 to cover both platforms, with a Windows section on the
+`.exe`/`.msi` scan filter, when Administrator is actually needed, the MSI inner
+scan, and the right-click and F1 shortcuts. It is also what the app's own Help
+menu links to.
 
 The wider split is still worth reconciling some day: the app points at
 fabianasantiago.com, winget and Chocolatey point at fspproductions.com and
