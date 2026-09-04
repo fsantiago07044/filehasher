@@ -15,9 +15,17 @@ Field limits shown are Partner Center's.
 | Field | Value |
 | --- | --- |
 | Product type | EXE/MSI app |
-| Reserved name | `FileHasher` preferred; `FileHasher - Checksum Utility` reserved as the fallback (see README) |
+| Reserved name | `FileHasher - Checksum Utility` (reserved 2026-09-03) |
 | Category | Utilities + tools |
 | Subcategory | File managers |
+
+The bare `FileHasher` was not available; the descriptive form was accepted and
+is what the Store listing displays. It matches the Mac App Store listing except
+for the separator, which is a plain hyphen here because the Store's naming rules
+reject unsupported special characters. The app itself, its winget package
+(`FSPProductions.FileHasher`) and its Chocolatey package (`filehasher`) are all
+still plain FileHasher, so keep the prose below using the short name; only the
+Store's display title carries the descriptor.
 
 Category rationale: the comparable Store apps (File Hasher, Files Hasher, Hash
 Tool) all sit under Utilities + tools, so that is where someone browsing for
