@@ -1,6 +1,5 @@
-﻿Field,Type,en-us
+﻿Field,Type,English (United States)
 ProductName,Text,FileHasher - Checksum Utility
-ShortDescription,Text,"Hash files and whole folder trees, write and verify sidecar hash files, and export the results to CSV."
 Description,Text,"FileHasher computes cryptographic hashes for a single file or an entire folder tree, writes the sidecar hash files that go alongside them, verifies sidecars that already exist, and exports everything to CSV.
 
 It is built for the moment you need to prove a file is the file you think it is: checking a download against a published checksum, recording hashes for a set of installers before they go out, or re-verifying an archive months later to confirm nothing on disk has rotted or been altered.
@@ -53,18 +52,17 @@ ProductFeatures17,Text,
 ProductFeatures18,Text,
 ProductFeatures19,Text,
 ProductFeatures20,Text,
-Screenshots1,Relative path,images/02-hash-run.png
-Screenshots2,Relative path,images/03-verify-sidecars.png
-Screenshots3,Relative path,images/01-main-window.png
-Screenshots4,Relative path,images/04-context-menu.png
-Screenshots5,Relative path,images/05-inner-msi-scan.png
-Screenshots6,Relative path,images/06-help-window.png
-Screenshots7,Relative path,
-Screenshots8,Relative path,
-Screenshots9,Relative path,
-Screenshots10,Relative path,
-StoreLogos1,Relative path,images/store-box-art-1080.png
-StoreLogos2,Relative path,
+ShortDescription,Text,"Hash files and whole folder trees, write and verify sidecar hash files, and export the results to CSV."
+SearchTerms1,Text,file hash
+SearchTerms2,Text,checksum
+SearchTerms3,Text,sha256
+SearchTerms4,Text,md5 sha1 sha512
+SearchTerms5,Text,sidecar hash file
+SearchTerms6,Text,integrity verification
+SearchTerms7,Text,hash folder
+Applicable license terms,Text,MIT License. Free and open source; see https://github.com/fsantiago07044/filehasher/blob/main/LICENSE
+Copyright,Text,"Copyright © 2026 FSP Productions, LLC"
+DevelopedBy,Text,"FSP Productions, LLC"
 RequirementsMinimum1,Text,
 RequirementsMinimum2,Text,
 RequirementsMinimum3,Text,
@@ -87,13 +85,17 @@ RequirementsRecommended8,Text,
 RequirementsRecommended9,Text,
 RequirementsRecommended10,Text,
 RequirementsRecommended11,Text,
-SearchTerms1,Text,file hash
-SearchTerms2,Text,checksum
-SearchTerms3,Text,sha256
-SearchTerms4,Text,md5 sha1 sha512
-SearchTerms5,Text,sidecar hash file
-SearchTerms6,Text,integrity verification
-SearchTerms7,Text,hash folder
-Copyright,Text,"Copyright © 2026 FSP Productions, LLC"
-Applicable license terms,Text,MIT License. Free and open source; see https://github.com/fsantiago07044/filehasher/blob/main/LICENSE
-DevelopedBy,Text,"FSP Productions, LLC"
+StoreLogos1,Provide the file name only if it is in the same folder. Provide relative path to image starting with the subfolder name otherwise,store-box-art-1080.png
+StoreLogos2,Provide the file name only if it is in the same folder. Provide relative path to image starting with the subfolder name otherwise,
+Screenshots1,Provide the file name only if it is in the same folder. Provide relative path to image starting with the subfolder name otherwise,02-hash-run.png
+Screenshots2,Provide the file name only if it is in the same folder. Provide relative path to image starting with the subfolder name otherwise,03-verify-sidecars.png
+Screenshots3,Provide the file name only if it is in the same folder. Provide relative path to image starting with the subfolder name otherwise,01-main-window.png
+Screenshots4,Provide the file name only if it is in the same folder. Provide relative path to image starting with the subfolder name otherwise,04-context-menu.png
+Screenshots5,Provide the file name only if it is in the same folder. Provide relative path to image starting with the subfolder name otherwise,05-inner-msi-scan.png
+Screenshots6,Provide the file name only if it is in the same folder. Provide relative path to image starting with the subfolder name otherwise,06-help-window.png
+Screenshots7,Provide the file name only if it is in the same folder. Provide relative path to image starting with the subfolder name otherwise,
+Screenshots8,Provide the file name only if it is in the same folder. Provide relative path to image starting with the subfolder name otherwise,
+Screenshots9,Provide the file name only if it is in the same folder. Provide relative path to image starting with the subfolder name otherwise,
+Screenshots10,Provide the file name only if it is in the same folder. Provide relative path to image starting with the subfolder name otherwise,
+HeroArts,Text,
+Trailers,Text,
