@@ -252,6 +252,3 @@ things it has to work around, all learned the hard way:
   complete" after a verify), so the script matches on control type, not name.
 - The MessageBox OK button does not reliably expose InvokePattern; Enter on the
   focused dialog is the fallback.
-
-Note that `MsiChk`, the inner-MSI checkbox, is missing from the AutomationId
-table in the main README even though the script needs it.

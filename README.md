@@ -403,6 +403,7 @@ window.FindFirstDescendant(cf => cf.ByAutomationId("RunBtn")).AsButton()
 | `CsvChk` | CheckBox | Export results to CSV |
 | `CsvPathBox` | TextBox | CSV output path |
 | `CsvBrowseBtn` | Button | Opens CSV save dialog |
+| `MsiChk` | CheckBox | Hash files inside MSI installers (experimental) |
 | `RunAsAdminBtn` | Button | Relaunches as Administrator |
 | `ClearBtn` | Button | Clears results list |
 | `VerifyBtn` | Button | Starts sidecar verification |
