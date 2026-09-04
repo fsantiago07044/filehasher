@@ -47,156 +47,31 @@ verifies integrity rather than protecting the machine.
 
 | Field | Value |
 | --- | --- |
-| Privacy policy | paste the app-specific text below, rather than the site URL (see note) |
+| Privacy policy URL | `https://fabianasantiago.com/privacy-policy/` |
 | Website | `https://www.fspproductions.com/software-projects` |
 | Support contact | `support@fabianasantiago.com` (see note) |
 | Copyright and trademark | Copyright © 2026 FSP Productions, LLC |
 | Additional license terms | MIT License: `https://github.com/fsantiago07044/filehasher/blob/main/LICENSE` |
 | Developed by | FSP Productions, LLC |
 
-Both of those need explaining, because the obvious choice (follow whatever the
-app's Help menu links to) turns out to be wrong once you read the pages.
+**Privacy.** Use the URL. `https://fabianasantiago.com/privacy-policy/` carries a
+dedicated "FileHasher (desktop application)" section covering both platforms: no
+collection, no telemetry, no accounts, no network connections from the Windows
+app at all, where each kind of output is written, and the macOS sandbox. It is
+the same URL compiled into both shipped apps (`HelpContent.cs` on Windows,
+`FileHasherApp.swift` on macOS) and the same one submitted to the Mac App Store,
+so anything else would strand the in-app link in versions already installed.
 
-**Support.** `https://fabianasantiago.com/filehasher/support/` calls itself the
-support home "for the macOS app (and its Windows sibling)", but its content is
-entirely macOS: it asks for your macOS version, tells you to find the version
-under "FileHasher menu, About FileHasher", and explains the macOS App Sandbox
-permission prompt. A Windows customer, or a certification tester, clicking
-Support from a Windows listing and landing on that reads as an unfinished
-listing. The field accepts an email address instead of a URL, so use
-`support@fabianasantiago.com`: it is the same address the app's own Email
-Support link uses, so nothing is inconsistent with the app. Switch this to the
-URL once the page grows a Windows section.
-
-**Privacy.** `https://fabianasantiago.com/privacy-policy/` is the stock
-WordPress site policy. It is about the website: comments, IP addresses,
-Gravatar, embedded content. It never mentions FileHasher, and it describes
-collection that the app does not do, which is worse than saying nothing.
-Partner Center accepts privacy policy **text** as an alternative to a URL, so
-paste the statement below. It costs no website change and is specific and
-true.
+**Support.** The field takes an email address or a URL.
+`https://fabianasantiago.com/filehasher/support/` was macOS-only until the page
+was rewritten to cover both platforms; once that rewrite is live, use the URL,
+which is what the app's own Help menu points at. Until then use
+`support@fabianasantiago.com`, the address the app's Email Support link already
+uses.
 
 The wider split is still worth reconciling some day: the app points at
 fabianasantiago.com, winget and Chocolatey point at fspproductions.com and
 GitHub issues.
-
-### Privacy policy text
-
-Verified against the source before writing: `FileHasherApp` references no
-networking API at all (no `HttpClient`, `WebClient`, `WebRequest`, `Socket`,
-`Dns`), and its only two package dependencies are the WiX DTF libraries used to
-read MSI files. The Help menu links are handed to the shell with
-`UseShellExecute`, so they open the user's own browser or mail client rather
-than the app fetching anything.
-
-```text
-FileHasher for Windows collects no personal information.
-
-The app does all of its work locally on your computer. It reads the files and
-folders you choose in order to compute their hashes, and it writes the sidecar
-hash files, CSV exports and log files that you ask it to write. Neither that
-data, nor any information about you, your computer or your files, is sent
-anywhere.
-
-FileHasher contains no analytics, no telemetry, no advertising and no accounts,
-and it makes no network connections of its own. The only exception is that the
-Help menu offers links to the support website, this privacy policy and a
-pre-addressed support email; choosing one hands the address to your own browser
-or mail client. Anything you send that way is covered by the policy of the site
-you visit or of your own mail provider.
-
-Log files are written to %AppData%\FileHasher\Logs on your computer and are
-never transmitted. You can delete them at any time.
-
-Questions: support@fabianasantiago.com
-FSP Productions, LLC
-```
-
-## System requirements
-
-**Leave this section blank.**
-
-Despite the name, the field is a hardware checklist only: touch screen,
-keyboard, mouse, camera, NFC, Bluetooth LE, telephony, microphone, memory,
-DirectX, dedicated GPU memory, processor, graphics. It is optional, and blank
-means no hardware requirements are published and the Store shows no
-hardware-based warnings.
-
-Do not be tempted to tick keyboard and mouse. Anything marked required appears
-in the listing as required hardware, and customers on a device lacking it
-cannot rate or review the app. FileHasher runs fine on a touch-only Windows
-tablet with the on-screen keyboard, so declaring those would be both inaccurate
-and self-harming.
-
-There is no field anywhere in the EXE/MSI flow for OS version or disk space:
-device family availability is fixed at Windows 10 and 11 desktop devices. If
-customers are to know the floor, it has to be prose in the description, which
-is why the description below carries a REQUIREMENTS block.
-
-The floor itself is 64-bit Windows 10 version 1809 or newer, which matches the
-winget manifest's `MinimumOSVersion: 10.0.17763.0`. .NET 10 formally lists
-Windows 10 1607 and 1809 (Enterprise/LTSC only, since the consumer editions are
-out of support), 21H2, and Windows 11, so 1809 is a defensible and slightly
-conservative statement of where the self-contained build runs.
-
-**Age rating:** run the questionnaire. Expect 3+ / Everyone. The honest answers
-are no user-generated content, no data collection or transmission, no
-advertising, no in-app purchases, no user-to-user communication.
-
-## Product declarations
-
-None of the four apply. Leave every box unchecked.
-
-| Declaration | Answer | Why |
-| --- | --- | --- |
-| Depends on non-Microsoft drivers or NT services | No | Plain user-mode WinForms app. Checking this triggers a dependency approval review that adds time to certification and can fail it. |
-| Tested to meet accessibility guidelines | No | See below. |
-| Supports pen and ink input | No | Nothing in the UI handles pen or ink specifically. |
-| Incorporates generative AI features | No | No AI models, local or remote. |
-
-On accessibility: it is tempting to check, because the FlaUI test suite means
-most controls already carry AutomationIds and every result verdict is conveyed
-by text (`OK`, `MISMATCH`, `NO SIDECAR`) rather than colour alone. But
-Microsoft's bar for that box is the full list, which includes verified keyboard
-navigation and tab order, a 4.5:1 contrast ratio throughout, a clean run of
-Inspect or AccChecker, and end-to-end verification with Narrator, Magnifier,
-High Contrast, and High DPI. None of that has been done, the menu items do not
-reliably surface AutomationIds, and the owner-drawn `ColorProgressBar` has no
-accessibility implementation at all. The docs are blunt that declaring an app
-accessible when it is not earns negative feedback. Leave it unchecked; it is a
-reasonable future goal given how much of the groundwork the test suite already
-laid.
-
-## Notes for certification
-
-Recommended, 2000 character limit, and worth writing here: the certification
-docs state that "any instructions in the certification notes will be followed",
-and one of the silent-install checks is that the app "can be successfully
-installed when logged in with a standard user account", which a per-machine MSI
-cannot do without elevation. Saying so up front is the difference between a
-tester understanding the UAC prompt and filing it as a failure.
-
-Update the date on every submission; the docs ask for it so testers can judge
-whether a transient problem still applies.
-
-```text
-Submitted 2026-09-03.
-
-FileHasher is a standalone desktop utility. No account, no sign-in, and no network connection is required or made. There is nothing to unlock, no hidden features, and no region-dependent behaviour.
-
-To exercise it in under a minute: launch it, click Browse and pick any folder, leave SHA256 selected, and click Run. Per-file results appear in the list. Tick "Write sidecar hash files" and run again to see .sha256 files written next to the hashed files, then click "Verify Sidecars" to have them checked back.
-
-Install:
-- The MSI is a per-machine install to %ProgramFiles%\FileHasher, so Windows shows a UAC prompt. This is by design: the app is meant to be available to every user of the machine, and no per-user variant is published.
-- It creates a Start Menu shortcut and an Add/Remove Programs entry carrying ProductName FileHasher, Publisher FSP Productions LLC, version, and icon. Uninstall removes the program folder and the shortcut.
-- The MSI and the FileHasher.exe inside it are Authenticode-signed by FSP Productions, LLC with an RFC 3161 timestamp. The exe is a self-contained single-file .NET 10 build, so no runtime install is needed.
-
-Two behaviours a scanner may notice. Both are intentional and both are user-initiated:
-- The optional "Hash files inside MSI installers" checkbox opens .msi files read-only through the Windows Installer database API and extracts their contents to %TEMP%\FileHasher_msi_<random> so each inner file can be hashed individually. That directory is deleted when the run finishes.
-- The app appends to a log at %AppData%\FileHasher\Logs\FileHasher_<date>.log, and writes sidecar hash files only beside files the user selected, and only when that option is ticked.
-
-No non-Microsoft drivers or NT services, no bundled third-party software, no advertising, and no telemetry. The same signed MSI is distributed through winget (FSPProductions.FileHasher) and Chocolatey (filehasher).
-```
 
 ## Store listing
 
