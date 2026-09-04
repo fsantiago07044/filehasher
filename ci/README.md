@@ -551,6 +551,12 @@ public-mirror copy of this repo. All of them carry all three privacy flags:
    version again, not a new one. If the job yellow-flags, the packed nupkg is a
    job artifact and the manual fallback is in
    [`../chocolatey/README.md`](../chocolatey/README.md).
+10. The Microsoft Store listing is **not** automated. In Partner Center, open
+    an Update submission for FileHasher and point the package URL at the new
+    release's MSI, then refresh "What's new in this version" from the CHANGELOG.
+    The Store hosts nothing itself, so this is a URL change rather than an
+    upload; the runbook and the reason it is manual are in
+    [`../msstore/README.md`](../msstore/README.md).
 
 If the `test` job fails because the tag does not match `<Version>` in the csproj,
 fix the csproj or recreate the tag at the right commit and push again.
