@@ -47,19 +47,70 @@ verifies integrity rather than protecting the machine.
 
 | Field | Value |
 | --- | --- |
-| Privacy policy URL | `https://fabianasantiago.com/privacy-policy/` |
+| Privacy policy | paste the app-specific text below, rather than the site URL (see note) |
 | Website | `https://www.fspproductions.com/software-projects` |
-| Support contact | `https://fabianasantiago.com/filehasher/support/` |
+| Support contact | `support@fabianasantiago.com` (see note) |
 | Copyright and trademark | Copyright © 2026 FSP Productions, LLC |
 | Additional license terms | MIT License: `https://github.com/fsantiago07044/filehasher/blob/main/LICENSE` |
 | Developed by | FSP Productions, LLC |
 
-Note the split: the shipped app's Help menu points users at
-fabianasantiago.com for support and privacy (`HelpContent.cs`), while the
-winget and Chocolatey metadata point at fspproductions.com and GitHub issues.
-The Store listing follows the app, on the grounds that a user who found the
-support page from inside the app should not be sent somewhere else by the
-Store. Worth reconciling across all three channels at some point.
+Both of those need explaining, because the obvious choice (follow whatever the
+app's Help menu links to) turns out to be wrong once you read the pages.
+
+**Support.** `https://fabianasantiago.com/filehasher/support/` calls itself the
+support home "for the macOS app (and its Windows sibling)", but its content is
+entirely macOS: it asks for your macOS version, tells you to find the version
+under "FileHasher menu, About FileHasher", and explains the macOS App Sandbox
+permission prompt. A Windows customer, or a certification tester, clicking
+Support from a Windows listing and landing on that reads as an unfinished
+listing. The field accepts an email address instead of a URL, so use
+`support@fabianasantiago.com`: it is the same address the app's own Email
+Support link uses, so nothing is inconsistent with the app. Switch this to the
+URL once the page grows a Windows section.
+
+**Privacy.** `https://fabianasantiago.com/privacy-policy/` is the stock
+WordPress site policy. It is about the website: comments, IP addresses,
+Gravatar, embedded content. It never mentions FileHasher, and it describes
+collection that the app does not do, which is worse than saying nothing.
+Partner Center accepts privacy policy **text** as an alternative to a URL, so
+paste the statement below. It costs no website change and is specific and
+true.
+
+The wider split is still worth reconciling some day: the app points at
+fabianasantiago.com, winget and Chocolatey point at fspproductions.com and
+GitHub issues.
+
+### Privacy policy text
+
+Verified against the source before writing: `FileHasherApp` references no
+networking API at all (no `HttpClient`, `WebClient`, `WebRequest`, `Socket`,
+`Dns`), and its only two package dependencies are the WiX DTF libraries used to
+read MSI files. The Help menu links are handed to the shell with
+`UseShellExecute`, so they open the user's own browser or mail client rather
+than the app fetching anything.
+
+```text
+FileHasher for Windows collects no personal information.
+
+The app does all of its work locally on your computer. It reads the files and
+folders you choose in order to compute their hashes, and it writes the sidecar
+hash files, CSV exports and log files that you ask it to write. Neither that
+data, nor any information about you, your computer or your files, is sent
+anywhere.
+
+FileHasher contains no analytics, no telemetry, no advertising and no accounts,
+and it makes no network connections of its own. The only exception is that the
+Help menu offers links to the support website, this privacy policy and a
+pre-addressed support email; choosing one hands the address to your own browser
+or mail client. Anything you send that way is covered by the policy of the site
+you visit or of your own mail provider.
+
+Log files are written to %AppData%\FileHasher\Logs on your computer and are
+never transmitted. You can delete them at any time.
+
+Questions: support@fabianasantiago.com
+FSP Productions, LLC
+```
 
 ## System requirements
 
