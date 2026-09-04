@@ -41,7 +41,15 @@ verifies integrity rather than protecting the machine.
 | Package URL | `https://github.com/fsantiago07044/filehasher/releases/download/vX.Y.Z/FileHasher-X.Y.Z.msi` |
 | Architecture | x64 |
 | Languages | en-us |
-| Installer parameters | not required; the Store uses `/qn` for MSI |
+| Installer parameters | tick **"Installer runs in silent mode but does not require switches"**, and supply none |
+
+Installer parameters are an EXE concern: the docs say they are required "if you
+choose EXE", and that "for MSI apps, the Store uses the default silent switch
+`/qn`". So there is nothing to supply, and that checkbox is how you say so. If
+the form ever insists on a string, `/qn` is the value, but do not volunteer it,
+since the Store already prepends it. Note also that silent does not mean
+promptless: a UAC dialog is explicitly allowed, and the per-machine MSI raises
+one, which is why the certification notes explain it.
 
 ## Properties
 
