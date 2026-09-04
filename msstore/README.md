@@ -98,12 +98,9 @@ original art is ever regenerated, produce it at 2160 x 2160 and replace both.
 Both carry alpha; if a Store surface renders the transparency badly, flatten
 onto a solid background rather than shipping a fringed icon.
 
-**Screenshots are not in the repo and have to be retaken.** The Store requires
-PNG desktop screenshots of **1366 x 768 or larger**, and every existing shot in
-`docs/filehasher-winget-PR-assets/app-ui-screenshots/` is smaller than that (the
-largest is 1123 x 767). Capture fresh ones on Windows with the main window sized
-so the PNG lands at 1366 x 768 or above. One is required, Microsoft recommends
-five to eight, and the guidance is to show real UI with no added logos, icons,
-or marketing text overlaid. The obvious set: main window idle, a completed hash
-run, a sidecar verification with mixed verdicts, the results right-click menu,
-the inner-MSI scan, and the in-app help window.
+**Screenshots are in [`screenshots/`](screenshots/)**, six of them, captured
+2026-09-03 against the installed 0.3.1 build on the Win10 build/test VM at
+1486 x 893, over the Store's 1366 x 768 minimum. The capture is scripted and
+repeatable: see the Screenshots section of [`listing.md`](listing.md) for the
+upload order, the captions, and the four UI Automation traps the script works
+around.

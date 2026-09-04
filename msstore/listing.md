@@ -219,13 +219,39 @@ release whose changes are all internal, say so plainly rather than padding.
 
 ## Screenshots
 
-See the Assets section of [`README.md`](README.md). They must be PNG at
-1366 x 768 or larger and must not have logos or marketing text added on top.
-Each can carry a caption of 200 characters or less; suggested captions:
+Six PNGs in [`screenshots/`](screenshots/), captured on the Win10 build/test VM
+at 1486 x 893 (1466 x 893 for the help window), comfortably over the Store's
+1366 x 768 minimum. No logos or marketing text are overlaid, per the guidance.
 
-1. Main window, ready to scan a folder.
-2. A completed SHA256 run over a folder tree, with per-file results.
-3. Verifying a tree against its existing sidecar files, showing mixed verdicts.
-4. Right-click a result to open its folder, open a terminal there, or copy the hash.
-5. Hashing the files contained inside an MSI package individually.
-6. In-app help, covering every feature.
+Upload in this order; the first is the one most people see. Partner Center
+reorders by drag and drop.
+
+| # | File | Caption (200 char limit) |
+| --- | --- | --- |
+| 1 | `02-hash-run.png` | A completed SHA256 run over a folder of release artifacts, with every file's hash. |
+| 2 | `03-verify-sidecars.png` | Verifying a folder against the sidecars already on disk: 17 files OK, one mismatch, one missing file, one never hashed. |
+| 3 | `01-main-window.png` | Pick a file or a folder, choose an algorithm, and run. Sidecar writing and CSV export are one checkbox each. |
+| 4 | `04-context-menu.png` | Right-click any result to open its folder, open PowerShell or Command Prompt there, or copy the hash or path. |
+| 5 | `05-inner-msi-scan.png` | Optionally open an MSI read-only and hash the files inside it individually, alongside the MSI itself. |
+| 6 | `06-help-window.png` | In-app help, on F1, covering every feature. |
+
+Regenerating them for a later release: run
+[`tools/make-demo-data.ps1`](tools/make-demo-data.ps1) then
+[`tools/capture-screenshots.ps1`](tools/capture-screenshots.ps1) on the VM. The
+capture script drives the app through UI Automation using the AutomationIds in
+the main README, so it does not depend on where controls happen to sit. Four
+things it has to work around, all learned the hard way:
+
+- The app must be launched **through `explorer.exe`**. Started directly from an
+  elevated context it inherits elevation and the title bar reads
+  "FileHasher [Administrator]", which wrongly implies the app needs elevation.
+- The completion dialog is **owner-owned**, so in the UIA tree it hangs off the
+  main window, not the desktop. Searching the desktop's children never finds
+  it, and an undismissed dialog sits in the middle of the next capture.
+- Its title varies by run type ("Complete" after hashing, "Verification
+  complete" after a verify), so the script matches on control type, not name.
+- The MessageBox OK button does not reliably expose InvokePattern; Enter on the
+  focused dialog is the fallback.
+
+Note that `MsiChk`, the inner-MSI checkbox, is missing from the AutomationId
+table in the main README even though the script needs it.
