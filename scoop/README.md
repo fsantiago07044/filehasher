@@ -66,37 +66,58 @@ the manifest validates against
   `extract_dir` the executable would land one directory too deep, and without
   `$version` in the autoupdate copy the first update would break.
 
-## Submitting to Extras
+## Where it is published
 
-1. **Open an issue first** on ScoopInstaller/Extras proposing the package. The
-   contributing guide is explicit that they are "very reluctant to accept
-   random pull requests without a related issue created first."
-2. Once a maintainer approves it, fork Extras, branch from `master`, and add
-   `bucket/filehasher.json` as a copy of the manifest here.
-3. Test locally on Windows before opening the PR:
+Live in our own bucket, [fsantiago07044/scoop-bucket](https://github.com/fsantiago07044/scoop-bucket),
+created 2026-09-04 from Scoop's official `ScoopInstaller/BucketTemplate`, so
+the CI and auto-update wiring are theirs rather than hand-rolled.
 
-   ```powershell
-   scoop install .\filehasher.json
-   scoop uninstall filehasher
-   scoop checkver filehasher .\           # proves checkver finds the release
-   scoop checkver filehasher .\ -u        # proves autoupdate rewrites correctly
-   ```
+**Not** in the official `extras` bucket, and this is the reason: the Extras
+package-request form opens with a checkbox marked *required* reading
+"Reasonably well-known and widely used (e.g. if it's a GitHub project, it
+should have at least 100 stars and/or 50 forks)", plus a required
+"Some Indication of Popularity/Repute" field. The GitHub mirror is at 0 stars
+and 0 forks, so that box cannot be ticked honestly. Revisit when the project
+has traction; the manifest is already written and validates against Scoop's
+schema, so it becomes a ten-minute job. No issue has been opened, and no
+duplicate exists.
 
-4. PR title must be `filehasher: Add version X.Y.Z`.
-5. Comment `/verify` on the PR to trigger the automatic manifest verifier, then
-   address what it reports.
+## Which copy of the manifest is authoritative
 
-## If Extras declines
+Both, at different times, and this matters.
 
-Nothing is lost: publish the same manifest from our own bucket, which has no
-gatekeeping. Create a repository named `scoop-bucket` on the GitHub mirror
-account with the manifest at `bucket/filehasher.json`, and users run:
+`scoop/filehasher.json` here is the **structural** source: the fields, the
+shortcuts, the checkver and autoupdate blocks. `bucket/filehasher.json` in the
+bucket repo is the **published** copy, and excavator rewrites its `version`,
+`url`, `hash` and `extract_dir` on every release.
 
-```powershell
-scoop bucket add fsantiago https://github.com/fsantiago07044/scoop-bucket
-scoop install filehasher
-```
+So after any release the bucket copy is ahead of this one on version, and that
+is correct. Never hand-edit the bucket to bump a version; excavator does that.
+Do change this copy when the manifest's *shape* changes (a new field, a
+different shortcut), then copy it over and let excavator resume from there.
 
-The trade is discoverability and maintenance: an own bucket is not searched by
-default, and excavator does not run against it, so autoupdate would need a
-scheduled GitHub Action in that repository to do the same job.
+## Verified end to end
+
+On the Win10 VM, 2026-09-04, as a standard non-elevated user:
+
+- `scoop bucket add fsantiago …` then `scoop install filehasher` installed
+  0.3.1 [64bit] from the `fsantiago` bucket.
+- `extract_dir` worked: `FileHasher.exe` sits at the root of the app directory,
+  not one level down inside `FileHasher-0.3.1/`.
+- The executable's Authenticode signature verified **Valid**, subject
+  `CN="FSP Productions, LLC"`.
+- A Start Menu shortcut was created, and nothing appeared in Add/Remove
+  Programs, which is the expected per-user behaviour.
+- The app launched, and `scoop uninstall filehasher` removed both the app
+  directory and the shortcut.
+
+The excavator workflow ran clean on a manual dispatch, but 0.3.1 is already the
+newest release so it had nothing to do. The autoupdate path is therefore proven
+only as far as "runs without error"; the real test is the next release.
+
+Two traps worth remembering if you ever script this against the VM again: Scoop
+must install **non-elevated**, so a script fired from the elevated scheduled
+task has to be handed to the shell to run under the normal token; and staging
+that script in `C:\Windows\Temp` fails, because a file written there by an
+elevated process is unreadable to a standard user ("Windows cannot access the
+specified device, path, or file"). Stage under `C:\Users\Public` instead.
