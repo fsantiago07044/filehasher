@@ -18,7 +18,7 @@ channels that installs per-user.
 authoritative copy. The published copy lives in
 [ScoopInstaller/Extras](https://github.com/ScoopInstaller/Extras).
 
-## Why this channel needs no pipeline stage
+## How updates reach users
 
 winget takes a PR per release and Chocolatey takes a push per release, both
 automated in `.gitlab-ci.yml`. Scoop needs neither, because the manifest
@@ -31,9 +31,13 @@ describes how to find its own updates:
   nothing has to download 63 MB to learn the checksum. Scoop parses the
   `sha256sum` format (`<hash> *<filename>`) natively.
 
-The Extras bucket runs a bot (**excavator**) that executes exactly that on a
-schedule and commits the result, so a new release reaches Scoop users without
-anyone doing anything.
+Our bucket runs that same **Excavator** workflow on `cron: '20 */4 * * *'`, so a
+new release reaches Scoop users without anyone publishing anything.
+
+The pipeline's `scoop-dispatch` job triggers it early, cutting the wait to about
+a minute, and more usefully fails loudly if GitHub has disabled the scheduled
+workflow for 60 days of repository inactivity. Without that check, the symptom
+of a disabled schedule is Scoop users silently stuck on an old version.
 
 **The cost of that is silence when it breaks.** If the release asset names ever
 change, or the `.sha256` sidecars stop being published next to the zip,

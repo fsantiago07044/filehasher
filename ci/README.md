@@ -17,7 +17,7 @@ Linux signer additionally needs outbound access to the timestamp authority
 
 | Trigger                                | What runs                                          | `latest` symlinks | GitLab Release | GitHub Release |
 |----------------------------------------|----------------------------------------------------|-------------------|----------------|----------------|
-| Push a tag matching `vMAJOR.MINOR.PATCH` | `audit → build → test → sign → package-msi → sign-msi → release → wasabi → mirror → winget → chocolatey` | updated           | created        | created (mirrored) |
+| Push a tag matching `vMAJOR.MINOR.PATCH` | `audit → build → test → sign → package-msi → sign-msi → release → wasabi → mirror → scoop → winget → chocolatey` | updated           | created        | created (mirrored) |
 | "Run pipeline" web button (any ref)    | `audit → build → test → sign → package-msi → sign-msi` | unchanged         | not created    | not created    |
 
 Manual web-button runs produce output suffixed with `-build.<short_sha>` so they cannot
@@ -241,6 +241,39 @@ before the guideline bites, and your own large restores from the backup buckets
 count against the same figure. If it ever gets tight, put Cloudflare's free tier
 in front of the bucket so it is fetched from Wasabi once and served from the
 edge thereafter.
+
+#### 1f. Scoop bucket dispatch
+
+Scoop is the only **pull-based** channel. Nothing is published to it: the
+bucket at [fsantiago07044/scoop-bucket](https://github.com/fsantiago07044/scoop-bucket)
+runs Excavator on `cron: '20 */4 * * *'`, which reads the GitHub Release
+through the manifest's `checkver` and commits the version and checksum itself.
+
+The `scoop-dispatch` job only triggers that workflow early, cutting the wait
+from up to four hours to about a minute. That is the smaller half of its value.
+The larger half is that **GitHub disables a scheduled workflow after 60 days of
+repository inactivity**, which a long gap between releases can trigger, and the
+only symptom is Scoop users quietly left on a stale version. The job checks the
+workflow is still `active` and fails if it is not, so the problem surfaces in a
+yellow-flagged pipeline at release time rather than months later. It also
+re-checks that the GitHub Release exists, since `mirror-github` is
+`allow_failure` and Excavator can only see what the mirror published.
+
+The one-time prerequisite is `SCOOP_DISPATCH_PAT`. Create it at
+<https://github.com/settings/personal-access-tokens/new> with:
+
+- **Repository access**: Only select repositories, `fsantiago07044/scoop-bucket`
+- **Permissions**: Actions, Read and write. Nothing else.
+
+Fine-grained PATs expire, so note the expiry: when it lapses the job starts
+yellow-flagging with a 401, which is annoying but not silent. A copy lives in
+Bitwarden as *"scoop gh pat"*; the GitLab variable is Hidden and cannot be read
+back.
+
+Verified when it was set up: the token returns 403 on permission-gated
+endpoints of the `filehasher` repo and 200 on the bucket's, so it really is
+scoped to the one repository. Note that reading public file contents from any
+repo succeeds with any token, so that is not a useful scope test.
 
 #### 2. Create the runner user account
 
@@ -513,6 +546,7 @@ In **Settings → CI/CD → Variables**, add:
 | `WINGET_PAT`        | classic GitHub PAT (`public_repo` scope) on the `fsantiago07044` account, used by `winget-update` to push the manifest branch to the winget-pkgs fork and open the upstream PR | Variable | **Masked**, **Hidden**, **Protected**            |
 | `CHOCO_API_KEY`     | push key from the community.chocolatey.org account that owns the `filehasher` package id, used by `chocolatey-push` (see section 1d) | Variable | **Masked**, **Hidden**, **Protected**            |
 | `WASABI_ACCESS_KEY_ID` / `WASABI_SECRET_ACCESS_KEY` | credentials for the Wasabi IAM sub-user `filehasher-ci`, used by `wasabi-upload` (see section 1e) | Variable | **Masked**, **Hidden**, **Protected**            |
+| `SCOOP_DISPATCH_PAT` | fine-grained GitHub PAT scoped to `fsantiago07044/scoop-bucket` with Actions read+write only, used by `scoop-dispatch` (see section 1f) | Variable | **Masked**, **Hidden**, **Protected**            |
 
 `WINGET_PAT` is deliberately a separate token from the mirror-stage PAT (which
 is a fine-grained token scoped to Contents on the mirror repo and lives in the
@@ -584,7 +618,11 @@ public-mirror copy of this repo. All of them carry all three privacy flags:
    merge within hours. If the job yellow-flags, the generated manifests are
    attached as job artifacts and the manual fallback workflow is in
    [`../winget/README.md`](../winget/README.md).
-9. The `chocolatey-push` job runs off `mirror-github` too. It re-downloads the
+9. The `scoop-dispatch` job also runs off `mirror-github`, nudging the bucket's
+   Excavator workflow to pick the release up immediately. If it yellow-flags
+   saying the workflow is not active, GitHub disabled it for inactivity:
+   re-enable it in the bucket's Actions tab and retry the job.
+10. The `chocolatey-push` job runs off `mirror-github` too. It re-downloads the
    published MSI to pin its checksum, packs, and pushes to
    community.chocolatey.org. Watch the review at
    `https://community.chocolatey.org/packages/filehasher/X.Y.Z`: automated
@@ -593,7 +631,7 @@ public-mirror copy of this repo. All of them carry all three privacy flags:
    version again, not a new one. If the job yellow-flags, the packed nupkg is a
    job artifact and the manual fallback is in
    [`../chocolatey/README.md`](../chocolatey/README.md).
-10. The Microsoft Store listing is **not** automated, but its download is: the
+11. The Microsoft Store listing is **not** automated, but its download is: the
     `wasabi-upload` job has already published the MSI, and its log prints the
     exact package URL. In Partner Center, open an Update submission, paste that
     URL, and refresh "What's new in this version" from the CHANGELOG. The Store

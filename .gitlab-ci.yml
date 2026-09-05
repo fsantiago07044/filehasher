@@ -6,7 +6,7 @@
 # ────────
 #   • A pushed tag matching   vMAJOR.MINOR.PATCH   → full pipeline
 #       audit → build → test → sign → package-msi → sign-msi → release → wasabi
-#       → mirror → winget → chocolatey
+#       → mirror → scoop → winget → chocolatey
 #     Produces signed deliverables under /src/filehasher/signed-builds/ on the
 #     Linux signer host (exe + zip + msi, each with a .sha256 sidecar), a
 #     GitLab Release with package assets attached, AND a mirrored GitHub
@@ -79,6 +79,7 @@ stages:
   - release
   - wasabi
   - mirror
+  - scoop
   - winget
   - chocolatey
 
@@ -458,6 +459,42 @@ mirror-github:
     - job: release
   script:
     - bash ci/mirror-to-github.sh
+
+# ── SCOOP ────────────────────────────────────────────────────────────────────
+#
+# Scoop is the one PULL-based channel: nothing is published to it. The bucket
+# at github.com/fsantiago07044/scoop-bucket runs Excavator on its own cron,
+# which reads the GitHub Release through the manifest's checkver and commits
+# the version and checksum itself. This job only dispatches that workflow early
+# so the wait drops from up to four hours to about a minute.
+#
+# The reason it is worth a job at all is failure visibility. GitHub disables a
+# scheduled workflow after 60 days of repository inactivity, which a long gap
+# between releases can trigger, and the symptom is Scoop users quietly sitting
+# on a stale version. This job checks the workflow is still active and fails if
+# it is not, so that surfaces at release time instead.
+#
+# needs mirror-github because Excavator's entire view of the world is the
+# GitHub Release; the script re-checks that the release exists rather than
+# trusting an allow_failure job to have done its part.
+#
+# One-time prerequisite (ci/README.md section 1f): the SCOOP_DISPATCH_PAT
+# variable, a fine-grained PAT scoped to the bucket repo with Actions
+# read+write and nothing else.
+
+scoop-dispatch:
+  stage: scoop
+  tags:
+    - linux-signer
+  rules:
+    - if: '$CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+\.[0-9]+$/'
+  allow_failure: true
+  needs:
+    - job: build
+      artifacts: true
+    - job: mirror-github
+  script:
+    - bash ci/dispatch-scoop.sh
 
 # ── WINGET ───────────────────────────────────────────────────────────────────
 #
