@@ -22,7 +22,26 @@
   <!-- Enable modern visual styles and DPI awareness -->
   <application xmlns="urn:schemas-microsoft-com:asm.v3">
     <windowsSettings>
-      <dpiAwareness xmlns="http://schemas.microsoft.com/SMI/2016/WindowsSettings">PerMonitorV2</dpiAwareness>
+      <!--
+        System, not PerMonitorV2, deliberately.
+
+        PerMonitorV2 tells Windows "do not scale me, I lay myself out at the
+        real DPI". This form does not: MainForm builds its UI in code with
+        hard-coded pixel coordinates and sets no AutoScaleMode, so at 150% the
+        Segoe UI text grew while the control positions did not, and the layout
+        overlapped and clipped. Microsoft Store certification rejected 0.3.1
+        under policy 10.1.2.10 ("Products must be fully accessible on devices
+        using common resolution scaling values"), reproduced at 150%, 175% and
+        200% on a 2560x1600 panel.
+
+        System awareness hands scaling back to Windows, which bitmap-scales the
+        whole window: correct and fully usable at every scale, slightly soft
+        text above 100%. Making the layout genuinely DPI-aware and restoring
+        PerMonitorV2 is the better end state and is deferred, because it means
+        converting 16 absolute positions to layout containers and reworking the
+        UI tests that assert against them.
+      -->
+      <dpiAwareness xmlns="http://schemas.microsoft.com/SMI/2016/WindowsSettings">System</dpiAwareness>
       <longPathAware xmlns="http://schemas.microsoft.com/SMI/2016/WindowsSettings">true</longPathAware>
     </windowsSettings>
   </application>
