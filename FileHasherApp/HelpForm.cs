@@ -22,6 +22,12 @@ internal sealed class HelpForm : Form
     {
         Name          = "HelpForm";
         Text          = "FileHasher Help";
+
+        // Same reason as MainForm: set before controls are added, so WinForms
+        // scales this window's layout with the display instead of clipping it.
+        AutoScaleDimensions = new SizeF(7F, 15F);
+        AutoScaleMode       = AutoScaleMode.Font;
+
         Width         = 860;
         Height        = 600;
         MinimumSize   = new Size(680, 460);

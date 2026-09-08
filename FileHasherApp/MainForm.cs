@@ -84,6 +84,16 @@ public sealed class MainForm : Form
         }
 
         Text            = IsAdmin() ? "FileHasher  [Administrator]" : "FileHasher";
+
+        // Auto-scaling must be configured BEFORE the controls are added, because
+        // WinForms scales children against the ratio between AutoScaleDimensions
+        // and the font actually resolved at run time. Without it, this form laid
+        // out its 16 hard-coded pixel positions at 96 DPI while the text rendered
+        // 1.5x larger at 150%, so labels, buttons and radios clipped and
+        // overlapped. (7, 15) is Segoe UI 9pt measured at 96 DPI.
+        AutoScaleDimensions = new SizeF(7F, 15F);
+        AutoScaleMode       = AutoScaleMode.Font;
+
         Width           = 860;
         Height          = 760;
         MinimumSize     = new Size(720, 660);
