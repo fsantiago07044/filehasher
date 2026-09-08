@@ -230,13 +230,27 @@ Free and open source under the MIT license. Not trial software, nothing to activ
 
 ### Search terms (up to 7 terms, 30 characters each, 21 words total)
 
-1. file hash
-2. checksum
+1. checksum
+2. hash
 3. sha256
-4. md5 sha1 sha512
-5. sidecar hash file
-6. integrity verification
-7. hash folder
+4. sha512
+5. md5
+6. integrity
+7. verification
+
+**Seven single words, deliberately.** The first submission was rejected under
+policy 10.1.3: "Your submission contains too many keywords (only seven unique
+terms or phrases are allowed)". It used seven *fields*, but one of them was
+`md5 sha1 sha512`, which reads as three terms and took the total to nine. A
+second reading is possible, that they counted words, in which case the original
+fourteen was well over.
+
+Seven single words satisfies both readings, so it cannot fail this check again
+however Microsoft counts. The cost is losing the phrases `file hash`,
+`sidecar hash file` and `hash folder`; those words all still appear in the
+description and product features, which are also indexed. `sidecar` was the
+hardest to drop, being the app's most distinctive term, but it is also the
+least searched.
 
 ### What's new in this version (max 1500 characters)
 

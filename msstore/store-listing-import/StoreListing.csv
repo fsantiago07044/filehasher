@@ -53,13 +53,13 @@ ProductFeatures18,Text,
 ProductFeatures19,Text,
 ProductFeatures20,Text,
 ShortDescription,Text,"Hash files and whole folder trees, write and verify sidecar hash files, and export the results to CSV."
-SearchTerms1,Text,file hash
-SearchTerms2,Text,checksum
+SearchTerms1,Text,checksum
+SearchTerms2,Text,hash
 SearchTerms3,Text,sha256
-SearchTerms4,Text,md5 sha1 sha512
-SearchTerms5,Text,sidecar hash file
-SearchTerms6,Text,integrity verification
-SearchTerms7,Text,hash folder
+SearchTerms4,Text,sha512
+SearchTerms5,Text,md5
+SearchTerms6,Text,integrity
+SearchTerms7,Text,verification
 Applicable license terms,Text,MIT License. Free and open source; see https://github.com/fsantiago07044/filehasher/blob/main/LICENSE
 Copyright,Text,"Copyright © 2026 FSP Productions, LLC"
 DevelopedBy,Text,"FSP Productions, LLC"
