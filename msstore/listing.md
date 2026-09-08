@@ -254,9 +254,21 @@ least searched.
 
 ### What's new in this version (max 1500 characters)
 
-Per release, from the CHANGELOG entry for that version. Keep it user-facing:
-describe what changed for someone using the app, not the build system. For a
-release whose changes are all internal, say so plainly rather than padding.
+```text
+Version 0.4.0 moves FileHasher to .NET 10, the current long-term-support release of the .NET runtime, which also cuts the download by about a quarter. The window now scales correctly on high-resolution displays, including at 150%, 175% and 200% display scaling.
+```
+
+Rewritten for 0.4.0 at the resubmission. Two things to keep in mind each release.
+
+It must match the version in the **Packages** page. The first submission carried
+the 0.3.1 text while the package was being changed to 0.4.0, which would have
+put the wrong release's changes on the listing.
+
+And it is not the same text as `winget/release-notes.txt`, deliberately. Those
+notes are read by people upgrading through winget or Chocolatey, so they can say
+"fixes X". A Store listing is read by people who have never run the app, for
+whom describing a bug they never met is just advertising a defect. Same facts,
+positive framing.
 
 ## Screenshots
 

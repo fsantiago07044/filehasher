@@ -31,7 +31,7 @@ REQUIREMENTS
 LICENSING
 
 Free and open source under the MIT license. Not trial software, nothing to activate, no license key."
-WhatsNew,Text,"This release adds in-app help on F1 covering every feature, a Verify Sidecars button that re-checks a whole folder against the sidecar files already on disk and auto-detects each one's algorithm, a right-click menu on results for opening the file's folder, opening a terminal there, or copying the hash or path, and a third sidecar format that also records each file's last-modified time and size. The suggested sidecar extension now follows the algorithm you pick."
+WhatsNew,Text,"Version 0.4.0 moves FileHasher to .NET 10, the current long-term-support release of the .NET runtime, which also cuts the download by about a quarter. The window now scales correctly on high-resolution displays, including at 150%, 175% and 200% display scaling."
 ProductFeatures1,Text,"MD5, SHA1, SHA256, and SHA512, selected per run"
 ProductFeatures2,Text,"Recursive folder scans with an extension filter, or every file type with one checkbox"
 ProductFeatures3,Text,"Sidecar hash files in sha256sum, hash-only, or extended format with timestamp and size"
