@@ -150,28 +150,37 @@ tester understanding the UAC prompt and filing it as a failure.
 Update the date on every submission; the docs ask for it so testers can judge
 whether a transient problem still applies.
 
+**Count the characters before pasting.** The limit is 2000 and this note runs
+at 1922, so there is almost no headroom. A resubmission tempts you to prepend a
+paragraph about what was fixed, which is exactly what happened on 2026-09-08:
+the note went to 2339 and would not fit the field. Prepending means cutting
+elsewhere.
+
+**Where it lives in Partner Center:** the bottom of the **Properties** page,
+under Product declarations. It is not a page in the submission's left nav, and
+MSIX apps put it somewhere else, so searching for it misleads.
+
 The closing line names winget only. Chocolatey is not live yet (the package has
 never been pushed, and the job first runs on the v0.4.0 tag), and naming an
 unavailable channel to a certification tester invites a check that fails. Add it
 back once the first push is approved.
 
 ```text
-Submitted 2026-09-04.
+Submitted 2026-09-08. Resubmission addressing the 09/08/2026 report.
 
-FileHasher is a standalone desktop utility. No account, no sign-in, and no network connection is required or made. There is nothing to unlock, no hidden features, and no region-dependent behaviour.
+10.1.2.10 (scaling): FIXED. Both windows now set AutoScaleMode.Font, so the layout scales with the display instead of using fixed 96-DPI coordinates. Retested at 100%, 150%, 175% and 200%, the last on a 2560x1600 display, with nothing clipped or overlapping.
 
-To exercise it in under a minute: launch it, click Browse and pick any folder, leave SHA256 selected, and click Run. Per-file results appear in the list. Tick "Write sidecar hash files" and run again to see .sha256 files written next to the hashed files, then click "Verify Sidecars" to have them checked back.
+10.1.3 (search terms): FIXED. Reduced to seven single-word terms.
 
-Install:
-- The MSI is a per-machine install to %ProgramFiles%\FileHasher, so Windows shows a UAC prompt. This is by design: the app is meant to be available to every user of the machine, and no per-user variant is published.
-- It creates a Start Menu shortcut and an Add/Remove Programs entry carrying ProductName FileHasher, Publisher FSP Productions LLC, version, and icon. Uninstall removes the program folder and the shortcut.
-- The MSI and the FileHasher.exe inside it are Authenticode-signed by FSP Productions, LLC with an RFC 3161 timestamp. The exe is a self-contained single-file .NET 10 build, so no runtime install is needed.
+FileHasher is a standalone desktop utility: no account, no sign-in, and no network connection is required or made. Nothing is hidden, locked, or region-dependent.
 
-Two behaviours a scanner may notice. Both are intentional and both are user-initiated:
-- The optional "Hash files inside MSI installers" checkbox opens .msi files read-only through the Windows Installer database API and extracts their contents to %TEMP%\FileHasher_msi_<random> so each inner file can be hashed individually. That directory is deleted when the run finishes.
-- The app appends to a log at %AppData%\FileHasher\Logs\FileHasher_<date>.log, and writes sidecar hash files only beside files the user selected, and only when that option is ticked.
+To exercise it in a minute: launch it, click Browse, pick any folder, leave SHA256 selected, click Run. Tick "Write sidecar hash files" and run again to see .sha256 files written beside each file, then click "Verify Sidecars" to check them back.
 
-No non-Microsoft drivers or NT services, no bundled third-party software, no advertising, and no telemetry. The same signed MSI is also distributed through winget (FSPProductions.FileHasher).
+Install: the MSI is per-machine, to %ProgramFiles%\FileHasher, so Windows shows a UAC prompt. That is by design; the app is meant to be available to every user of the machine and no per-user variant is published. It creates a Start Menu shortcut and an Add/Remove Programs entry (ProductName FileHasher, Publisher FSP Productions LLC, version, icon), and uninstall removes both. The MSI and the FileHasher.exe inside it are Authenticode-signed by FSP Productions, LLC with an RFC 3161 timestamp; the exe is a self-contained .NET 10 build needing no runtime install.
+
+Two behaviours a scanner may notice, both intentional and user-initiated: the optional "Hash files inside MSI installers" checkbox opens .msi files read-only via the Windows Installer database API and extracts them to %TEMP%\FileHasher_msi_<random> to hash each inner file, deleting that directory when the run ends; and the app appends to a log at %AppData%\FileHasher\Logs.
+
+No non-Microsoft drivers or NT services, no bundled software, no advertising, no telemetry. The same signed MSI is distributed through winget (FSPProductions.FileHasher).
 ```
 
 ## Store listing
