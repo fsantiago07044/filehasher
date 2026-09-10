@@ -160,10 +160,10 @@ elsewhere.
 under Product declarations. It is not a page in the submission's left nav, and
 MSIX apps put it somewhere else, so searching for it misleads.
 
-The closing line names winget only. Chocolatey is not live yet (the package has
-never been pushed, and the job first runs on the v0.4.0 tag), and naming an
-unavailable channel to a certification tester invites a check that fails. Add it
-back once the first push is approved.
+The closing line names winget and Chocolatey. Chocolatey 0.4.0 was approved on
+2026-09-10, so it is now a channel a tester could actually verify; before that it
+was deliberately omitted, since naming an unavailable channel invites a check
+that fails.
 
 ```text
 Submitted 2026-09-08. Resubmission addressing the 09/08/2026 report.
@@ -180,7 +180,7 @@ Install: the MSI is per-machine, to %ProgramFiles%\FileHasher, so Windows shows 
 
 Two behaviours a scanner may notice, both intentional and user-initiated: the optional "Hash files inside MSI installers" checkbox opens .msi files read-only via the Windows Installer database API and extracts them to %TEMP%\FileHasher_msi_<random> to hash each inner file, deleting that directory when the run ends; and the app appends to a log at %AppData%\FileHasher\Logs.
 
-No non-Microsoft drivers or NT services, no bundled software, no advertising, no telemetry. The same signed MSI is distributed through winget (FSPProductions.FileHasher).
+No non-Microsoft drivers or NT services, no bundled software, no advertising, no telemetry. The same signed MSI is distributed through winget (FSPProductions.FileHasher) and Chocolatey (filehasher).
 ```
 
 ## Store listing
