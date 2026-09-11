@@ -23,9 +23,9 @@ Taken on 2026-09-11, closing the rest:
 | 7 | Cover RIDs we did not enumerate? | **Yes**, `any` as a framework-dependent fallback |
 | 8 | CLI version line? | **Same tag and version as the app** |
 | 9 | How far does `--fail-on` reach? | **Both verbs**, everywhere applicable |
-| 10 | Recurse default? | **Opt-in.** Top directory only unless `-r` |
-| 11 | Recurse spelling? | `-r`, with `--recurse` and `--recursive` as aliases of one option |
-| 12 | Depth limiting? | **Yes**, `--max-depth <n>`, implies `-r` |
+| 10 | Recurse default? | **On**, unbounded, matching the GUI and the `.ps1` |
+| 11 | Recurse spelling? | `--no-recurse` / `--no-recursive`; `-r` accepted as a no-op |
+| 12 | Depth limiting? | **Yes**, `--max-depth <n>`; `0` is top directory only |
 | 13 | Follow directory symlinks? | **Off by default**, `--follow-symlinks` to opt in |
 
 Decisions 4 and 5 are additions to the command surface below. Decision 1 turned
@@ -127,9 +127,11 @@ filehasher verify <path> [options]
 ### shared
 
 ```
-  -r, --recurse, --recursive                 descend into subdirectories
-                                             (default: top directory only)
-      --max-depth <n>                        limit recursion depth; implies -r
+      --no-recurse, --no-recursive           do not descend into
+                                             subdirectories (default: recurse
+                                             without limit, as the GUI does)
+      --max-depth <n>                        bound the walk; 0 is the starting
+                                             directory only
       --follow-symlinks                      follow directory symlinks
                                              (default: off, see below)
       --fail-on <list>                       conditions that force exit 1
@@ -177,54 +179,58 @@ finding the caller gets to ignore.
 
 ### Recursion
 
-**Default: top directory only, recursion opt-in via flag** (decided
-2026-09-11).
+**The GUI already recurses, without limit.** Both `HashWorker.CollectFiles`
+(`HashWorker.cs:186`) and `SidecarVerifier` (`SidecarVerifier.cs:86`) run an
+explicit stack-based walk that pushes every subdirectory it finds. The
+per-directory `Directory.EnumerateFiles(dir)` calls are the inner step of that
+walk, not the whole enumeration. `filehasher.ps1` recursed too, via
+`Get-ChildItem -Recurse`. So recursion is uniform across everything shipped to
+date, and there is no behavioural fork to migrate anyone across.
 
-Note that this is a real behavioural fork, and it should be documented for
-anyone migrating:
+That settles the default: **the CLI recurses by default, matching the GUI and
+the script**, with a flag to switch it off and a flag to bound it. A tool whose
+GUI walks an entire tree while its CLI stops at the top level would be the one
+real inconsistency here, and the product promise is that both front ends behave
+the same way.
 
-- **The GUI is already non-recursive.** `HashWorker` and `SidecarVerifier` both
-  call `Directory.EnumerateFiles(dir)` with no `SearchOption`, which is
-  `TopDirectoryOnly`.
-- **`filehasher.ps1` recursed, always.** Its `Get-ChildItem -Recurse` had no
-  opt-out. So the recursion was quietly dropped in the port to the GUI, and a
-  script author moving from the `.ps1` to the CLI will hash fewer files than
-  before unless they pass `-r`.
-
-Because of that second point the CLI should say so rather than let it pass
-silently: when a non-recursive run finishes and subdirectories were present but
-skipped, print a hint to stderr (suppressed by `-q`, absent from `--json`):
-
-```
-note: 3 subdirectories were skipped. Use -r to include them.
-```
+The cost is that the POSIX default runs the other way: `grep`, `cp` and `chmod`
+all require `-r`. A Linux user's reflex will be that `filehasher hash ./dir`
+touches one level. Two things blunt that. The tool announces what it found
+before doing the work, so an unintended deep walk is visible rather than
+silent, and `--max-depth 0` bounds it precisely. Product consistency is the
+stronger claim, given the GUI is the reference implementation and predates the
+CLI.
 
 #### Flag naming
 
 | Candidate | Precedent | Verdict |
 | --- | --- | --- |
-| `-r` | universal on both sides | **short flag** |
-| `--recurse` | PowerShell `Get-ChildItem -Recurse`, and the origin script | **canonical long flag** |
-| `--recursive` | POSIX `grep -r`, `cp -R`, `chmod -R` | **alias**, same option |
-| `--max-depth <n>` | `find -maxdepth`, `du --max-depth` | **add**, implies `-r` |
+| `--no-recurse`, `--no-recursive` | the default is on, so this is the switch that matters | **canonical**, both spellings |
+| `--max-depth <n>` | `find -maxdepth`, `du --max-depth` | **add**; `0` means top directory only |
+| `-r`, `--recurse`, `--recursive` | universal | **accept as a no-op**, see below |
 | `--depth <n>` | few precedents | reject: reads as "exactly this depth" |
-| `--no-recurse` | needed only if the default were on | not needed |
 
-The `--recurse` / `--recursive` split is the only genuinely contested one: the
-PowerShell spelling matches this tool's heritage, the POSIX spelling matches
-what a Linux or macOS user will type first, and the CLI is now cross-platform,
-so both audiences are real. Defining both as aliases of one option costs a
-single extra string and removes the question, which is better than being right
-about it.
+Accepting `-r` as an explicit no-op is worth the three lines it costs. It is
+what a POSIX user will reach for, it states an intent that happens to already
+be the default, and failing on it with "unknown option" would be hostile for no
+gain. It should not be advertised in `--help`, only accepted.
 
-`--max-depth 1` means the starting directory plus one level down. Passing it
-without `-r` implies recursion rather than erroring; nobody who typed
-`--max-depth 2` meant "do not recurse".
+The `recurse` / `recursive` split is the only genuinely contested spelling: the
+first matches this tool's PowerShell heritage, the second matches what a Linux
+or macOS user will type first, and the CLI is cross-platform now, so both
+audiences are real. Defining both as aliases of one option costs a single extra
+string and removes the question, which is better than being right about it.
+
+`--max-depth 0` is the starting directory only, `--max-depth 1` adds one level
+down. It and `--no-recurse` are the same instruction at different resolutions,
+so `--max-depth 0` is simply the long way to write `--no-recurse`; accept both
+rather than erroring when they are combined and agree.
 
 #### Symlinks
 
-Recursion plus cross-platform means symlink loops are now reachable, which they
-never were in the Windows-only GUI. `--follow-symlinks` is therefore **off by
+Cross-platform means symlink loops are now reachable, which they were not in
+the Windows-only GUI; the walk is unbounded, so a cycle is a real hazard rather
+than a theoretical one. `--follow-symlinks` is therefore **off by
 default**: directory symlinks are reported and not descended into. When it is
 on, track visited directories by device and inode so a cycle terminates rather
 than running until the path length blows up.
@@ -514,8 +520,6 @@ before implementation:
    problem than two version lines to explain.
 4. ~~Whether `hash` also gains `--fail-on`.~~ Settled 2026-09-11: yes, and
    everywhere else applicable. See the `--fail-on` section.
-5. ~~The recurse option's spelling and default.~~ Settled 2026-09-11: opt-in
-   `-r` / `--recurse` / `--recursive`, plus `--max-depth`. (An earlier draft of
-   this line claimed recursive-by-default "matches the GUI's Windows
-   behaviour". It does not: the GUI is `TopDirectoryOnly`. The `.ps1` was the
-   recursive one.)
+5. ~~The recurse option's spelling and default.~~ Settled 2026-09-11: recursion
+   stays on by default as the GUI and the `.ps1` both do it, switched off with
+   `--no-recurse` and bounded with `--max-depth`.
