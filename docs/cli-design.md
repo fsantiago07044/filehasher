@@ -713,3 +713,69 @@ the package's private store, so existing settings silently disappear and
 reappear if it is unpackaged again. Not a concern today, since the Store
 submission is an unpackaged EXE/MSI, but it should be checked before any
 packaging change.
+
+## Related: a Linux desktop port
+
+Asked by Fabian 2026-09-11. **Feasible. Deferred, decide after the CLI ships.**
+
+Coupling checked rather than estimated. Eight of the eleven sources contain no
+Windows API calls at all: no `DllImport`, no registry, no P/Invoke.
+`HashWorker`, `SidecarVerifier`, `Logger` and the four DTOs are already clean,
+and `Logger` builds its path from `Environment.SpecialFolder.ApplicationData`,
+which resolves to `~/.config` on Linux without a change. WinForms use is
+concentrated in `MainForm.cs` (56 references), `HelpForm.cs` (13) and
+`Program.cs` (2).
+
+Four obstacles, none of them fatal and two of them permanent:
+
+1. **WinForms is Windows-only.** The view layer is rewritten, not ported.
+   **Avalonia** is the realistic toolkit: MAUI has no official Linux target,
+   GTK# is dead for .NET, Uno is heavier and web-oriented.
+2. **MSI inner scan cannot work.** `MsiExtractor` wraps WiX DTF `Database` and
+   `InstallPackage`, which call native `msi.dll`. Permanent gap, consistent
+   with `--msi-inner (Windows only)`.
+3. **Elevation does not translate.** `WindowsIdentity`/`WindowsPrincipal` plus
+   UAC re-launch appear in six places in `MainForm`. Linux has no UAC;
+   `pkexec` is the nearest thing, and dropping the re-launch affordance in
+   favour of clear permission errors is probably the honest answer.
+4. **Help content is Windows-specific** throughout: `C:\Windows\System32`,
+   `C:\Program Files`, `%APPDATA%`, the whole Administrator Mode topic.
+
+The cost that actually matters is neither of those: `MainForm` is 1547 lines of
+imperative WinForms and Avalonia is XAML with MVVM, so this is a view rewrite,
+and it would be a third UI codebase beside WinForms and the SwiftUI macOS port.
+
+Sequencing: `FileHasher.Core` is the prerequisite either way, and building the
+CLI proves the engine runs on Linux before any UI is committed to. Linux users
+also skew toward the CLI, which may absorb most of the demand on its own.
+
+### File-type filtering is already divergent, and should converge
+
+The `.exe`/`.msi` default is meaningless on Linux. Fabian's answer (2026-09-11)
+is to follow the macOS app, with Linux-specific types. The macOS app does not
+have a fixed filter at all: it defaults to **all files**, with an optional
+comma-separated "Limit to file types" field suggesting `pkg` and `dmg`. That
+generalizes without inventing a new UI, since Linux only changes the
+suggestions (`deb`, `rpm`, `AppImage`, `tar.gz`, `flatpak`).
+
+Worth treating as the target model for `FileHasher.Core` generally: a filter
+list that happens to be seeded differently per platform beats a hard-coded pair
+of extensions plus an `--all-types` escape hatch.
+
+### The recursion defaults have already drifted three ways
+
+Found while comparing the front ends, and the clearest argument yet for the
+shared Core:
+
+| Front end | Recursion |
+| --- | --- |
+| Windows GUI | always on, unbounded, no control at all |
+| macOS app | **opt-in**, "Include subfolders" defaults to off |
+| `filehasher.ps1` | always on, unbounded, no opt-out |
+| CLI (decided) | on by default, `--no-recurse`, `--max-depth` |
+
+Three shipped front ends, three different answers, none of them a decision
+anyone took deliberately. A Linux app would be a fourth. This should be settled
+once in `HashOptions` when Core is extracted, and the macOS app brought into
+line or its difference made deliberate, rather than discovered again later.
+
