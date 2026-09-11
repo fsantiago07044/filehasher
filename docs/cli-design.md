@@ -111,10 +111,107 @@ filehasher verify <path> [options]
 ### shared
 
 ```
+  -r, --recurse, --recursive                 descend into subdirectories
+                                             (default: top directory only)
+      --max-depth <n>                        limit recursion depth; implies -r
+      --follow-symlinks                      follow directory symlinks
+                                             (default: off, see below)
+      --fail-on <list>                       conditions that force exit 1
       --json                                 machine-readable output
   -q, --quiet                                errors and the summary only
       --version, --help
 ```
+
+### --fail-on
+
+Applies to both verbs (decided 2026-09-11). A comma-separated list of
+conditions; anything listed forces exit code 1, anything not listed is still
+reported but does not fail the run. The point is that a pipeline decides for
+itself what counts as a failure, instead of inheriting our opinion.
+
+| Token | `hash` | `verify` | Means |
+| --- | --- | --- | --- |
+| `unreadable` | yes | yes | a file could not be opened or read |
+| `mismatch` | no | yes | the hash does not match the sidecar |
+| `missing` | no | yes | a sidecar names a file that is not there |
+| `no-sidecar` | no | yes | a file has no sidecar at all |
+| `empty` | yes | yes | the run matched no files |
+| `any` | yes | yes | every condition applicable to that verb |
+| `none` | yes | yes | report only; never exit 1 |
+
+Defaults are chosen to reproduce the exit-code table exactly, so adding the
+option changes nothing for anyone who does not pass it:
+
+```
+hash     --fail-on unreadable
+verify   --fail-on mismatch,missing,unreadable
+```
+
+Two of these are worth having even though the table above does not currently
+produce them. `no-sidecar` turns `verify` into a coverage gate, which is the
+natural way to assert "every artifact in this directory is accounted for".
+`empty` catches the silent-success failure mode that bites hardest in CI: a
+wrong path, or a glob that matched nothing, currently exits 0 and looks like a
+clean run. `--fail-on none` is the inverse, for a reporting job that should
+collect results without failing the build.
+
+Usage errors (2) and run failures (3) are unaffected. `--fail-on none` does not
+suppress them, because they mean the tool did not do its job, which is not a
+finding the caller gets to ignore.
+
+### Recursion
+
+**Default: top directory only, recursion opt-in via flag** (decided
+2026-09-11).
+
+Note that this is a real behavioural fork, and it should be documented for
+anyone migrating:
+
+- **The GUI is already non-recursive.** `HashWorker` and `SidecarVerifier` both
+  call `Directory.EnumerateFiles(dir)` with no `SearchOption`, which is
+  `TopDirectoryOnly`.
+- **`filehasher.ps1` recursed, always.** Its `Get-ChildItem -Recurse` had no
+  opt-out. So the recursion was quietly dropped in the port to the GUI, and a
+  script author moving from the `.ps1` to the CLI will hash fewer files than
+  before unless they pass `-r`.
+
+Because of that second point the CLI should say so rather than let it pass
+silently: when a non-recursive run finishes and subdirectories were present but
+skipped, print a hint to stderr (suppressed by `-q`, absent from `--json`):
+
+```
+note: 3 subdirectories were skipped. Use -r to include them.
+```
+
+#### Flag naming
+
+| Candidate | Precedent | Verdict |
+| --- | --- | --- |
+| `-r` | universal on both sides | **short flag** |
+| `--recurse` | PowerShell `Get-ChildItem -Recurse`, and the origin script | **canonical long flag** |
+| `--recursive` | POSIX `grep -r`, `cp -R`, `chmod -R` | **alias**, same option |
+| `--max-depth <n>` | `find -maxdepth`, `du --max-depth` | **add**, implies `-r` |
+| `--depth <n>` | few precedents | reject: reads as "exactly this depth" |
+| `--no-recurse` | needed only if the default were on | not needed |
+
+The `--recurse` / `--recursive` split is the only genuinely contested one: the
+PowerShell spelling matches this tool's heritage, the POSIX spelling matches
+what a Linux or macOS user will type first, and the CLI is now cross-platform,
+so both audiences are real. Defining both as aliases of one option costs a
+single extra string and removes the question, which is better than being right
+about it.
+
+`--max-depth 1` means the starting directory plus one level down. Passing it
+without `-r` implies recursion rather than erroring; nobody who typed
+`--max-depth 2` meant "do not recurse".
+
+#### Symlinks
+
+Recursion plus cross-platform means symlink loops are now reachable, which they
+never were in the Windows-only GUI. `--follow-symlinks` is therefore **off by
+default**: directory symlinks are reported and not descended into. When it is
+on, track visited directories by device and inode so a cycle terminates rather
+than running until the path length blows up.
 
 ## Sample sessions
 
@@ -395,10 +492,14 @@ before implementation:
 2. ~~Whether to publish self-contained per-RID binaries.~~ Settled 2026-09-11:
    yes, self-contained per RID, with the signing consequences documented rather
    than avoided.
-3. Whether the CLI is versioned with the app off the same tag (probably yes,
-   least confusing) or gets its own version line.
-4. Whether `hash` should also gain `--fail-on`, or whether exit code 1 for
-   unreadable files is enough.
-5. The recurse option's spelling and default: `--recurse`/`--no-recurse` with
-   recursive as the default matches the GUI's Windows behaviour, but a
-   depth-limited `--depth N` may serve scripts better.
+3. ~~CLI versioning.~~ Settled 2026-09-11: the CLI ships off the same tag as
+   the app and carries the same version number. One tag, one version, one
+   changelog entry. A CLI release with no CLI-visible change is a cheaper
+   problem than two version lines to explain.
+4. ~~Whether `hash` also gains `--fail-on`.~~ Settled 2026-09-11: yes, and
+   everywhere else applicable. See the `--fail-on` section.
+5. ~~The recurse option's spelling and default.~~ Settled 2026-09-11: opt-in
+   `-r` / `--recurse` / `--recursive`, plus `--max-depth`. (An earlier draft of
+   this line claimed recursive-by-default "matches the GUI's Windows
+   behaviour". It does not: the GUI is `TopDirectoryOnly`. The `.ps1` was the
+   recursive one.)
