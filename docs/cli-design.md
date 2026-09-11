@@ -256,12 +256,28 @@ automatically, so users see no difference:
 ```xml
 <PackAsTool>true</PackAsTool>
 <ToolCommandName>filehasher</ToolCommandName>
-<RuntimeIdentifiers>win-x64;linux-x64;osx-arm64;osx-x64</RuntimeIdentifiers>
+<RuntimeIdentifiers>win-x64;linux-x64;osx-arm64;osx-x64;any</RuntimeIdentifiers>
 ```
 
-Adding `any` to that list also emits a framework-dependent package as a
-fallback for platforms not enumerated. Worth doing: it costs one list entry and
-covers, for example, linux-arm64 CI runners.
+**`any` is in that list deliberately (decided 2026-09-11).** It emits a
+framework-dependent package alongside the four self-contained ones, which the
+SDK falls back to on any platform not enumerated: linux-arm64 CI runners,
+Alpine/musl images, an arm64 Windows box, anything that appears later. It costs
+one list entry, changes nothing for the four first-class RIDs, and means an
+unanticipated platform degrades to "needs the .NET 10 runtime installed"
+instead of "no package available".
+
+Two consequences worth writing down now, since the fallback is easy to forget
+once it exists:
+
+- **It is a framework-dependent package**, so it needs a .NET 10 runtime on the
+  target. That is the trade being made in exchange for the coverage; it is not
+  a silent second-class self-contained build.
+- **It is a `.dll` with no native apphost**, so there is no PE file to
+  Authenticode-sign even when it lands on Windows. A Windows user who somehow
+  resolves the fallback instead of `win-x64` gets an unsigned payload. Unlikely,
+  since `win-x64` is enumerated and wins, but the signing matrix below should
+  be read as describing the RID-specific packages.
 
 **Do not enable `PublishAot`,** even though Microsoft's page presents RID-specific,
 self-contained and AOT together and its second example turns AOT on. Self-contained
