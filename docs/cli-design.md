@@ -239,42 +239,83 @@ Linux binary ships under the same product name. **Whichever way the signing
 question lands, those two sentences need revisiting before a cross-platform
 artifact is published.**
 
-### Correction: a framework-dependent tool is signable with what already exists
+### Packaging: self-contained, per RID
 
-The section above was written assuming cross-platform meant shipping native
-binaries. Combined with decision 3, it mostly does not.
+**Decided 2026-09-11: self-contained per-RID packages.** Fabian does not want to
+depart from the self-contained model the GUI already uses, and the consistency
+argument is strong: every FileHasher artifact today runs without installing a
+runtime first, and a CLI that needs one would be the odd one out.
 
-A **framework-dependent `dotnet tool` ships no native code**: the nupkg contains
-IL assemblies and a manifest. Managed .NET assemblies are PE32+ files, verified
-against this repo's own build output, which means `osslsigncode` on the existing
-Linux signer can Authenticode-sign them with the existing HSM, exactly as it
-signs `FileHasher.exe` today. So:
+This is compatible with shipping as a `dotnet tool`, but only just, and only
+because of the .NET version already pinned here. **RID-specific and
+self-contained tools require SDK 10 or later**, and `global.json` pins 10.0.400.
+Setting `RuntimeIdentifiers` alongside `PackAsTool` makes the SDK build a
+self-contained package per RID, and `dotnet tool install` selects the right one
+automatically, so users see no difference:
 
-- the assemblies inside the package carry the FSP Productions signature, from
-  the pipeline that already exists, with no new infrastructure
-- the package itself carries nuget.org's repository signature, applied
-  automatically on push
-- nothing ships unsigned, and the published claims need clarifying rather than
-  retracting
+```xml
+<PackAsTool>true</PackAsTool>
+<ToolCommandName>filehasher</ToolCommandName>
+<RuntimeIdentifiers>win-x64;linux-x64;osx-arm64;osx-x64</RuntimeIdentifiers>
+```
 
-The gap only reopens for **self-contained per-RID executables** (ELF on Linux,
-Mach-O on macOS), whether published beside the nupkg or via a RID-specific
-self-contained tool package. Those cannot be Authenticode-signed at all.
+Adding `any` to that list also emits a framework-dependent package as a
+fallback for platforms not enumerated. Worth doing: it costs one list entry and
+covers, for example, linux-arm64 CI runners.
 
-**So: ship the CLI framework-dependent.** The cost is that the target machine
-needs a .NET runtime, which on CI is either already present or one setup step
-away. One detail for the eventual wording: `dotnet tool install` generates a
-launcher shim on the user's machine at install time, and that shim is created
-locally and is unsigned. That is inherent to the tool model.
+**Do not enable `PublishAot`,** even though Microsoft's page presents RID-specific,
+self-contained and AOT together and its second example turns AOT on. Self-contained
+is not the same as trimmed or AOT-compiled. AOT would undermine the byte-for-byte
+reproducibility story the README documents, and the MSI reader leans on a library
+whose reflection behaviour under AOT has not been tested here. Self-contained
+without trimming or AOT keeps the current guarantees intact.
 
-### Agreed wording approach
+One upside: the CLI's per-RID packages should be considerably smaller than the
+GUI's 45.8 MB installer, because the CLI needs only the `Microsoft.NETCore.App`
+runtime pack and not `Microsoft.WindowsDesktop.App`.
 
-Fabian's position, 2026-09-10: the support page and the 0.4.0 post will be
-revisited when the tool is actually released, not before, and the framing will
-be that the CLI carries a different signature and a different signing process,
-consistent with nuget.org's repository-signing policy, rather than claiming one
-uniform signature across everything. That is honest per artifact and avoids
-rewriting live pages for something not yet shipped.
+### Signing: the resulting matrix
+
+Self-contained means a native host per platform, so the signature story differs
+by artifact. This is the discrepancy to document rather than paper over:
+
+| Artifact | Host format | Authenticode | Other coverage |
+| --- | --- | --- | --- |
+| GUI `.exe`, `.msi`, `.zip` | PE | **Yes**, FSP Productions, LLC via the HSM | SHA-256 sidecar |
+| CLI `win-x64` | PE (apphost) | **Yes**, same pipeline | nuget.org repository signature |
+| CLI `linux-x64` | ELF | **No.** Authenticode does not apply to ELF | nuget.org repository signature |
+| CLI `osx-arm64` / `osx-x64` | Mach-O | **No.** Would need Apple `codesign` + Developer ID + notarization, a different certificate from the App Store one | nuget.org repository signature |
+| Every NuGet package | n/a | n/a | nuget.org repository signature, applied on push |
+
+So: Windows artifacts carry the company signature; Linux and macOS artifacts do
+not and cannot without new certificates and tooling. Every package regardless of
+platform carries nuget.org's repository signature, and every release keeps its
+published SHA-256 checksums, which is the integrity mechanism that actually
+travels across all three platforms.
+
+### Documentation to write at release time, not before
+
+The README as it stands is **already correct** and needs no pre-emptive edit: its
+signing language is scoped to "the released `.exe`" and to the Authenticode
+signature specifically, so it makes no blanket claim that the CLI would falsify.
+
+At release, three places need wording:
+
+1. **README**, a new CLI section carrying the matrix above in prose: Windows
+   binaries Authenticode-signed, Linux and macOS binaries not, all packages
+   repository-signed by nuget.org, all artifacts covered by SHA-256 checksums.
+2. **Support page**, whose "Every release is code-signed by FSP Productions,
+   LLC" becomes true of the Windows app and the Windows CLI, with the
+   cross-platform CLI binaries described honestly.
+3. **The 0.4.0 announcement**, which says every channel installs the identical
+   binary code-signed by FSP Productions, LLC. That sentence is about the GUI
+   and stays true of it; the cleanest fix is to scope it explicitly to the
+   Windows app rather than edit history misleadingly.
+
+Fabian's framing, agreed 2026-09-10: describe the CLI as carrying a different
+signature and a different signing process, consistent with nuget.org's
+repository-signing policy, rather than claiming one uniform signature across
+everything.
 
 ### Can the NuGet package be author-signed?
 
@@ -335,9 +376,9 @@ before implementation:
 1. ~~The two published sentences about signing.~~ Settled: they are revisited at
    release time, worded per artifact (see "Agreed wording approach"). Much
    easier now that a framework-dependent tool can carry the existing signature.
-2. Whether to publish self-contained per-RID binaries at all, beside the nupkg.
-   That is the one choice that would reintroduce genuinely unsigned artifacts,
-   so it should be a deliberate decision rather than a default.
+2. ~~Whether to publish self-contained per-RID binaries.~~ Settled 2026-09-11:
+   yes, self-contained per RID, with the signing consequences documented rather
+   than avoided.
 3. Whether the CLI is versioned with the app off the same tag (probably yes,
    least confusing) or gets its own version line.
 4. Whether `hash` should also gain `--fail-on`, or whether exit code 1 for
