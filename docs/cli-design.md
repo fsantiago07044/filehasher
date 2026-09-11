@@ -29,6 +29,7 @@ Taken on 2026-09-11, closing the rest:
 | 13 | Follow directory symlinks? | **Off by default**, `--follow-symlinks` to opt in |
 | 14 | Shape of the GUI depth control? | **Option A**: `DropDownList` plus `NumericUpDown` |
 | 15 | Persist user settings between runs? | **Yes, to explore.** Per-user only, no elevation |
+| 16 | Fix the recursion drift across front ends? | **Yes**, converge it during this next set of updates |
 
 Decisions 4 and 5 are additions to the command surface below. Decision 1 turned
 out cheaper than this document first assumed, and its consequences for version
@@ -775,7 +776,21 @@ shared Core:
 | CLI (decided) | on by default, `--no-recurse`, `--max-depth` |
 
 Three shipped front ends, three different answers, none of them a decision
-anyone took deliberately. A Linux app would be a fourth. This should be settled
-once in `HashOptions` when Core is extracted, and the macOS app brought into
-line or its difference made deliberate, rather than discovered again later.
+anyone took deliberately. A Linux app would be a fourth.
+
+**In scope for this next set of updates (decided 2026-09-11):** converge it in
+`HashOptions` as part of the Core extraction rather than leaving it to be
+rediscovered.
+
+One consequence to plan for rather than discover: whichever default wins, at
+least one shipped app changes behaviour for existing users. If recursion stays
+on, the macOS app starts descending into subfolders it used to skip, which is
+the riskier direction because it silently widens what gets hashed and it ships
+through App Review. If it becomes opt-in, the Windows app stops finding files
+it used to find, which is safer but more visible. Either way it is a CHANGELOG
+entry and a line in the help, not a silent fix.
+
+The CLI is unconstrained here, since it has no users yet. It should adopt
+whatever the shared default becomes rather than keeping decision 10 as a
+separate answer.
 
