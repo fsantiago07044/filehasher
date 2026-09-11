@@ -239,6 +239,43 @@ Linux binary ships under the same product name. **Whichever way the signing
 question lands, those two sentences need revisiting before a cross-platform
 artifact is published.**
 
+### Correction: a framework-dependent tool is signable with what already exists
+
+The section above was written assuming cross-platform meant shipping native
+binaries. Combined with decision 3, it mostly does not.
+
+A **framework-dependent `dotnet tool` ships no native code**: the nupkg contains
+IL assemblies and a manifest. Managed .NET assemblies are PE32+ files, verified
+against this repo's own build output, which means `osslsigncode` on the existing
+Linux signer can Authenticode-sign them with the existing HSM, exactly as it
+signs `FileHasher.exe` today. So:
+
+- the assemblies inside the package carry the FSP Productions signature, from
+  the pipeline that already exists, with no new infrastructure
+- the package itself carries nuget.org's repository signature, applied
+  automatically on push
+- nothing ships unsigned, and the published claims need clarifying rather than
+  retracting
+
+The gap only reopens for **self-contained per-RID executables** (ELF on Linux,
+Mach-O on macOS), whether published beside the nupkg or via a RID-specific
+self-contained tool package. Those cannot be Authenticode-signed at all.
+
+**So: ship the CLI framework-dependent.** The cost is that the target machine
+needs a .NET runtime, which on CI is either already present or one setup step
+away. One detail for the eventual wording: `dotnet tool install` generates a
+launcher shim on the user's machine at install time, and that shim is created
+locally and is unsigned. That is inherent to the tool model.
+
+### Agreed wording approach
+
+Fabian's position, 2026-09-10: the support page and the 0.4.0 post will be
+revisited when the tool is actually released, not before, and the framing will
+be that the CLI carries a different signature and a different signing process,
+consistent with nuget.org's repository-signing policy, rather than claiming one
+uniform signature across everything. That is honest per artifact and avoids
+rewriting live pages for something not yet shipped.
+
 ### Can the NuGet package be author-signed?
 
 In principle yes, in practice not with the current topology.
@@ -295,13 +332,16 @@ guard that proves so.
 The five questions this document opened with are answered above. What remains
 before implementation:
 
-1. **The two published sentences about signing** on the support page and in the
-   0.4.0 post, if cross-platform artifacts are to be shipped under the same
-   name. This is a decision about claims, not about code.
-2. Whether the CLI is versioned with the app off the same tag (probably yes,
+1. ~~The two published sentences about signing.~~ Settled: they are revisited at
+   release time, worded per artifact (see "Agreed wording approach"). Much
+   easier now that a framework-dependent tool can carry the existing signature.
+2. Whether to publish self-contained per-RID binaries at all, beside the nupkg.
+   That is the one choice that would reintroduce genuinely unsigned artifacts,
+   so it should be a deliberate decision rather than a default.
+3. Whether the CLI is versioned with the app off the same tag (probably yes,
    least confusing) or gets its own version line.
-3. Whether `hash` should also gain `--fail-on`, or whether exit code 1 for
+4. Whether `hash` should also gain `--fail-on`, or whether exit code 1 for
    unreadable files is enough.
-4. The recurse option's spelling and default: `--recurse`/`--no-recurse` with
+5. The recurse option's spelling and default: `--recurse`/`--no-recurse` with
    recursive as the default matches the GUI's Windows behaviour, but a
    depth-limited `--depth N` may serve scripts better.
