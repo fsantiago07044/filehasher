@@ -523,3 +523,81 @@ before implementation:
 5. ~~The recurse option's spelling and default.~~ Settled 2026-09-11: recursion
    stays on by default as the GUI and the `.ps1` both do it, switched off with
    `--no-recurse` and bounded with `--max-depth`.
+
+## Related: a recursion control in the app UI
+
+Proposed by Fabian 2026-09-11 for a beta after 0.4.0: let the user choose no
+recursion, unlimited, or a specific number of levels. Worth doing, and the
+sequencing matters more than the control does.
+
+### Build it in Core, not in MainForm
+
+**Do this as part of the `FileHasher.Core` extraction, not before it.** Depth is
+not a UI concept; it belongs in `HashOptions` next to `AllFileTypes`, which both
+front ends already read. Adding it to `MainForm` first means writing the walk
+logic twice and then reconciling two sets of semantics later, which is exactly
+the drift the shared-Core decision exists to prevent. The product promise is
+that a hash written by one FileHasher verifies in another, and "which files did
+it look at" is part of that.
+
+The engine change is small, because the walk is already explicit in both
+places. `HashWorker.CollectFiles` (`HashWorker.cs:186`) and `SidecarVerifier`
+(`SidecarVerifier.cs:86`) each push subdirectories onto a `Stack<string>`; both
+become `Stack<(string Dir, int Depth)>`, pushing only while `Depth < MaxDepth`.
+Roughly six lines each.
+
+`HashOptions` gains one field, appended so existing positional construction is
+untouched:
+
+```csharp
+int MaxDepth   // -1 unlimited (default), 0 starting directory only, N levels below
+```
+
+**These semantics must match `--max-depth` exactly**, including that `0` means
+the starting directory only. If the GUI and the CLI disagree about what "2"
+means, the documentation is wrong for one of them and nobody will notice until
+a verification comes out short.
+
+Two things stay out of scope. MSI inner extraction (`MsiExtractor`) walks the
+temporary extract directory with `AllDirectories`; that is inside a package, not
+the user's tree, and should stay unbounded. And the depth applies to `verify`
+identically, or a folder hashed at one depth and verified at another reports
+phantom `NO SIDECAR` results.
+
+### The control
+
+Fabian's sketch is a dropdown of 1 to 6 that also accepts a typed value. Two
+ways to build that:
+
+**A. `ComboBox` (`DropDownList`) plus a `NumericUpDown`.** Items are "All
+subfolders", "This folder only", "Limit to". The `NumericUpDown` is enabled only
+for the third, with `Minimum = 1`, `Maximum` around 64, and a default of 3.
+Recommended: no string parsing, no invalid state to validate, out-of-range
+values clamp themselves, and the user can still type a number directly into the
+spinner. Two controls instead of one is the whole cost.
+
+**B. One editable `ComboBox`** (`DropDownStyle = DropDown`) listing "All
+subfolders", "This folder only", then 1 to 6. Matches the sketch literally and
+occupies one slot, but the items are now a mix of words and numbers, so it needs
+a parse step, a rule for unparseable text, and a decision about whether "3
+levels" and "3" both work. Prefer A unless horizontal space in the options area
+is genuinely short.
+
+Either way the default is **unlimited**, so behaviour does not change for
+anyone who ignores the control.
+
+### Two things to plan for
+
+**Layout and DPI.** `MainForm` is hand-laid at fixed pixel coordinates, and
+0.4.0 only just stabilised its scaling with `AutoScaleMode.Font` after a Store
+rejection. Any new control means re-verifying the form at 100, 125, 150 and
+200 percent before release. That is the real cost of this feature, not the
+engine change.
+
+**Nothing persists today.** The app has no settings store of any kind: no
+`Properties.Settings`, no registry use, no config file. Every option resets on
+launch. A depth setting resetting to unlimited each time is defensible, but this
+is the option most likely to make a user ask why their choice did not stick,
+since it changes how long a run takes. Worth deciding deliberately whether this
+is the feature that introduces a settings file, rather than discovering the
+question after release.
