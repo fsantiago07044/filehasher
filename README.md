@@ -601,6 +601,16 @@ dotnet test FileHasherApp.Tests\FileHasherApp.Tests.csproj
 
 ## PowerShell Script
 
+> **Historical.** `filehasher.ps1` is the original prototype the GUI application
+> grew out of. It is kept for provenance and is **not maintained**; it has not
+> changed since the initial commit, and it is not published to the PowerShell
+> Gallery or anywhere else. Use the app instead.
+>
+> The script does considerably less than the app: SHA256 only, `.exe` and `.msi`
+> only, and two sidecar formats. It cannot verify existing sidecars, pick another
+> algorithm, scan all file types, write the extended sidecar format, hash the
+> contents of an MSI, or keep a log.
+
 `filehasher.ps1` is the original script that the GUI application is based on. It recursively scans a folder for `.exe` and `.msi` files, computes SHA256 hashes, and optionally writes sidecar files and a CSV report.
 
 ### Parameters
