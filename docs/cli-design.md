@@ -1,6 +1,7 @@
 # FileHasher CLI: design proposal
 
-**Status: design agreed, nothing built.** Written 2026-09-10.
+**Status: design settled, nothing built.** Written 2026-09-10, completed
+2026-09-11. Every open question is now answered; the next step is code.
 
 ## Decisions
 
@@ -14,9 +15,24 @@ Taken by Fabian on 2026-09-10:
 | 4 | Recursion control? | **Yes**, the CLI gets a recurse option |
 | 5 | `verify --fail-on`? | **Yes** |
 
+Taken on 2026-09-11, closing the rest:
+
+| # | Question | Decision |
+| --- | --- | --- |
+| 6 | Framework-dependent or self-contained? | **Self-contained, per RID** |
+| 7 | Cover RIDs we did not enumerate? | **Yes**, `any` as a framework-dependent fallback |
+| 8 | CLI version line? | **Same tag and version as the app** |
+| 9 | How far does `--fail-on` reach? | **Both verbs**, everywhere applicable |
+| 10 | Recurse default? | **Opt-in.** Top directory only unless `-r` |
+| 11 | Recurse spelling? | `-r`, with `--recurse` and `--recursive` as aliases of one option |
+| 12 | Depth limiting? | **Yes**, `--max-depth <n>`, implies `-r` |
+| 13 | Follow directory symlinks? | **Off by default**, `--follow-symlinks` to opt in |
+
 Decisions 4 and 5 are additions to the command surface below. Decision 1 turned
 out cheaper than this document first assumed, and its consequences for version
-pinning, reproducibility and signing are worked through at the end.
+pinning, reproducibility and signing are worked through at the end. Decisions 6
+and 7 reopen the signing question that decision 3 had closed, which is why the
+signing matrix sits at the end rather than here.
 
 ## Why
 
