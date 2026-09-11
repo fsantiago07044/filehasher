@@ -594,9 +594,11 @@ rejection. Any new control means re-verifying the form at 100, 125, 150 and
 200 percent before release. That is the real cost of this feature, not the
 engine change.
 
-**Nothing persists today.** The app has no settings store of any kind: no
-`Properties.Settings`, no registry use, no config file. Every option resets on
-launch. A depth setting resetting to unlimited each time is defensible, but this
+**Nothing persists today.** Verified across all eleven sources 2026-09-11:
+there is no `Properties.Settings` or `Settings.settings`, no `App.config`, no
+registry access, and no write to `SpecialFolder.ApplicationData` or any other
+config path. The only `LocalAppData` string in the tree is a Windows Installer
+property name in `MsiExtractor.cs:363`. Every option resets on launch. A depth setting resetting to unlimited each time is defensible, but this
 is the option most likely to make a user ask why their choice did not stick,
 since it changes how long a run takes. Worth deciding deliberately whether this
 is the feature that introduces a settings file, rather than discovering the
