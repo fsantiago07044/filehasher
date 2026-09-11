@@ -27,6 +27,8 @@ Taken on 2026-09-11, closing the rest:
 | 11 | Recurse spelling? | `--no-recurse` / `--no-recursive`; `-r` accepted as a no-op |
 | 12 | Depth limiting? | **Yes**, `--max-depth <n>`; `0` is top directory only |
 | 13 | Follow directory symlinks? | **Off by default**, `--follow-symlinks` to opt in |
+| 14 | Shape of the GUI depth control? | **Option A**: `DropDownList` plus `NumericUpDown` |
+| 15 | Persist user settings between runs? | **Yes, to explore.** Per-user only, no elevation |
 
 Decisions 4 and 5 are additions to the command surface below. Decision 1 turned
 out cheaper than this document first assumed, and its consequences for version
@@ -569,14 +571,15 @@ phantom `NO SIDECAR` results.
 Fabian's sketch is a dropdown of 1 to 6 that also accepts a typed value. Two
 ways to build that:
 
-**A. `ComboBox` (`DropDownList`) plus a `NumericUpDown`.** Items are "All
+**A. `ComboBox` (`DropDownList`) plus a `NumericUpDown`. Chosen 2026-09-11.**
+Items are "All
 subfolders", "This folder only", "Limit to". The `NumericUpDown` is enabled only
 for the third, with `Minimum = 1`, `Maximum` around 64, and a default of 3.
 Recommended: no string parsing, no invalid state to validate, out-of-range
 values clamp themselves, and the user can still type a number directly into the
 spinner. Two controls instead of one is the whole cost.
 
-**B. One editable `ComboBox`** (`DropDownStyle = DropDown`) listing "All
+**B. Not chosen: one editable `ComboBox`** (`DropDownStyle = DropDown`) listing "All
 subfolders", "This folder only", then 1 to 6. Matches the sketch literally and
 occupies one slot, but the items are now a mix of words and numbers, so it needs
 a parse step, a rule for unparseable text, and a decision about whether "3
@@ -603,3 +606,110 @@ is the option most likely to make a user ask why their choice did not stick,
 since it changes how long a run takes. Worth deciding deliberately whether this
 is the feature that introduces a settings file, rather than discovering the
 question after release.
+
+## Related: persisting user settings
+
+Raised by Fabian 2026-09-11, prompted by the depth control: an option that
+changes how long a run takes is the one users most expect to stick.
+**Constraint, stated by him: per-user storage only, least privilege possible,
+nothing machine-wide.**
+
+### Where
+
+| Option | Location | Privileges | Verdict |
+| --- | --- | --- | --- |
+| JSON file | `ApplicationData/FileHasher/settings.json` | user only, no elevation | **Recommended** |
+| `Properties.Settings` | `%LOCALAPPDATA%/<app>/<hash>/<ver>/user.config` | user only | Reject |
+| Registry `HKCU` | `HKCU\Software\FSP Productions\FileHasher` | user only, no elevation | Reject |
+
+All three satisfy the constraint; none needs elevation and none writes
+machine-wide state. The choice is on other grounds.
+
+**Reject `Properties.Settings`** despite it being the built-in answer. Its store
+is scoped by assembly version, so every release starts with an empty file
+unless the app calls `Upgrade()` at the right moment, and the hashed directory
+name changes when assembly identity or install path changes. Shipping on four
+channels that each install to different locations makes that fragile in exactly
+the way that is hardest to reproduce and easiest to ship broken.
+
+**Reject `HKCU`.** It satisfies the privilege constraint perfectly, but it is
+Windows-only, and the point of `FileHasher.Core` is that one implementation
+serves the GUI and a cross-platform CLI. A registry-backed settings layer would
+have to be reimplemented for Linux and macOS immediately.
+
+**A JSON file** needs no dependency (`System.Text.Json` is in-box), is
+inspectable and hand-editable, gives full control over schema migration, and
+uses the same API on all three platforms.
+
+### The path
+
+`Environment.GetFolderPath(SpecialFolder.ApplicationData)` plus `FileHasher`.
+Verified on this Mac 2026-09-11 under .NET 10.0.201:
+
+| Platform | `ApplicationData` resolves to |
+| --- | --- |
+| Windows | `%APPDATA%`, the roaming profile |
+| macOS | `~/Library/Application Support` (**measured**, not assumed) |
+| Linux | `$XDG_CONFIG_HOME`, else `~/.config` (**unverified**, confirm on a Linux box before relying on it) |
+
+Note that macOS maps `ApplicationData` and `LocalApplicationData` to the *same*
+directory, so the roaming/local distinction is Windows-only.
+
+Roaming is the right side of that distinction for preferences, which are tiny
+and genuinely follow the user. The corollary is that **machine-specific values
+must not go in this file**: a CSV output path or a last-used folder that roams
+to another machine is worse than not persisting it at all.
+
+### What to persist, and what not
+
+Persist the things that describe how the user likes to work: algorithm, file
+type filter, metadata inclusion, sidecar on/off, sidecar extension and format,
+and the new recursion mode and depth. Window size and position are reasonable
+to add, and are the one exception that is arguably machine-specific enough to
+belong in `LocalApplicationData` instead.
+
+Do not persist the target path or the CSV path, per the roaming point above.
+Do not persist `DescendIntoMsi` while it remains an experimental feature-branch
+flag; a sticky experimental setting is how a user ends up reporting a bug
+against behaviour they cannot remember enabling.
+
+### The CLI must not read this file
+
+The most important line in this section. `FileHasher.Core` will own the
+settings type, and it will be tempting to have the CLI load the same file for
+consistency. **It must not.** A CI tool whose behaviour depends on a GUI
+preference saved by whichever user last ran the app is not reproducible: the
+identical command line would hash different files on two machines, and the
+failure would be invisible in the pipeline log.
+
+The CLI's defaults are compiled in and documented. If a config file for the CLI
+is ever wanted, it is a separate, explicit `--config <path>`, never an implicit
+read of the GUI's store.
+
+### Robustness
+
+Four things that are cheap now and expensive later:
+
+- **Write atomically.** Serialise to a temp file in the same directory, then
+  `File.Move(temp, target, overwrite: true)`. Two app instances closing at once
+  otherwise truncate the file.
+- **Never block startup.** Any failure to read or parse falls back to defaults
+  silently. Rename the unreadable file to `settings.json.bad` rather than
+  deleting it, so a support question can still be answered.
+- **Version the schema** with a `schemaVersion` integer from the first release.
+  Adding it later means guessing at what an unversioned file meant.
+- **Nothing sensitive goes in it.** Paths and preferences only, so the per-user
+  directory permissions are sufficient and no extra ACL work is needed.
+
+### Two consequences at install time
+
+**Uninstall leaves it behind.** No channel's uninstaller will remove
+`ApplicationData/FileHasher`. That is normal for preferences and not worth
+fighting across four package formats; offer "Reset to defaults" in the UI
+instead, which is more useful anyway.
+
+**If the app is ever packaged as MSIX**, writes to AppData are redirected into
+the package's private store, so existing settings silently disappear and
+reappear if it is unpackaged again. Not a concern today, since the Store
+submission is an unpackaged EXE/MSI, but it should be checked before any
+packaging change.
