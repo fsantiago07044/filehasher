@@ -1,7 +1,22 @@
 # FileHasher CLI: design proposal
 
-**Status: proposal, nothing built.** Written 2026-09-10 to think through a
-headless FileHasher. Decisions marked **OPEN** are Fabian's to make.
+**Status: design agreed, nothing built.** Written 2026-09-10.
+
+## Decisions
+
+Taken by Fabian on 2026-09-10:
+
+| # | Question | Decision |
+| --- | --- | --- |
+| 1 | Core cross-platform or Windows-only? | **Cross-platform** |
+| 2 | `--json` streaming or one document? | **Streaming**, one object per line |
+| 3 | Bundled with the app, or separate? | **Separate `dotnet tool` package** |
+| 4 | Recursion control? | **Yes**, the CLI gets a recurse option |
+| 5 | `verify --fail-on`? | **Yes** |
+
+Decisions 4 and 5 are additions to the command surface below. Decision 1 turned
+out cheaper than this document first assumed, and its consequences for version
+pinning, reproducibility and signing are worked through at the end.
 
 ## Why
 
@@ -39,22 +54,26 @@ so the two front ends cannot drift. That matters more here than in most apps:
 the whole product promise is that a hash written by one FileHasher verifies in
 another.
 
-**OPEN, and the decision with the longest reach: does Core target
-`net10.0-windows`, or multi-target `net10.0;net10.0-windows`?**
+**Core targets plain `net10.0`. No multi-targeting is needed**, which is the
+part this document originally got wrong.
 
-`MsiExtractor` depends on `WixToolset.Dtf.WindowsInstaller`, a managed wrapper
-over the Windows Installer API, so inner-MSI hashing is Windows-only and always
-will be. Everything else (hashing, sidecars, CSV, logs) is plain .NET.
+`MsiExtractor` depends on `WixToolset.Dtf.WindowsInstaller`, and the assumption
+was that this forced a Windows TFM. It does not: that package ships
+`netstandard2.0`, so it restores and compiles against `net10.0` on any host. It
+only fails at *runtime*, where it P/Invokes `msi.dll`.
 
-- *Windows-only Core* is simpler: one target, no conditional compilation, MSI
-  support everywhere.
-- *Multi-targeted Core* makes the CLI run on Linux and macOS, with `--msi-inner`
-  unavailable off Windows. That is what makes it usable on an ordinary Linux CI
-  runner, which is where most pipelines actually run, and it would let the CLI
-  verify sidecars written by the macOS app on the machine that wrote them.
+So the shape is one cross-platform Core assembly, with the MSI path gated at
+runtime:
 
-The cross-platform option costs `#if`/partial-class work around one file. It is
-the more valuable answer if the CLI is for automation, which is the premise.
+- annotate `MsiExtractor` `[SupportedOSPlatform("windows")]`, which is the
+  accurate annotation regardless and keeps the CA1416 platform analyzer quiet
+- have the CLI reject `--msi-inner` on non-Windows with a clear message rather
+  than failing inside a P/Invoke
+
+That buys a CLI that runs on Linux and macOS CI runners, where most pipelines
+actually are, and lets it verify sidecars written by the macOS app on the
+machine that wrote them. The only capability missing off Windows is inner-MSI
+hashing, which is meaningless there anyway.
 
 ## Command surface (mockup)
 
@@ -170,19 +189,119 @@ tool` route and keeps the GUI download small, at the cost of a second thing to
 version. Versioning them together from the one repo and tag is probably the
 least confusing answer.
 
+## Version pinning and reproducibility
+
+Going cross-platform costs less here than expected, because cross-platform
+*targets* do not require cross-platform *builds*.
+
+**The SDK pin is untouched.** `global.json` pins 10.0.400 with
+`rollForward: disable`, and every artifact is still cross-compiled from the one
+Windows runner with `-r linux-x64`, `-r osx-arm64` and so on. One SDK produces
+everything, which is a marginally stronger guarantee than today rather than a
+weaker one. Only building *on* Linux would strain it, since that host would then
+need exactly 10.0.400.
+
+**`RuntimeFrameworkVersion` multiplies but stays one knob.** A self-contained
+publish resolves a RID-specific runtime pack
+(`Microsoft.NETCore.App.Runtime.win-x64`, `.linux-x64`, `.osx-arm64`), and the
+single `10.0.11` property pins all of them, because those packs ship together at
+matching versions. Two things get simpler: the CLI needs only
+`Microsoft.NETCore.App`, not `Microsoft.WindowsDesktop.App`, so it pins half of
+what the GUI does; and Core is a library rather than a self-contained app, so it
+needs no `RuntimeFrameworkVersion` at all.
+
+**Determinism is unaffected in mechanism, but per-RID in effect.**
+`Deterministic=true` and `ContinuousIntegrationBuild=true` behave identically for
+every RID. But a `linux-x64` binary will never hash the same as a `win-x64` one,
+so the "Reproducible builds" recipe in the main README must name the RID it
+applies to. On the other hand, a single-target Core means the *same* Core
+assembly ships inside both the GUI and the CLI: one engine, one hash to verify.
+
+**Do not add `PublishTrimmed` or AOT in the same change.** Trimming is RID- and
+analyzer-sensitive and would weaken a reproducibility story that is currently
+clean. Neither is used today; introducing one alongside the RID expansion would
+make any regression hard to attribute.
+
+## Signing, and what it means for claims already published
+
+This is the real cost of decision 1, and it is not a build problem.
+
+**Authenticode signs Windows PE files only.** The HSM pipeline signs the exe and
+the MSI; it cannot sign a `linux-x64` or `osx-arm64` binary. macOS artifacts
+would want `codesign` plus notarization under a Developer ID certificate, which
+is a different certificate from the App Store one used for the Mac app.
+
+That collides with wording that is live today. The support page says every
+release is code-signed by FSP Productions, LLC, and the 0.4.0 announcement says
+every channel installs the identical binary, code-signed by FSP Productions,
+LLC. Both are true of the Windows app and stop being true the moment an unsigned
+Linux binary ships under the same product name. **Whichever way the signing
+question lands, those two sentences need revisiting before a cross-platform
+artifact is published.**
+
+### Can the NuGet package be author-signed?
+
+In principle yes, in practice not with the current topology.
+
+The certificate qualifies: NuGet requires a code-signing certificate with an RSA
+key of 2048 bits or more, chaining to a root trusted by default on Windows, and
+self-issued certificates are rejected. The FSP Productions OV certificate meets
+all of that.
+
+The obstacle is key access. `dotnet nuget sign` can reach a private key exactly
+two ways: `--certificate-path`, meaning a file that contains the private key, or
+`--certificate-store-*`, meaning the Windows certificate store. The key lives in
+a USB HSM attached to the Linux signer, reached over PKCS#11 by `osslsigncode`.
+Neither route reaches it:
+
+- a PFX export is impossible, and would defeat the HSM even if it were not
+- the Windows certificate store route needs the token attached to a Windows host
+  with the vendor's CSP/KSP driver, and moving the token there would break the
+  exe and MSI signing that depends on it being on the Linux box
+
+Buying a second, file-based certificate is not an escape either: since 2023 the
+CA/Browser Forum has required code-signing private keys to be held in certified
+hardware, so a public CA will not issue a soft PFX.
+
+Two workable directions, neither urgent:
+
+1. **Do not author-sign.** nuget.org applies a **repository signature** to every
+   package it accepts, which gives consumers an integrity guarantee and
+   provenance from nuget.org. Combined with the published SHA-256 sidecars,
+   which cover every artifact on every platform, that is a reasonable baseline.
+2. **Move to a cloud signing service** (Azure Trusted Signing, DigiCert
+   KeyLocker, SSL.com eSigner and similar). These hold the key in a cloud HSM and
+   are drivable from CI without a physical token, which would cover Authenticode
+   and NuGet from the same place. That is a procurement decision well beyond this
+   CLI.
+
+Worth knowing before choosing: registering a certificate with nuget.org is a
+**commitment, not a per-package choice**. Once the fingerprint is registered,
+nuget.org requires every subsequent package from that account to carry that
+signature. Turning it on is easy; turning it off later is disruptive.
+
+**Recommendation: ship unsigned to NuGet initially** and lean on the repository
+signature plus the sidecars, then revisit if cloud signing is ever adopted for
+Authenticode anyway.
+
 ## What this is not
 
 Not a rewrite. The GUI keeps its current behaviour exactly; the refactor moves
 code between projects without changing it, and the existing FlaUI suite is the
 guard that proves so.
 
-## Open questions, collected
+## Still open
 
-1. Cross-platform Core, or Windows-only?
-2. `--json` streaming or single document?
-3. CLI bundled with the app, or a separate `dotnet tool` package?
-4. Does the CLI need `--recurse`/`--no-recurse`, or does it inherit the app's
-   always-recursive behaviour? The app is always recursive on Windows; a CLI
-   used in scripts may want to limit depth.
-5. Should `verify` gain a `--fail-on <mismatch|missing|no-sidecar>` switch, so a
-   pipeline can decide whether a missing sidecar is an error or a warning?
+The five questions this document opened with are answered above. What remains
+before implementation:
+
+1. **The two published sentences about signing** on the support page and in the
+   0.4.0 post, if cross-platform artifacts are to be shipped under the same
+   name. This is a decision about claims, not about code.
+2. Whether the CLI is versioned with the app off the same tag (probably yes,
+   least confusing) or gets its own version line.
+3. Whether `hash` should also gain `--fail-on`, or whether exit code 1 for
+   unreadable files is enough.
+4. The recurse option's spelling and default: `--recurse`/`--no-recurse` with
+   recursive as the default matches the GUI's Windows behaviour, but a
+   depth-limited `--depth N` may serve scripts better.
