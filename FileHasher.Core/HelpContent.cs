@@ -5,7 +5,7 @@ namespace FileHasher;
 /// <summary>One section within a help topic: an optional heading, paragraphs,
 /// and an optional bullet list. Paragraph and bullet strings may use inline
 /// markup which HelpForm renders: **bold** and `code`.</summary>
-internal sealed class HelpSection
+public sealed class HelpSection
 {
     public string?  Heading    { get; }
     public string[] Paragraphs { get; }
@@ -22,14 +22,14 @@ internal sealed class HelpSection
 }
 
 /// <summary>One topic in the help window's sidebar.</summary>
-internal sealed record HelpTopic(string Title, HelpSection[] Sections);
+public sealed record HelpTopic(string Title, HelpSection[] Sections);
 
 /// <summary>
 /// The in-app help content, plus the support links it references. Content
 /// lives in code so it is versioned with the app; the support email subject
 /// embeds the running version automatically.
 /// </summary>
-internal static class HelpContent
+public static class HelpContent
 {
     public const string SupportUrl = "https://fabianasantiago.com/filehasher/support/";
     public const string PrivacyUrl = "https://fabianasantiago.com/privacy-policy/";

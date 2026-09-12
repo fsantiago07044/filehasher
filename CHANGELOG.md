@@ -9,6 +9,11 @@ Release tags use the form `vMAJOR.MINOR.PATCH`. The release pipeline strips the
 leading `v` when injecting the version into the .NET build and validates the
 result against `<Version>` in `FileHasherApp/FileHasherApp.csproj`.
 
+## [Unreleased]
+
+### Changed
+- **The hashing engine moved into a new `FileHasher.Core` project**, referenced by the WinForms app. Eight files moved unchanged apart from visibility: `HashWorker`, `SidecarVerifier`, `MsiExtractor`, `HelpContent`, `Logger`, `HashOptions`, `HashResult` and `VerifyResult`. `FileHasherApp` keeps only the WinForms layer (`MainForm`, `HelpForm`, `Program`, `ColorProgressBar`). This is preparation for the planned CLI (`docs/cli-design.md`), which becomes the second front end driving exactly the same code; the product promise that a hash written by one FileHasher verifies in another depends on there being one implementation of the walk, the sidecar format and the MSI reader rather than two that can drift. **No behaviour changes**, which is the point of doing it as its own step: the fourteen moved types and three members went from `internal` to `public` and nothing else was touched. Core targets plain `net10.0` rather than `net10.0-windows`, since nothing in it references WinForms, and it is left at AnyCPU so it stays usable from the cross-platform RIDs the CLI will need. `RootNamespace` stays `FileHasher`, so the moved files keep their original namespace and no `using` changed anywhere. The WiX DTF package references moved with `MsiExtractor.cs`; note that those wrappers compile anywhere but call the native Windows Installer API in `msi.dll`, so inner-MSI scanning remains Windows-only at runtime.
+
 ## [0.4.0] - 2026-09-08
 
 ### Added

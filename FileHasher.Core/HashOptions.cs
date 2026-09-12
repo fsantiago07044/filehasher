@@ -1,7 +1,7 @@
 namespace FileHasher;
 
 /// <summary>Immutable snapshot of all user-selected options passed to the worker.</summary>
-internal sealed record HashOptions(
+public sealed record HashOptions(
     string  TargetPath,
     bool    IsFile,
     string  Algorithm,          // "MD5" | "SHA1" | "SHA256" | "SHA512"

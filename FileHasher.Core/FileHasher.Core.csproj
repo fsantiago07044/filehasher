@@ -1,0 +1,57 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The shared hashing engine, extracted from FileHasherApp so that more than
+    one front end can drive it. Today that is the WinForms app; the planned CLI
+    (docs/cli-design.md) is the second consumer, and the product promise that a
+    hash written by one FileHasher verifies in another depends on there being
+    exactly one implementation of the walk, the sidecar format and the MSI
+    reader.
+
+    Targets plain net10.0, NOT net10.0-windows: nothing in here touches
+    WinForms, and the CLI is cross-platform. AssemblyName differs from the
+    namespace on purpose; RootNamespace stays FileHasher so the moved files
+    keep their original `namespace FileHasher;` and the app needs no using
+    changes.
+
+    Platform note: MsiExtractor compiles anywhere (WixToolset.Dtf ships
+    netstandard2.0) but only RUNS on Windows, because those wrappers call the
+    native Windows Installer API in msi.dll. Callers on other platforms must
+    not reach it.
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>FileHasher</RootNamespace>
+    <AssemblyName>FileHasher.Core</AssemblyName>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+    <!--
+      Left at AnyCPU deliberately. The app and test projects set
+      PlatformTarget x64; an AnyCPU library referenced from an x64 project is
+      compatible and warning-free, while pinning this to x64 would block the
+      cross-platform RIDs the CLI needs.
+    -->
+    <!--
+      Keep in sync with <Version> in FileHasherApp.csproj. Only affects local
+      builds: the release pipeline passes -p:Version=<tag> as a global
+      property, which propagates to this project through the reference.
+    -->
+    <Version>0.4.0</Version>
+    <Company>FileHasher</Company>
+    <Product>FileHasher</Product>
+    <Copyright>Copyright © 2026 FSP Productions, LLC</Copyright>
+  </PropertyGroup>
+
+  <!--
+    Moved from FileHasherApp.csproj with MsiExtractor.cs. WiX DTF wraps the
+    Windows Installer COM API so inner .msi files can be enumerated, extracted
+    and hashed individually.
+  -->
+  <ItemGroup>
+    <PackageReference Include="WixToolset.Dtf.WindowsInstaller"          Version="4.0.6" />
+    <PackageReference Include="WixToolset.Dtf.WindowsInstaller.Package"  Version="4.0.6" />
+  </ItemGroup>
+
+</Project>

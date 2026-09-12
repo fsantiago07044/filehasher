@@ -8,7 +8,7 @@ namespace FileHasher;
 /// All public methods are thread-safe to call from the UI thread; events are raised on the
 /// thread-pool thread — callers must marshal to the UI thread as needed.
 /// </summary>
-internal sealed class HashWorker
+public sealed class HashWorker
 {
     private readonly HashOptions _opts;
     private readonly Logger      _logger;
@@ -299,7 +299,7 @@ internal sealed class HashWorker
     };
 }
 
-internal enum SidecarConflictAction
+public enum SidecarConflictAction
 {
     Overwrite,
     OverwriteAll,

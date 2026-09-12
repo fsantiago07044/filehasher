@@ -1,7 +1,10 @@
 # FileHasher CLI: design proposal
 
-**Status: design settled, nothing built.** Written 2026-09-10, completed
-2026-09-11. Every open question is now answered; the next step is code.
+**Status: design settled; `FileHasher.Core` extracted 2026-09-12.** Written
+2026-09-10, decisions completed 2026-09-11. Every open question is answered.
+The shared Core described under "Architecture" now exists as its own project
+with the WinForms app as its first consumer, so the CLI has something to sit
+on; recursion convergence (decision 16) and the CLI itself are the next steps.
 
 ## Decisions
 

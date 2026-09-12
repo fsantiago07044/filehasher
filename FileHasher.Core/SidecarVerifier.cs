@@ -17,10 +17,10 @@ namespace FileHasher;
 /// pass/fail; a differing embedded filename, date, or size on an otherwise-OK
 /// row is surfaced as an informational note.
 /// </summary>
-internal sealed class SidecarVerifier
+public sealed class SidecarVerifier
 {
     /// <summary>One unit of verification work. Null SidecarPath = audit row for a file lacking a sidecar.</summary>
-    internal sealed record VerifyWorkItem(string BaseFile, string? SidecarPath);
+    public sealed record VerifyWorkItem(string BaseFile, string? SidecarPath);
 
     private readonly string _targetPath;
     private readonly bool   _isFile;

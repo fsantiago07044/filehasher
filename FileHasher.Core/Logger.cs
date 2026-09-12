@@ -6,7 +6,7 @@ namespace FileHasher;
 /// Thread-safe, append-only log writer.
 /// Log files are stored in %APPDATA%\FileHasher\Logs\ and named by date.
 /// </summary>
-internal sealed class Logger : IDisposable
+public sealed class Logger : IDisposable
 {
     private readonly StreamWriter _writer;
     private readonly object       _lock = new();

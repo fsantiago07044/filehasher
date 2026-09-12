@@ -60,7 +60,7 @@ namespace FileHasher;
 ///     that is not embedded in the MSI itself) will surface as an error from
 ///     <see cref="ExtractAsync"/> rather than being chased on disk.
 /// </summary>
-internal sealed class MsiExtractor : IDisposable
+public sealed class MsiExtractor : IDisposable
 {
     /// <summary>5 GB. Total bytes the extraction is allowed to write before aborting.</summary>
     public const long DefaultMaxTotalExtractedBytes = 5L * 1024 * 1024 * 1024;
@@ -299,7 +299,7 @@ internal sealed class MsiExtractor : IDisposable
     /// Exposed as internal so it can be unit-tested directly; the production
     /// call site is the post-extraction loop in <see cref="ExtractAsync"/>.
     /// </summary>
-    internal static bool IsReparsePoint(string filePath)
+    public static bool IsReparsePoint(string filePath)
     {
         var attrs = File.GetAttributes(filePath);
         return (attrs & FileAttributes.ReparsePoint) != 0;
@@ -322,7 +322,7 @@ internal sealed class MsiExtractor : IDisposable
     /// unit-tested with synthetic paths; the production call site is the
     /// post-extraction loop in <see cref="ExtractAsync"/>.
     /// </summary>
-    internal static bool IsPathOutsideDirectory(string filePath, string canonicalDirectoryWithTrailingSeparator)
+    public static bool IsPathOutsideDirectory(string filePath, string canonicalDirectoryWithTrailingSeparator)
     {
         var canonical = Path.GetFullPath(filePath);
         return !canonical.StartsWith(canonicalDirectoryWithTrailingSeparator, StringComparison.OrdinalIgnoreCase);

@@ -1,7 +1,7 @@
 namespace FileHasher;
 
 /// <summary>Outcome category for one sidecar-verification row.</summary>
-internal enum VerifyStatus
+public enum VerifyStatus
 {
     Ok,            // hash matches the sidecar
     Mismatch,      // hash differs from the sidecar
@@ -12,7 +12,7 @@ internal enum VerifyStatus
 }
 
 /// <summary>Outcome of verifying a single sidecar (or a file lacking one).</summary>
-internal sealed record VerifyResult(
+public sealed record VerifyResult(
     string       FilePath,      // the file the sidecar attests to
     string       SidecarPath,   // the sidecar itself; "" for NoSidecar rows
     VerifyStatus Status,
@@ -23,7 +23,7 @@ internal sealed record VerifyResult(
 );
 
 /// <summary>Per-status counts for a completed verification run.</summary>
-internal sealed record VerifySummary(
+public sealed record VerifySummary(
     int Ok,
     int Mismatch,
     int MissingFile,
