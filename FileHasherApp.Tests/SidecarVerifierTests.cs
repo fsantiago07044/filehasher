@@ -12,9 +12,9 @@ namespace FileHasher.Tests;
 /// end-to-end through the WinForms UI.
 ///
 /// These tests do NOT drive the UI and do NOT require an interactive desktop
-/// session — they instantiate <see cref="SidecarVerifier"/> directly via
-/// <c>InternalsVisibleTo</c>, so xUnit can parallelize them across the standard
-/// test runner.
+/// session — they instantiate <see cref="SidecarVerifier"/> directly from
+/// FileHasher.Core, so xUnit can parallelize them across the standard test
+/// runner.
 /// </summary>
 public sealed class SidecarVerifierTests : IDisposable
 {
@@ -300,11 +300,88 @@ public sealed class SidecarVerifierTests : IDisposable
 
     // ── Plumbing ─────────────────────────────────────────────────────────────
 
+    // ── Depth-bounded enumeration ────────────────────────────────────────────
+    //
+    // Every Windows release has walked folders without limit, so unlimited
+    // stays the default and the first test here is a regression guard on that:
+    // if it ever fails, existing users silently stopped seeing files they used
+    // to see. The bounded cases pin the semantics the UI depth control and the
+    // CLI's --max-depth both expose: 0 is the target folder alone, N is N
+    // levels below it.
+
+    [Fact]
+    public async Task Depth_DefaultIsUnlimited()
+    {
+        WriteTree();
+
+        var (results, _) = await RunAsync(_dir, isFile: false);
+
+        Assert.Equal(3, results.Count);
+        Assert.All(results, r => Assert.Equal(VerifyStatus.Ok, r.Status));
+    }
+
+    [Fact]
+    public async Task Depth_Zero_ScansTargetFolderOnly()
+    {
+        WriteTree();
+
+        var (results, _) = await RunAsync(_dir, isFile: false, maxDepth: 0);
+
+        var r = Assert.Single(results);
+        Assert.Equal("root.exe", Path.GetFileName(r.FilePath));
+    }
+
+    [Fact]
+    public async Task Depth_One_ScansTargetFolderAndOneLevelBelow()
+    {
+        WriteTree();
+
+        var (results, _) = await RunAsync(_dir, isFile: false, maxDepth: 1);
+
+        Assert.Equal(2, results.Count);
+        Assert.Contains(results, r => Path.GetFileName(r.FilePath) == "root.exe");
+        Assert.Contains(results, r => Path.GetFileName(r.FilePath) == "one.exe");
+        Assert.DoesNotContain(results, r => Path.GetFileName(r.FilePath) == "two.exe");
+    }
+
+    [Fact]
+    public async Task Depth_Negative_IsClampedToTargetFolderOnly()
+    {
+        WriteTree();
+
+        var (results, _) = await RunAsync(_dir, isFile: false, maxDepth: -5);
+
+        var r = Assert.Single(results);
+        Assert.Equal("root.exe", Path.GetFileName(r.FilePath));
+    }
+
+    /// <summary>root.exe, sub/one.exe, sub/deeper/two.exe, each with a valid
+    /// sidecar so every enumerated file lands as Ok and the count is purely a
+    /// statement about how far the walk reached.</summary>
+    private void WriteTree()
+    {
+        WriteWithSidecar("root.exe");
+        WriteWithSidecar(Path.Combine("sub", "one.exe"));
+        WriteWithSidecar(Path.Combine("sub", "deeper", "two.exe"));
+    }
+
+    private void WriteWithSidecar(string relativePath)
+    {
+        var path    = Path.Combine(_dir, relativePath);
+        var dir     = Path.GetDirectoryName(path)!;
+        Directory.CreateDirectory(dir);
+
+        var content = System.Text.Encoding.UTF8.GetBytes(relativePath);
+        File.WriteAllBytes(path, content);
+        File.WriteAllText(path + ".sha256", Hash("SHA256", content));
+    }
+
     private static async Task<(List<VerifyResult> Results, VerifySummary Summary)> RunAsync(
-        string target, bool isFile, string ext = ".sha256", bool allTypes = false)
+        string target, bool isFile, string ext = ".sha256", bool allTypes = false,
+        int? maxDepth = null)
     {
         using var logger = new Logger();
-        var verifier = new SidecarVerifier(target, isFile, ext, allTypes, logger);
+        var verifier = new SidecarVerifier(target, isFile, ext, allTypes, logger, maxDepth);
 
         var results = new List<VerifyResult>();
         verifier.SidecarVerified += r => results.Add(r);

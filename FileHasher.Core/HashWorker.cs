@@ -155,14 +155,19 @@ public sealed class HashWorker
         // that would create .sha256.sha256 chains on repeated runs.
         var sidecarExt = _opts.WriteSidecarHashes ? _opts.SidecarExtension : null;
 
+        // Depth-bounded walk. The root sits at depth 0, so MaxDepth 0 visits
+        // the target folder alone and null descends without limit, which is the
+        // behaviour every Windows release has had.
+        var maxDepth = _opts.MaxDepth is int d ? Math.Max(0, d) : (int?)null;
+
         var results = new List<string>();
-        var stack   = new Stack<string>();
-        stack.Push(_opts.TargetPath);
+        var stack   = new Stack<(string Dir, int Depth)>();
+        stack.Push((_opts.TargetPath, 0));
 
         while (stack.Count > 0)
         {
             ct.ThrowIfCancellationRequested();
-            var dir = stack.Pop();
+            var (dir, depth) = stack.Pop();
 
             try
             {
@@ -181,14 +186,17 @@ public sealed class HashWorker
                 WarningRaised?.Invoke($"Cannot list files in: {dir}  ({ex.Message})");
             }
 
-            try
+            if (maxDepth is null || depth < maxDepth)
             {
-                foreach (var d in Directory.EnumerateDirectories(dir))
-                    stack.Push(d);
-            }
-            catch (Exception ex)
-            {
-                WarningRaised?.Invoke($"Cannot list subdirectories in: {dir}  ({ex.Message})");
+                try
+                {
+                    foreach (var sub in Directory.EnumerateDirectories(dir))
+                        stack.Push((sub, depth + 1));
+                }
+                catch (Exception ex)
+                {
+                    WarningRaised?.Invoke($"Cannot list subdirectories in: {dir}  ({ex.Message})");
+                }
             }
         }
 

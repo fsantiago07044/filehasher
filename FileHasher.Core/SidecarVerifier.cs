@@ -26,18 +26,25 @@ public sealed class SidecarVerifier
     private readonly bool   _isFile;
     private readonly string _sidecarExtension;
     private readonly bool   _allFileTypes;
+    private readonly int?   _maxDepth;
     private readonly Logger _logger;
 
     public event Action<string>?       WarningRaised;
     public event Action<VerifyResult>? SidecarVerified;
 
+    /// <param name="maxDepth">How far to descend below a folder target: null
+    /// for unlimited (the default and the historical behaviour), 0 for the
+    /// target folder alone, N for N levels below it. Must match what
+    /// <see cref="HashWorker"/> was given, or verification will disagree with
+    /// hashing about which files exist.</param>
     public SidecarVerifier(string targetPath, bool isFile, string sidecarExtension,
-                           bool allFileTypes, Logger logger)
+                           bool allFileTypes, Logger logger, int? maxDepth = null)
     {
         _targetPath       = targetPath;
         _isFile           = isFile;
         _sidecarExtension = sidecarExtension;
         _allFileTypes     = allFileTypes;
+        _maxDepth         = maxDepth is int d ? Math.Max(0, d) : null;
         _logger           = logger;
     }
 
@@ -61,16 +68,17 @@ public sealed class SidecarVerifier
             return new List<VerifyWorkItem> { new(_targetPath, File.Exists(sidecar) ? sidecar : null) };
         }
 
-        // Folder: one recursive walk (same warning behavior as HashWorker),
+        // Folder: one depth-bounded walk (same rule and warning behavior as
+        // HashWorker; the two MUST agree or verify will disagree with hash),
         // then partition into sidecars and filter-matching files lacking one.
         var all   = new List<string>();
-        var stack = new Stack<string>();
-        stack.Push(_targetPath);
+        var stack = new Stack<(string Dir, int Depth)>();
+        stack.Push((_targetPath, 0));
 
         while (stack.Count > 0)
         {
             ct.ThrowIfCancellationRequested();
-            var dir = stack.Pop();
+            var (dir, depth) = stack.Pop();
 
             try
             {
@@ -81,14 +89,17 @@ public sealed class SidecarVerifier
                 WarningRaised?.Invoke($"Cannot list files in: {dir}  ({ex.Message})");
             }
 
-            try
+            if (_maxDepth is null || depth < _maxDepth)
             {
-                foreach (var d in Directory.EnumerateDirectories(dir))
-                    stack.Push(d);
-            }
-            catch (Exception ex)
-            {
-                WarningRaised?.Invoke($"Cannot list subdirectories in: {dir}  ({ex.Message})");
+                try
+                {
+                    foreach (var sub in Directory.EnumerateDirectories(dir))
+                        stack.Push((sub, depth + 1));
+                }
+                catch (Exception ex)
+                {
+                    WarningRaised?.Invoke($"Cannot list subdirectories in: {dir}  ({ex.Message})");
+                }
             }
         }
 

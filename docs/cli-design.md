@@ -33,6 +33,7 @@ Taken on 2026-09-11, closing the rest:
 | 14 | Shape of the GUI depth control? | **Option A**: `DropDownList` plus `NumericUpDown` |
 | 15 | Persist user settings between runs? | **Yes, to explore.** Per-user only, no elevation |
 | 16 | Fix the recursion drift across front ends? | **Yes**, converge it during this next set of updates |
+| 17 | Which recursion default wins? | **Unlimited on Windows; macOS keeps opt-in.** Converge the model, not the first-run default |
 
 Decisions 4 and 5 are additions to the command surface below. Decision 1 turned
 out cheaper than this document first assumed, and its consequences for version
@@ -781,9 +782,14 @@ shared Core:
 Three shipped front ends, three different answers, none of them a decision
 anyone took deliberately. A Linux app would be a fourth.
 
-**In scope for this next set of updates (decided 2026-09-11):** converge it in
-`HashOptions` as part of the Core extraction rather than leaving it to be
-rediscovered.
+**Settled 2026-09-12.** Converged in `HashOptions` as `MaxDepth` (null
+unlimited, 0 target folder only, N levels below), enforced identically by
+`HashWorker` and `SidecarVerifier`. What converges is the model and the option
+surface, not the first-run default: Windows keeps descending without limit and
+gains the control as a purely additive feature, and the macOS app keeps its
+opt-in "Include subfolders" toggle. Neither shipped app changes behaviour for
+anyone, and no App Review round trip is needed. The per-platform default is now
+a deliberate, recorded choice rather than drift nobody chose.
 
 One consequence to plan for rather than discover: whichever default wins, at
 least one shipped app changes behaviour for existing users. If recursion stays
