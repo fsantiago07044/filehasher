@@ -10,7 +10,19 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <AssemblyName>FileHasher</AssemblyName>
     <RootNamespace>FileHasher</RootNamespace>
-    <Version>0.4.0</Version>
+    <!--
+      In-progress version. The About box and the support mailto subject read
+      this (via HelpContent.AppVersion), so keep it at the version being worked
+      on, not the last released one.
+
+      NOTE: FileHasher.Core.csproj carries a matching <Version>, and since
+      HelpContent moved into Core it is CORE's informational version that the
+      About box actually reports. Release builds are safe either way because CI
+      passes -p:Version=<tag> as a global property, which propagates to Core
+      through the ProjectReference (verified). Local builds do not, so bump the
+      two together or the About box will show a stale number.
+    -->
+    <Version>0.5.0-beta.1</Version>
     <Company>FileHasher</Company>
     <Product>FileHasher</Product>
     <Copyright>Copyright © 2026 FSP Productions, LLC</Copyright>

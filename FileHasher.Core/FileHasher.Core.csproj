@@ -34,11 +34,18 @@
       cross-platform RIDs the CLI needs.
     -->
     <!--
-      Keep in sync with <Version> in FileHasherApp.csproj. Only affects local
-      builds: the release pipeline passes -p:Version=<tag> as a global
-      property, which propagates to this project through the reference.
+      Keep in sync with <Version> in FileHasherApp.csproj, and note this one is
+      load-bearing: HelpContent lives here, and its AppVersion reads
+      Assembly.GetExecutingAssembly(), so the app's About box and support
+      mailto subject report THIS assembly's informational version.
+
+      Release builds are unaffected by drift because CI passes -p:Version=<tag>
+      as a global property and MSBuild propagates it here through the
+      ProjectReference (verified: a build with -p:Version=9.9.9-probe stamps
+      both assemblies). Local builds do not propagate anything, so a bump to
+      only the app csproj leaves the About box showing the old number.
     -->
-    <Version>0.4.0</Version>
+    <Version>0.5.0-beta.1</Version>
     <Company>FileHasher</Company>
     <Product>FileHasher</Product>
     <Copyright>Copyright © 2026 FSP Productions, LLC</Copyright>
