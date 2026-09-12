@@ -87,6 +87,16 @@ workflow:
   rules:
     # Tag pipeline (release).
     - if: '$CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+\.[0-9]+$/'
+    # Pre-release tag pipeline (beta / rc), e.g. v0.5.0-beta.1. Builds, tests,
+    # signs, packages and publishes a GitLab release, and NOTHING ELSE: every
+    # distribution job below keeps the stricter release-only rule, so a beta
+    # cannot reach Wasabi, GitHub, Scoop, winget or Chocolatey. That exclusion
+    # is load-bearing rather than tidy. ci/mirror-to-github.sh calls
+    # `gh release create` with no --prerelease flag, so a mirrored beta would
+    # become GitHub's "Latest" release, and the Scoop manifest's
+    # checkver/autoupdate watch that repo's releases: the excavator bot would
+    # then push the beta to every Scoop user automatically.
+    - if: '$CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+\.[0-9]+-[0-9A-Za-z]+(\.[0-9A-Za-z]+)*$/'
     # Manual run via the GitLab UI "Run pipeline" button.
     - if: '$CI_PIPELINE_SOURCE == "web"'
 
@@ -313,16 +323,29 @@ package-msi:
 
       # MSI ProductVersion must be purely numeric — Windows Installer rejects
       # semver prerelease labels (WIX1148 / ICE24). A prerelease version maps
-      # to a 4th (revision) field instead: 0.3.1-beta -> 0.3.1.1. The revision
-      # is ignored by Windows Installer's version comparisons (so beta and
-      # final are the SAME version to MajorUpgrade — uninstall a beta MSI
+      # to a 4th (revision) field instead: 0.5.0-beta.1 -> 0.5.0.1. The
+      # revision is ignored by Windows Installer's version comparisons (so beta
+      # and final are the SAME version to MajorUpgrade — uninstall a beta MSI
       # before installing the same-numbered release), but it keeps the beta
       # visibly distinct in Apps & Features / MSI properties. The full semver
       # string still flows into filenames and the MSI's display strings.
+      #
+      # The revision is taken from the trailing number of the prerelease label
+      # so successive betas differ: beta.1 -> .1, beta.2 -> .2, rc.1 -> .1.
+      # Hardcoding .1 (as this did until 0.5.0) gave every beta of a version
+      # the same ProductVersion, which makes them indistinguishable in Apps &
+      # Features and means a later beta will not install over an earlier one.
+      # A label with no trailing digits falls back to .1.
       $parts      = $env:VERSION -split '-', 2
       $msiVersion = $parts[0]
       if ($parts.Count -gt 1) {
-        $msiVersion = "$($parts[0]).1"
+        $rev = 1
+        if ($parts[1] -match '(\d+)\s*$') { $rev = [int]$matches[1] }
+        if ($rev -lt 1 -or $rev -gt 65535) {
+          Write-Error "Prerelease revision $rev derived from '$($parts[1])' is outside the MSI revision range 1-65535."
+          exit 1
+        }
+        $msiVersion = "$($parts[0]).$rev"
         Write-Host "Prerelease version $env:VERSION -> MSI ProductVersion $msiVersion"
       }
 
@@ -387,6 +410,9 @@ release:
     - linux-signer
   rules:
     - if: '$CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+\.[0-9]+$/'
+    # Pre-release tags publish a GitLab release so a beta is downloadable for
+    # VM testing. This is the ONLY publish job that admits them.
+    - if: '$CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+\.[0-9]+-[0-9A-Za-z]+(\.[0-9A-Za-z]+)*$/'
   needs:
     - job: build
       artifacts: true
