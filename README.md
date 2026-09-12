@@ -390,6 +390,10 @@ window.FindFirstDescendant(cf => cf.ByAutomationId("RunBtn")).AsButton()
 | `BrowseFileBtn` | Button | Opens file picker |
 | `BrowseFolderBtn` | Button | Opens folder picker |
 | `AllTypesChk` | CheckBox | Scan all file types |
+| `DepthCombo` | ComboBox | Subfolder depth: *All subfolders* (default), *This folder only*, *Limit depth to…* |
+| `DepthValue` | NumericUpDown | Depth in levels, 1-64; enabled only when `DepthCombo` is on *Limit depth to…* |
+| `DepthLabel` | Label | "Subfolders:" caption for `DepthCombo` |
+| `DepthSuffixLabel` | Label | "levels deep" caption after `DepthValue` |
 | `AlgoMd5` | RadioButton | MD5 algorithm |
 | `AlgoSha1` | RadioButton | SHA1 algorithm |
 | `AlgoSha256` | RadioButton | SHA256 algorithm (default) |

@@ -81,7 +81,7 @@ public static class HelpContent
             new HelpSection(paragraphs: new[]
             {
                 "The target can be a single file or a folder. Use the browse buttons, drag and drop onto the path box, or type or paste a path directly.",
-                "Folders are scanned **recursively**, including every subdirectory. Reading files in protected locations (for example `C:\\Windows\\System32`) may require running as Administrator; see the Administrator Mode topic.",
+                "Folders are scanned **recursively** by default, including every subdirectory. The **Subfolders** control in the Target group changes that: *All subfolders* is the default, *This folder only* ignores subdirectories entirely, and *Limit depth to N levels deep* descends only N levels below the folder you picked. Verifying sidecars uses the same setting, so a verify run looks at exactly the files a hash run would. Reading files in protected locations (for example `C:\\Windows\\System32`) may require running as Administrator; see the Administrator Mode topic.",
             }),
         }),
 

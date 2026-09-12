@@ -16,6 +16,8 @@ public sealed class MainForm : Form
     private readonly Button   _browseFileBtn;
     private readonly Button   _browseFolderBtn;
     private readonly CheckBox _allTypesChk;
+    private readonly ComboBox      _depthCombo;
+    private readonly NumericUpDown _depthValue;
 
     // Algorithm group
     private readonly RadioButton _rdMd5, _rdSha1, _rdSha256, _rdSha512;
@@ -95,8 +97,8 @@ public sealed class MainForm : Form
         AutoScaleMode       = AutoScaleMode.Font;
 
         Width           = 860;
-        Height          = 760;
-        MinimumSize     = new Size(720, 660);
+        Height          = 790;   // +30 for the Target group's subfolder-depth row
+        MinimumSize     = new Size(720, 690);   // ditto
         Font            = new Font("Segoe UI", 9F);
         StartPosition   = FormStartPosition.CenterScreen;
         FormBorderStyle = FormBorderStyle.Sizable;
@@ -137,7 +139,8 @@ public sealed class MainForm : Form
             Text   = "Target",
             Left   = M,
             Top    = G,
-            Height = 88,
+            Height = 118,   // bumped from 88 to fit the subfolder-depth row
+
             Anchor = AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Top
         };
 
@@ -177,6 +180,59 @@ public sealed class MainForm : Form
             Checked = false
         };
 
+        // Subfolder depth. Unlimited is index 0 and the default: every Windows
+        // release has walked folders without limit, so the control is purely
+        // additive and a fresh install behaves exactly as before. Maps to
+        // HashOptions.MaxDepth (null / 0 / N) via SelectedMaxDepth().
+        var depthLabel = new Label
+        {
+            Name      = "DepthLabel",
+            Text      = "Subfolders:",
+            Left      = M,
+            Top       = 88,
+            Width     = 72,
+            Height    = 21,
+            TextAlign = ContentAlignment.MiddleLeft
+        };
+        _depthCombo = new ComboBox
+        {
+            Name          = "DepthCombo",
+            Left          = M + 74,
+            Top           = 85,
+            Width         = 168,
+            DropDownStyle = ComboBoxStyle.DropDownList
+        };
+        _depthCombo.Items.AddRange(new object[]
+            { "All subfolders", "This folder only", "Limit depth to…" });
+        _depthCombo.SelectedIndex = 0;
+
+        _depthValue = new NumericUpDown
+        {
+            Name      = "DepthValue",
+            Left      = M + 250,
+            Top       = 85,
+            Width     = 58,
+            Minimum   = 1,
+            Maximum   = 64,
+            Value     = 1,
+            Enabled   = false,
+            TextAlign = HorizontalAlignment.Right
+        };
+        var depthSuffix = new Label
+        {
+            Name      = "DepthSuffixLabel",
+            Text      = "levels deep",
+            Left      = M + 314,
+            Top       = 88,
+            Width     = 90,
+            Height    = 21,
+            TextAlign = ContentAlignment.MiddleLeft
+        };
+
+        // The spinner is only meaningful for the third choice.
+        _depthCombo.SelectedIndexChanged += (_, _) =>
+            _depthValue.Enabled = _depthCombo.SelectedIndex == 2 && _depthCombo.Enabled;
+
         _pathBox.AllowDrop = true;
         _pathBox.DragEnter += PathBox_DragEnter;
         _pathBox.DragDrop  += PathBox_DragDrop;
@@ -190,7 +246,8 @@ public sealed class MainForm : Form
         _browseFolderBtn.Click += BrowseFolder_Click;
 
         gbTarget.Controls.AddRange(new Control[]
-            { _pathBox, _browseFileBtn, _browseFolderBtn, _allTypesChk });
+            { _pathBox, _browseFileBtn, _browseFolderBtn, _allTypesChk,
+              depthLabel, _depthCombo, _depthValue, depthSuffix });
 
         // --- GroupBox: Hash Algorithm ---
         var gbAlgo = new GroupBox
@@ -598,14 +655,21 @@ public sealed class MainForm : Form
     /// </summary>
     private void UpdateAllTypesEnabled()
     {
-        var path = _pathBox.Text.Trim();
+        var path     = _pathBox.Text.Trim();
+        var isFolder = !string.IsNullOrEmpty(path) && Directory.Exists(path);
+
+        // Depth is a property of walking a folder tree, so unlike AllTypes it
+        // does NOT apply to the inner-MSI case: an MSI's contents are a flat
+        // list from the Directory table, not a directory tree to descend.
+        SetDepthEnabled(isFolder);
+
         if (string.IsNullOrEmpty(path))
         {
             _allTypesChk.Enabled = false;
             return;
         }
 
-        if (Directory.Exists(path))
+        if (isFolder)
         {
             _allTypesChk.Enabled = true;
             return;
@@ -621,6 +685,30 @@ public sealed class MainForm : Form
 
         _allTypesChk.Enabled = false;
     }
+
+    private void SetDepthEnabled(bool enabled)
+    {
+        _depthCombo.Enabled = enabled;
+        _depthValue.Enabled = enabled && _depthCombo.SelectedIndex == 2;
+    }
+
+    /// <summary>
+    /// The depth the Target group's controls describe, in HashOptions terms:
+    /// null unlimited, 0 the target folder alone, N levels below it.
+    /// </summary>
+    private static string DescribeDepth(int? maxDepth) => maxDepth switch
+    {
+        null => "unlimited",
+        0    => "this folder only",
+        _    => $"{maxDepth} level(s)"
+    };
+
+    private int? SelectedMaxDepth() => _depthCombo.SelectedIndex switch
+    {
+        1 => 0,
+        2 => (int)_depthValue.Value,
+        _ => null
+    };
 
     // ── Browse / file-picker handlers ─────────────────────────────────────────
 
@@ -739,7 +827,8 @@ public sealed class MainForm : Form
             ExportCsv:        _csvChk.Checked,
             CsvPath:          _csvPathBox.Text.Trim(),
             AllFileTypes:     _allTypesChk.Checked,
-            DescendIntoMsi:   _msiChk.Checked
+            DescendIntoMsi:   _msiChk.Checked,
+            MaxDepth:         isFile ? null : SelectedMaxDepth()
         );
 
         // ── Reset UI ─────────────────────────────────────────────────────────
@@ -756,7 +845,7 @@ public sealed class MainForm : Form
 
         _logger?.Dispose();
         _logger = new Logger();
-        _logger.LogInfo($"Target: {path}  |  Algorithm: {opts.Algorithm}  |  AllTypes: {opts.AllFileTypes}  |  Metadata: {opts.IncludeMetadata}  |  Sidecar: {opts.WriteSidecarHashes}");
+        _logger.LogInfo($"Target: {path}  |  Algorithm: {opts.Algorithm}  |  Depth: {DescribeDepth(opts.MaxDepth)}  |  AllTypes: {opts.AllFileTypes}  |  Metadata: {opts.IncludeMetadata}  |  Sidecar: {opts.WriteSidecarHashes}");
         _logStripLabel.Text = $"Log: {_logger.LogPath}  — click to open folder";
 
         // ── Run ───────────────────────────────────────────────────────────────
@@ -947,11 +1036,14 @@ public sealed class MainForm : Form
 
         _logger?.Dispose();
         _logger = new Logger();
-        _logger.LogInfo($"Verify sidecars — Target: {path}  |  Extension: {sidecarExt}  |  AllTypes: {_allTypesChk.Checked}");
+        _logger.LogInfo($"Verify sidecars — Target: {path}  |  Extension: {sidecarExt}  |  Depth: {DescribeDepth(isFile ? null : SelectedMaxDepth())}  |  AllTypes: {_allTypesChk.Checked}");
         _logStripLabel.Text = $"Log: {_logger.LogPath}  — click to open folder";
 
         _cts = new CancellationTokenSource();
-        var verifier = new SidecarVerifier(path, isFile, sidecarExt, _allTypesChk.Checked, _logger);
+        // Same depth the hash run would use: a bounded verify against an
+        // unbounded hash run would report NO SIDECAR for files it never saw.
+        var verifier = new SidecarVerifier(path, isFile, sidecarExt, _allTypesChk.Checked, _logger,
+                                           isFile ? null : SelectedMaxDepth());
 
         verifier.WarningRaised   += w => SafeInvoke(() => AppendWarning(w));
         verifier.SidecarVerified += v => SafeInvoke(() => AddVerifyResult(v));

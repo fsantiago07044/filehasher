@@ -12,6 +12,7 @@ result against `<Version>` in `FileHasherApp/FileHasherApp.csproj`.
 ## [Unreleased]
 
 ### Added
+- **A Subfolders control in the Target group.** *All subfolders* (the default, and what every previous release did), *This folder only*, or *Limit depth to N levels deep* with a 1-64 spinner. It is enabled only for folder targets, since depth is a property of walking a directory tree; an MSI's inner contents are a flat list from its Directory table, so the inner-MSI scan is unaffected. **Verify Sidecars uses the same setting as Run**, which matters more than it looks: a bounded verify against an unbounded hash run would report `NO SIDECAR` for files the hash run never visited. The chosen depth is recorded in the run's log line. The Target group and the window grew 30px to fit the row.
 - **Folder scans can be depth-limited.** `HashOptions` gains `MaxDepth` and `SidecarVerifier` an equivalent constructor argument: `null` descends without limit, `0` scans the target folder alone, `N` descends N levels below it. Both walks enforce the same rule, because hashing and verifying must agree about which files exist or a verify run invents `NO SIDECAR` rows for files the hash run never saw. **The default is unlimited, so no existing run changes**; a regression test pins that, since the failure mode if it ever flips is that users silently stop seeing files they used to see. This is the engine half of the change; the UI control that exposes it comes next.
 
 ### Changed
