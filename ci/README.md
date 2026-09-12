@@ -15,13 +15,40 @@ Linux signer additionally needs outbound access to the timestamp authority
 
 ## Pipeline triggers
 
-| Trigger                                | What runs                                          | `latest` symlinks | GitLab Release | GitHub Release |
-|----------------------------------------|----------------------------------------------------|-------------------|----------------|----------------|
-| Push a tag matching `vMAJOR.MINOR.PATCH` | `audit → build → test → sign → package-msi → sign-msi → release → wasabi → mirror → scoop → winget → chocolatey` | updated           | created        | created (mirrored) |
-| "Run pipeline" web button (any ref)    | `audit → build → test → sign → package-msi → sign-msi` | unchanged         | not created    | not created    |
+| Trigger                                  | What runs                                          | `latest` symlinks | GitLab Release | GitHub Release |
+|------------------------------------------|----------------------------------------------------|-------------------|----------------|----------------|
+| Push a tag matching `vMAJOR.MINOR.PATCH`  | `audit → build → test → sign → package-msi → sign-msi → release → wasabi → mirror → scoop → winget → chocolatey` | updated           | created        | created (mirrored) |
+| Push any other tag (e.g. `v0.5.0-beta.1`) | **nothing: no pipeline is created at all**          | unchanged         | not created    | not created    |
+| "Run pipeline" web button                 | `audit → build → test → sign → package-msi → sign-msi` | unchanged         | not created    | not created    |
 
 Manual web-button runs produce output suffixed with `-build.<short_sha>` so they cannot
 overwrite an official release artifact.
+
+### Beta builds and pre-release versions
+
+**Pre-release tags deliberately create no pipeline.** Only `vMAJOR.MINOR.PATCH` matches
+the `workflow:` rule, so tagging `v0.5.0-beta.1` does nothing on its own, by design:
+betas are built and tested by hand, and only a proper release tag publishes anything.
+
+To build one, set `<Version>` in `FileHasherApp/FileHasherApp.csproj` to the pre-release
+version (`0.5.0-beta.1`) and start a web run. The six publishing jobs (`release`,
+`wasabi-upload`, `mirror-github`, `scoop-dispatch`, `winget-update`, `chocolatey-push`)
+are all gated on a release tag, so none of them runs; collect the signed MSI, exe and zip
+from the job artifacts.
+
+**MSI versioning of a beta.** Windows Installer rejects semver pre-release labels in
+`ProductVersion` (WIX1148 / ICE24), so `package-msi` maps the label to a fourth revision
+field: `0.5.0-beta.2` becomes ProductVersion `0.5.0.2`, taking the number from the end of
+the label. Two consequences on the test VM:
+
+- The revision field is **ignored** by Windows Installer's version comparison, so
+  `0.5.0-beta.N` and the final `0.5.0` are the same version to `MajorUpgrade`. Uninstall
+  the beta before installing the release build.
+- Successive betas *are* distinguishable from each other, and a later beta installs over
+  an earlier one, because their revision fields differ.
+
+**Going final:** set `<Version>` to `0.5.0`, commit, then tag `v0.5.0`. The build job
+validates the tag against the csproj, so the bump has to land before the tag.
 
 The `audit` stage runs `dotnet list package --vulnerable --include-transitive` against the
 solution to surface NuGet dependencies with known CVEs (queried from the GitHub Advisory
