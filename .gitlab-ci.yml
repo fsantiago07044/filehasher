@@ -87,16 +87,6 @@ workflow:
   rules:
     # Tag pipeline (release).
     - if: '$CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+\.[0-9]+$/'
-    # Pre-release tag pipeline (beta / rc), e.g. v0.5.0-beta.1. Builds, tests,
-    # signs, packages and publishes a GitLab release, and NOTHING ELSE: every
-    # distribution job below keeps the stricter release-only rule, so a beta
-    # cannot reach Wasabi, GitHub, Scoop, winget or Chocolatey. That exclusion
-    # is load-bearing rather than tidy. ci/mirror-to-github.sh calls
-    # `gh release create` with no --prerelease flag, so a mirrored beta would
-    # become GitHub's "Latest" release, and the Scoop manifest's
-    # checkver/autoupdate watch that repo's releases: the excavator bot would
-    # then push the beta to every Scoop user automatically.
-    - if: '$CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+\.[0-9]+-[0-9A-Za-z]+(\.[0-9A-Za-z]+)*$/'
     # Manual run via the GitLab UI "Run pipeline" button.
     - if: '$CI_PIPELINE_SOURCE == "web"'
 
@@ -330,6 +320,12 @@ package-msi:
       # visibly distinct in Apps & Features / MSI properties. The full semver
       # string still flows into filenames and the MSI's display strings.
       #
+      # Only reachable from a manual "Run pipeline" web run, since prerelease
+      # tags deliberately create no pipeline at all (see the workflow rules):
+      # betas are built and tested by hand, and only proper release tags
+      # publish. On that path VERSION comes from <Version> in the csproj, so a
+      # csproj reading 0.5.0-beta.2 lands here.
+      #
       # The revision is taken from the trailing number of the prerelease label
       # so successive betas differ: beta.1 -> .1, beta.2 -> .2, rc.1 -> .1.
       # Hardcoding .1 (as this did until 0.5.0) gave every beta of a version
@@ -410,9 +406,6 @@ release:
     - linux-signer
   rules:
     - if: '$CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+\.[0-9]+$/'
-    # Pre-release tags publish a GitLab release so a beta is downloadable for
-    # VM testing. This is the ONLY publish job that admits them.
-    - if: '$CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+\.[0-9]+-[0-9A-Za-z]+(\.[0-9A-Za-z]+)*$/'
   needs:
     - job: build
       artifacts: true
