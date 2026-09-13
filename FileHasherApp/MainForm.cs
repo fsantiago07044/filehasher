@@ -1526,6 +1526,44 @@ public sealed class MainForm : Form
         return new WindowsPrincipal(id).IsInRole(WindowsBuiltInRole.Administrator);
     }
 
+    /// <summary>
+    /// Keep the opening window inside the monitor's work area.
+    ///
+    /// The designed size (860x790) is in 96-DPI units and AutoScaleMode.Font
+    /// scales it with the display, so at 200% the window wants roughly
+    /// 1575x1605. On a 2560x1600 panel that is 5px taller than the screen:
+    /// Windows pins it to Y=0 and the bottom edge, including the last sliver of
+    /// the status strip, falls off. Verified on the test VM at 100/150/175/200%,
+    /// where only 200% overflowed.
+    ///
+    /// Clamping here rather than shrinking the design size, because the same
+    /// arithmetic bites much earlier on smaller panels: 790 units at 150% is
+    /// about 1216px, which already exceeds the work area of a 1920x1080 display.
+    /// That predates the depth control; this fixes both cases at once.
+    ///
+    /// Runs in OnLoad because scaling has been applied by then, and uses
+    /// WorkingArea so the taskbar is respected. MinimumSize still wins if it is
+    /// larger, which is correct: an unusable-but-complete window beats one whose
+    /// controls have been squeezed away.
+    /// </summary>
+    protected override void OnLoad(EventArgs e)
+    {
+        base.OnLoad(e);
+
+        var work = Screen.FromControl(this).WorkingArea;
+        var w    = Math.Min(Width,  work.Width);
+        var h    = Math.Min(Height, work.Height);
+
+        if (w != Width || h != Height)
+        {
+            Size = new Size(w, h);
+            // Re-centre: the constructor's CenterScreen used the pre-clamp size.
+            Location = new Point(
+                work.X + Math.Max(0, (work.Width  - Width)  / 2),
+                work.Y + Math.Max(0, (work.Height - Height) / 2));
+        }
+    }
+
     protected override void OnFormClosing(FormClosingEventArgs e)
     {
         _cts?.Cancel();
