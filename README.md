@@ -590,6 +590,20 @@ window.FindFirstDescendant(cf => cf.ByAutomationId("RunBtn")).AsButton()
 | `Folder_AllTypes_AuditsNonExeFilesToo` | The scan-all-types flag widens the NO SIDECAR audit |
 | `Folder_ResultsAreSortedByPath` | Folder results are emitted in path order |
 
+**`MainFormPathSeedTests`**: direct unit tests against `MainForm.SeedFromPath` (via `InternalsVisibleTo`, no UI, parallelizable): the folder and file name the three Browse dialogs are seeded with from whatever the matching path box already holds. The dialogs themselves are shell windows outside the FlaUI suite's reach, so the seeding decision is pinned here rather than end to end.
+
+| Test | What it covers |
+| --- | --- |
+| `EmptyBox_SeedsNothing` | Null, empty, or whitespace box leaves the dialog alone |
+| `MalformedPath_SeedsNothing` | An unparseable path is swallowed, never thrown at click time |
+| `ExistingFolder_SeedsThatFolderAndNoName` | A folder target opens at that folder |
+| `ExistingFolderWithTrailingSeparator_SeedsThatFolderWithoutIt` | The trailing separator is stripped, or the folder dialog opens one level up |
+| `ExistingFile_SeedsItsFolderAndItsName` | A file target opens at its folder with the file pre-selected |
+| `QuotedPath_IsUnquotedFirst` | Explorer's "Copy as path" quotes are trimmed |
+| `MissingFileInExistingFolder_KeepsTheFolderAndTheName` | A CSV target that does not exist yet keeps both folder and name |
+| `MissingChildFolder_OpensItsParentWithTheNameKept` | A folder that is gone opens at its parent |
+| `MissingFolders_FallBackToNearestSurvivingAncestor` | Several dead levels climb to the deepest folder that still exists, name dropped |
+
 ---
 
 ### CI / custom exe path

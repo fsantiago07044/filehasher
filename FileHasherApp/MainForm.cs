@@ -712,6 +712,70 @@ public sealed class MainForm : Form
 
     // ── Browse / file-picker handlers ─────────────────────────────────────────
 
+    /// <summary>
+    /// Works out where a file dialog should open, given whatever is already
+    /// typed in the path box it is attached to. Returns the deepest ancestor
+    /// directory of <paramref name="path"/> that still exists, plus the leaf
+    /// name when that directory is the path's own parent (so the dialog can
+    /// pre-select or pre-name the file). Both are null when nothing usable
+    /// can be derived: an empty box, a malformed path, or a root that is gone
+    /// (an unplugged drive, a dead UNC share), in which case the caller leaves
+    /// the dialog alone and Windows falls back to its last-used folder.
+    /// The leaf is dropped whenever a directory level had to be walked past,
+    /// since it then names something inside a folder that no longer exists.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately tolerant: the path box is free text, so it can hold
+    /// anything the user typed, pasted or dropped, and a browse click must
+    /// never throw. Existence is probed with <see cref="Directory.Exists"/>,
+    /// which returns false rather than throwing for permission and I/O
+    /// failures, including an unreachable network path.
+    /// </remarks>
+    internal static (string? Folder, string? FileName) SeedFromPath(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path)) return (null, null);
+
+        string full;
+        try
+        {
+            // Trim the quotes Explorer's "Copy as path" wraps around a path.
+            full = Path.GetFullPath(path.Trim().Trim('"'));
+        }
+        catch (Exception)
+        {
+            // Invalid characters, a path that is too long, or no root to
+            // resolve a relative path against: nothing to seed from.
+            return (null, null);
+        }
+
+        // A directory that exists is its own answer, with no file to name.
+        // The trailing separator has to go: FolderBrowserDialog reads the last
+        // segment of SelectedPath as the item to select inside its parent, so
+        // "C:\data\" would open C:\ instead of C:\data. A bare root keeps
+        // its separator, since "C:" means the current directory on that drive.
+        if (Directory.Exists(full))
+        {
+            var trimmed = full.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            var isRoot  = trimmed.Length == 0 ||
+                          string.Equals(full, Path.GetPathRoot(full), StringComparison.OrdinalIgnoreCase);
+            return (isRoot ? full : trimmed, null);
+        }
+
+        var leaf   = Path.GetFileName(full);
+        var parent = Path.GetDirectoryName(full);
+
+        if (!string.IsNullOrEmpty(parent) && Directory.Exists(parent))
+            return (parent, string.IsNullOrEmpty(leaf) ? null : leaf);
+
+        // The parent is gone too; climb to the nearest surviving ancestor and
+        // open there with no name pre-filled.
+        var dir = parent;
+        while (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
+            dir = Path.GetDirectoryName(dir);
+
+        return string.IsNullOrEmpty(dir) ? (null, null) : (dir, null);
+    }
+
     private void BrowseFile_Click(object? sender, EventArgs e)
     {
         using var dlg = new OpenFileDialog
@@ -720,6 +784,21 @@ public sealed class MainForm : Form
             Filter          = "Executables|*.exe;*.msi|All files|*.*",
             CheckFileExists = true
         };
+
+        var (folder, fileName) = SeedFromPath(_pathBox.Text);
+        if (folder is not null) dlg.InitialDirectory = folder;
+        if (fileName is not null)
+        {
+            dlg.FileName = fileName;
+            // Switch to "All files" when the named file is not an .exe or
+            // .msi, so it is visible in the list instead of filtered out
+            // under a name box that names it.
+            var ext = Path.GetExtension(fileName);
+            if (!ext.Equals(".exe", StringComparison.OrdinalIgnoreCase) &&
+                !ext.Equals(".msi", StringComparison.OrdinalIgnoreCase))
+                dlg.FilterIndex = 2;
+        }
+
         if (dlg.ShowDialog(this) == DialogResult.OK)
         {
             _pathBox.Text = dlg.FileName;
@@ -734,6 +813,18 @@ public sealed class MainForm : Form
             Description         = "Select a folder to scan recursively",
             UseDescriptionForTitle = true
         };
+
+        var (folder, _) = SeedFromPath(_pathBox.Text);
+        if (folder is not null)
+        {
+            // Both, because they drive different shell calls: SelectedPath is
+            // the one that overrides the dialog's last-used folder, while
+            // InitialDirectory only supplies a default for when there is no
+            // last-used folder to override.
+            dlg.SelectedPath     = folder;
+            dlg.InitialDirectory = folder;
+        }
+
         if (dlg.ShowDialog(this) == DialogResult.OK)
         {
             _pathBox.Text = dlg.SelectedPath;
@@ -743,13 +834,20 @@ public sealed class MainForm : Form
 
     private void BrowseCsv_Click(object? sender, EventArgs e)
     {
+        // A CSV target usually does not exist yet, so the leaf here is a name
+        // the user chose rather than a file on disk; keep it when there is one
+        // and only fall back to a fresh timestamp for an empty or unusable box.
+        var (folder, fileName) = SeedFromPath(_csvPathBox.Text);
+
         using var dlg = new SaveFileDialog
         {
             Title       = "Save results as CSV",
             Filter      = "CSV files|*.csv|All files|*.*",
             DefaultExt  = "csv",
-            FileName    = $"FileHasher_{DateTime.Now:yyyyMMdd_HHmmss}.csv"
+            FileName    = fileName ?? $"FileHasher_{DateTime.Now:yyyyMMdd_HHmmss}.csv"
         };
+        if (folder is not null) dlg.InitialDirectory = folder;
+
         if (dlg.ShowDialog(this) == DialogResult.OK)
             _csvPathBox.Text = dlg.FileName;
     }
