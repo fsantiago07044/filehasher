@@ -61,12 +61,29 @@ public static class SettingsStore
 {
     private static readonly JsonSerializerOptions Json = new() { WriteIndented = true };
 
-    /// <summary>%APPDATA%\FileHasher\settings.json on Windows. Uses the same
+    /// <summary>
+    /// %APPDATA%\FileHasher\settings.json on Windows. Uses the same
     /// SpecialFolder as <see cref="Logger"/>, which resolves to ~/.config on
-    /// Linux and macOS, so this needs no change if the CLI ever runs there.</summary>
-    public static string DefaultPath => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-        "FileHasher", "settings.json");
+    /// Linux and macOS, so this needs no change if the CLI ever runs there.
+    ///
+    /// FILEHASHER_SETTINGS overrides it, mirroring the FILEHASHER_EXE variable
+    /// the test job already uses. This exists so the UI suite does not read the
+    /// developer's own preferences: the app loads settings on every launch, so
+    /// without it a machine whose saved algorithm is MD5 would fail the tests
+    /// asserting that SHA256 is selected by default, on that machine only.
+    /// </summary>
+    public static string DefaultPath
+    {
+        get
+        {
+            var overridePath = Environment.GetEnvironmentVariable("FILEHASHER_SETTINGS");
+            return !string.IsNullOrWhiteSpace(overridePath)
+                ? overridePath
+                : Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                    "FileHasher", "settings.json");
+        }
+    }
 
     /// <summary>Never throws. A missing, unreadable, corrupt, or
     /// future-versioned file yields defaults, because failing to read a

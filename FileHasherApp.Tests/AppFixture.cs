@@ -14,6 +14,42 @@ namespace FileHasher.Tests;
 /// </summary>
 public sealed class AppFixture : IDisposable
 {
+    /// <summary>
+    /// Points every app instance this suite launches at a throwaway settings
+    /// file instead of the real %APPDATA% one. Without this the UI tests read
+    /// whatever the developer last left in the app: the assertions about
+    /// default state (SHA256 selected, options unticked) would then pass or
+    /// fail according to that person's saved preferences rather than the code.
+    ///
+    /// Set once per test process and inherited by the launched app. The path is
+    /// never written in practice, because Dispose kills the app rather than
+    /// closing it, so OnFormClosing never runs; the override guards the READ
+    /// side, and the file is cleaned up if a save ever does happen.
+    /// </summary>
+    private static readonly string SettingsOverride = InitSettingsOverride();
+
+    private static string InitSettingsOverride()
+    {
+        // Respect one already set, so a developer can point a debugging run at
+        // a specific file.
+        var existing = Environment.GetEnvironmentVariable("FILEHASHER_SETTINGS");
+        if (!string.IsNullOrWhiteSpace(existing)) return existing;
+
+        var path = Path.Combine(Path.GetTempPath(),
+                                $"filehasher-tests-{Guid.NewGuid():N}", "settings.json");
+        Environment.SetEnvironmentVariable("FILEHASHER_SETTINGS", path);
+        AppDomain.CurrentDomain.ProcessExit += (_, _) =>
+        {
+            try
+            {
+                var dir = Path.GetDirectoryName(path);
+                if (dir is not null && Directory.Exists(dir)) Directory.Delete(dir, true);
+            }
+            catch { /* best-effort */ }
+        };
+        return path;
+    }
+
     private readonly FlaUIApp       _app;
     private readonly UIA3Automation _automation;
 
@@ -21,6 +57,7 @@ public sealed class AppFixture : IDisposable
 
     public AppFixture()
     {
+        _ = SettingsOverride;   // force the static initialiser before launching
         _automation = new UIA3Automation();
         _app        = FlaUIApp.Launch(FindExe());
         MainWindow  = _app.GetMainWindow(_automation, TimeSpan.FromSeconds(10));
@@ -89,9 +126,16 @@ public sealed class AppFixture : IDisposable
 
     public void Dispose()
     {
-        // Test fixture has no persistent state to flush — kill outright instead
-        // of FlaUI's Close() (which logs "Application failed to exit" whenever
-        // its internal wait times out, even if we'd kill the process anyway).
+        // Kill outright instead of FlaUI's Close() (which logs "Application
+        // failed to exit" whenever its internal wait times out, even if we'd
+        // kill the process anyway).
+        //
+        // Since the app gained persisted settings this also keeps tests
+        // isolated from each other, because Kill skips OnFormClosing and so
+        // skips the save: one test selecting SHA512 cannot change what the next
+        // test's launch sees. If this is ever changed to a graceful close, the
+        // FILEHASHER_SETTINGS override above becomes the only thing standing
+        // between the suite and order-dependent failures.
         try
         {
             if (!_app.HasExited) _app.Kill();
