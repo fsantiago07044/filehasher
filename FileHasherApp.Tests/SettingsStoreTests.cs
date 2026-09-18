@@ -34,8 +34,6 @@ public sealed class SettingsStoreTests : IDisposable
         var s = SettingsStore.Load(Path.Combine(_dir, "nope.json"));
 
         Assert.Equal("SHA256", s.Algorithm);
-        Assert.Equal(0, s.DepthMode);
-        Assert.Equal(1, s.DepthLevels);
         Assert.False(s.IncludeMetadata);
         Assert.False(s.DescendIntoMsi);
     }
@@ -47,9 +45,7 @@ public sealed class SettingsStoreTests : IDisposable
         {
             Algorithm        = "SHA512",
             IncludeMetadata  = true,
-            DescendIntoMsi   = true,
-            DepthMode        = 2,
-            DepthLevels      = 7
+            DescendIntoMsi   = true
         };
 
         Assert.True(SettingsStore.Save(original, _file));
@@ -58,8 +54,6 @@ public sealed class SettingsStoreTests : IDisposable
         Assert.Equal(original.Algorithm,        loaded.Algorithm);
         Assert.Equal(original.IncludeMetadata,  loaded.IncludeMetadata);
         Assert.Equal(original.DescendIntoMsi,   loaded.DescendIntoMsi);
-        Assert.Equal(original.DepthMode,        loaded.DepthMode);
-        Assert.Equal(original.DepthLevels,      loaded.DepthLevels);
     }
 
     [Theory]
@@ -83,12 +77,12 @@ public sealed class SettingsStoreTests : IDisposable
         // A newer build may give an existing field a new meaning, so the safe
         // response is defaults rather than a confident misreading.
         File.WriteAllText(_file,
-            $$"""{"SchemaVersion":{{AppSettings.CurrentSchemaVersion + 1}},"Algorithm":"MD5","DepthMode":2}""");
+            $$"""{"SchemaVersion":{{AppSettings.CurrentSchemaVersion + 1}},"Algorithm":"MD5","IncludeMetadata":true}""");
 
         var s = SettingsStore.Load(_file);
 
         Assert.Equal("SHA256", s.Algorithm);
-        Assert.Equal(0, s.DepthMode);
+        Assert.False(s.IncludeMetadata);
     }
 
     [Theory]
@@ -100,30 +94,6 @@ public sealed class SettingsStoreTests : IDisposable
         File.WriteAllText(_file, "{" + fragment + "}");
 
         Assert.Equal(expected, SettingsStore.Load(_file).Algorithm);
-    }
-
-    [Theory]
-    [InlineData(-5,  0)]
-    [InlineData(3,   0)]
-    [InlineData(99,  0)]
-    [InlineData(2,   2)]
-    public void Load_DepthModeOutOfRange_FallsBackToUnlimited(int stored, int expected)
-    {
-        File.WriteAllText(_file, $$"""{"DepthMode":{{stored}}}""");
-
-        Assert.Equal(expected, SettingsStore.Load(_file).DepthMode);
-    }
-
-    [Theory]
-    [InlineData(0,    1)]
-    [InlineData(-3,   1)]
-    [InlineData(1000, 64)]
-    [InlineData(64,   64)]
-    public void Load_DepthLevelsOutOfRange_IsClampedToTheSpinnerRange(int stored, int expected)
-    {
-        File.WriteAllText(_file, $$"""{"DepthLevels":{{stored}}}""");
-
-        Assert.Equal(expected, SettingsStore.Load(_file).DepthLevels);
     }
 
     [Fact]

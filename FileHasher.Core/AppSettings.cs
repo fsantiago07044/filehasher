@@ -17,12 +17,16 @@ namespace FileHasher;
 /// remembered "extended" format would change the CONTENT of files written the
 /// moment someone ticked the box.
 ///
+/// The test that settles all of this: if a control's ENABLED state depends on
+/// the target, its value is not a standing preference and is not persisted.
+/// Everything below is a control the UI never disables.
+///
 /// The target path is also excluded. It is a per-run input rather than a
 /// preference, and reopening on a stale path invites a run against the wrong
-/// folder. "Scan all file types" follows it out for the same reason (decided
-/// 2026-09-18): it describes how to treat the CURRENT target, so remembering it
-/// while forgetting the target left a checked box attached to nothing, which
-/// would then silently widen the next folder run past .exe and .msi.
+/// folder. "Scan all file types" and the Subfolders depth follow it out for
+/// the same reason (decided 2026-09-18): both describe how to treat the CURRENT
+/// target, both grey out without a folder, and remembering them left controls
+/// showing values attached to nothing.
 /// </summary>
 public sealed record AppSettings
 {
@@ -34,11 +38,6 @@ public sealed record AppSettings
     public int    SchemaVersion    { get; init; } = CurrentSchemaVersion;
     public string Algorithm        { get; init; } = "SHA256";
     public bool   IncludeMetadata  { get; init; }
-
-    /// <summary>Subfolders combo index: 0 all, 1 this folder only, 2 limit to
-    /// <see cref="DepthLevels"/>.</summary>
-    public int    DepthMode        { get; init; }
-    public int    DepthLevels      { get; init; } = 1;
 
     public bool   DescendIntoMsi   { get; init; }
 
@@ -52,9 +51,7 @@ public sealed record AppSettings
     public AppSettings Sanitised() => this with
     {
         SchemaVersion    = CurrentSchemaVersion,
-        Algorithm        = Array.Exists(Algorithms, a => a == Algorithm) ? Algorithm : "SHA256",
-        DepthMode        = DepthMode is >= 0 and <= 2 ? DepthMode : 0,
-        DepthLevels      = Math.Clamp(DepthLevels, 1, 64)
+        Algorithm        = Array.Exists(Algorithms, a => a == Algorithm) ? Algorithm : "SHA256"
     };
 }
 
