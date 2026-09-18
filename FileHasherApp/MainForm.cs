@@ -1648,6 +1648,8 @@ public sealed class MainForm : Form
     {
         base.OnLoad(e);
 
+        ApplySettings(SettingsStore.Load());
+
         var work = Screen.FromControl(this).WorkingArea;
         var w    = Math.Min(Width,  work.Width);
         var h    = Math.Min(Height, work.Height);
@@ -1662,8 +1664,62 @@ public sealed class MainForm : Form
         }
     }
 
+    /// <summary>
+    /// Pushes remembered preferences into the controls. Note what is NOT here:
+    /// the sidecar and CSV checkboxes are never restored, so a run only ever
+    /// writes files because the user ticked the box in THIS session.
+    /// </summary>
+    private void ApplySettings(AppSettings s)
+    {
+        switch (s.Algorithm)
+        {
+            case "MD5":    _rdMd5.Checked    = true; break;
+            case "SHA1":   _rdSha1.Checked   = true; break;
+            case "SHA512": _rdSha512.Checked = true; break;
+            default:       _rdSha256.Checked = true; break;
+        }
+
+        _metadataChk.Checked = s.IncludeMetadata;
+        _allTypesChk.Checked = s.AllFileTypes;
+        _msiChk.Checked      = s.DescendIntoMsi;
+
+        _depthCombo.SelectedIndex = s.DepthMode;
+        _depthValue.Value         = s.DepthLevels;
+
+        _sidecarExtBox.Text = s.SidecarExtension;
+        switch (s.SidecarFormat)
+        {
+            case "hashonly": _rdHashOnly.Checked   = true; break;
+            case "extended": _rdExtended.Checked   = true; break;
+            default:         _rdSha256Sum.Checked  = true; break;
+        }
+
+        // The enable rules depend on the values just set (and on the path box,
+        // which is deliberately not restored), so re-derive them rather than
+        // leaving whatever the constructor decided.
+        UpdateAllTypesEnabled();
+    }
+
+    private AppSettings CaptureSettings() => new()
+    {
+        Algorithm        = GetSelectedAlgorithm(),
+        IncludeMetadata  = _metadataChk.Checked,
+        AllFileTypes     = _allTypesChk.Checked,
+        DescendIntoMsi   = _msiChk.Checked,
+        DepthMode        = _depthCombo.SelectedIndex,
+        DepthLevels      = (int)_depthValue.Value,
+        SidecarExtension = _sidecarExtBox.Text.Trim(),
+        SidecarFormat    = _rdHashOnly.Checked ? "hashonly"
+                         : _rdExtended.Checked ? "extended"
+                         : "sha256sum"
+    };
+
     protected override void OnFormClosing(FormClosingEventArgs e)
     {
+        // Best effort by design: SettingsStore.Save swallows its own failures,
+        // so a read-only or full profile cannot block the app from closing.
+        SettingsStore.Save(CaptureSettings());
+
         _cts?.Cancel();
         _logger?.Dispose();
         base.OnFormClosing(e);
