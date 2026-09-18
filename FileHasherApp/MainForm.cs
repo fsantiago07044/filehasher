@@ -858,6 +858,15 @@ public sealed class MainForm : Form
 
     private void RelaunchAsAdmin()
     {
+        // Persist BEFORE starting the elevated copy, not after. ShellExecute
+        // with "runas" returns only once the UAC prompt has been answered and
+        // the new process created, so the elevated instance can reach its own
+        // settings load before Application.Exit() below gets as far as
+        // OnFormClosing. Saving here means the choices made in this window are
+        // already on disk by the time the elevated copy reads them; the save in
+        // OnFormClosing then writes identical content.
+        SettingsStore.Save(CaptureSettings());
+
         try
         {
             Process.Start(new ProcessStartInfo
