@@ -1683,7 +1683,7 @@ public sealed class MainForm : Form
     /// the sidecar and CSV checkboxes are never restored, so a run only ever
     /// writes files because the user ticked the box in THIS session.
     /// </summary>
-    private void ApplySettings(AppSettings s)
+    internal void ApplySettings(AppSettings s)
     {
         switch (s.Algorithm)
         {
@@ -1702,7 +1702,7 @@ public sealed class MainForm : Form
         UpdateAllTypesEnabled();
     }
 
-    private AppSettings CaptureSettings() => new()
+    internal AppSettings CaptureSettings() => new()
     {
         Algorithm        = GetSelectedAlgorithm(),
         IncludeMetadata  = _metadataChk.Checked,
