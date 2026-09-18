@@ -121,7 +121,7 @@ Compare with any SHA-256 utility. A match means the published bytes came from th
 | Button | Behaviour |
 | --- | --- |
 | **Browse File…** | Opens a file picker. The selected file is hashed regardless of its extension. |
-| **Browse Folder…** | Opens a folder picker. The folder is scanned **recursively**. |
+| **Browse Folder…** | Opens a folder picker. How far the scan descends is set by **Subfolders** (default: all subfolders). |
 
 You can also type or paste a path directly into the path box, or **drag and drop** a file or folder onto it. Dropping a folder automatically enables the **Scan all file types** checkbox; dropping a file disables it (matching the Browse buttons' behaviour).
 
@@ -238,7 +238,7 @@ A completion dialog is shown at the end of every run summarising:
 
 #### Verifying sidecars
 
-**Verify Sidecars** re-hashes files and compares the result against their existing sidecar files, using the current **Target** path and the **Extension** configured under the sidecar options (the *Write sidecar hash files* checkbox does not need to be checked). For a folder target the scan is recursive; targeting a single file verifies that file's sidecar, and targeting a sidecar file directly verifies it against its base file.
+**Verify Sidecars** re-hashes files and compares the result against their existing sidecar files, using the current **Target** path and the **Extension** configured under the sidecar options (the *Write sidecar hash files* checkbox does not need to be checked). For a folder target the scan uses the same **Subfolders** depth that a hash run would, which matters: a shallower verify than the hash run that wrote the sidecars would report `NO SIDECAR` for files it never looked at. Targeting a single file verifies that file's sidecar, and targeting a sidecar file directly verifies it against its base file.
 
 The hash algorithm is **auto-detected per sidecar** from the length of the stored hash (32 hex characters = MD5, 40 = SHA1, 64 = SHA256, 128 = SHA512), so the algorithm radio selection is ignored during verification and a folder with mixed-algorithm sidecars verifies correctly in one pass. All three sidecar formats are recognized: bare hash, `HASH *filename`, and the extended `HASH *filename *lastModified *sizeBytes`.
 
@@ -285,6 +285,41 @@ Right-clicking a result row opens a context menu:
 For inner-MSI rows (experimental MSI scan), the location-based actions target the containing `.msi` file — the extracted temp copies are already deleted by the time results are browsable — and **Copy File Path** copies that `.msi` path. Warning rows have no payload, so no menu appears for them. The three *Open* items are greyed out when the row's folder no longer exists; the copy items keep working.
 
 ---
+
+#### Settings
+
+Preferences are remembered between runs in a per-user file:
+
+```text
+%APPDATA%\FileHasher\settings.json
+```
+
+It is written when the app closes, so it does not exist until the first time you
+close the window. No elevation is needed and nothing is stored in the registry.
+
+**Remembered:** hash algorithm, *Include file metadata*, and *Hash files inside
+MSI installers*.
+
+**Reset on every launch:** the target path, *Scan all file types*, **Subfolders**
+depth, *Write sidecar hash files* (with its extension and format), and *Export
+results to CSV* (with its path).
+
+The split follows one rule: an option is only remembered if it stands on its own.
+Everything in the reset list either describes the current target, which is itself
+not remembered, or causes files to be written, which should never happen because
+of a choice made in an earlier session. The sidecar extension and format are
+reset with the checkbox that gates them, so ticking that box always starts from
+the documented defaults.
+
+A missing, corrupt, hand-edited or newer-version file falls back to defaults
+rather than preventing the app from starting, and out-of-range values are
+corrected. Deleting the file restores factory settings.
+
+Elevation note: *Run as Administrator* keeps your settings when your own account
+is an administrator, because UAC then elevates the same user. If you are a
+standard user, UAC asks for a different account's credentials and the elevated
+window runs as that account, with its own settings file and log folder under that
+profile. The log files have always behaved this way.
 
 #### Logs
 
