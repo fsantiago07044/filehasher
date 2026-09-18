@@ -39,7 +39,6 @@ public sealed class SettingsStoreTests : IDisposable
         Assert.Equal(".sha256", s.SidecarExtension);
         Assert.Equal("sha256sum", s.SidecarFormat);
         Assert.False(s.IncludeMetadata);
-        Assert.False(s.AllFileTypes);
         Assert.False(s.DescendIntoMsi);
     }
 
@@ -50,7 +49,6 @@ public sealed class SettingsStoreTests : IDisposable
         {
             Algorithm        = "SHA512",
             IncludeMetadata  = true,
-            AllFileTypes     = true,
             DescendIntoMsi   = true,
             DepthMode        = 2,
             DepthLevels      = 7,
@@ -63,7 +61,6 @@ public sealed class SettingsStoreTests : IDisposable
 
         Assert.Equal(original.Algorithm,        loaded.Algorithm);
         Assert.Equal(original.IncludeMetadata,  loaded.IncludeMetadata);
-        Assert.Equal(original.AllFileTypes,     loaded.AllFileTypes);
         Assert.Equal(original.DescendIntoMsi,   loaded.DescendIntoMsi);
         Assert.Equal(original.DepthMode,        loaded.DepthMode);
         Assert.Equal(original.DepthLevels,      loaded.DepthLevels);

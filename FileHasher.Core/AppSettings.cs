@@ -17,7 +17,10 @@ namespace FileHasher;
 ///
 /// The target path is also excluded. It is a per-run input rather than a
 /// preference, and reopening on a stale path invites a run against the wrong
-/// folder.
+/// folder. "Scan all file types" follows it out for the same reason (decided
+/// 2026-09-18): it describes how to treat the CURRENT target, so remembering it
+/// while forgetting the target left a checked box attached to nothing, which
+/// would then silently widen the next folder run past .exe and .msi.
 /// </summary>
 public sealed record AppSettings
 {
@@ -29,7 +32,6 @@ public sealed record AppSettings
     public int    SchemaVersion    { get; init; } = CurrentSchemaVersion;
     public string Algorithm        { get; init; } = "SHA256";
     public bool   IncludeMetadata  { get; init; }
-    public bool   AllFileTypes     { get; init; }
 
     /// <summary>Subfolders combo index: 0 all, 1 this folder only, 2 limit to
     /// <see cref="DepthLevels"/>.</summary>

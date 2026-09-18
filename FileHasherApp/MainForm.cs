@@ -665,7 +665,12 @@ public sealed class MainForm : Form
 
         if (string.IsNullOrEmpty(path))
         {
-            _allTypesChk.Enabled = false;
+            // Nothing chosen yet, so there is nothing for this to be irrelevant
+            // TO. Greying here overloaded the disabled state: for a file target
+            // it means "does not apply to this target", which is informative,
+            // but with an empty box it just made the control look broken. Left
+            // enabled so the disabled state keeps one meaning.
+            _allTypesChk.Enabled = true;
             return;
         }
 
@@ -1689,7 +1694,6 @@ public sealed class MainForm : Form
         }
 
         _metadataChk.Checked = s.IncludeMetadata;
-        _allTypesChk.Checked = s.AllFileTypes;
         _msiChk.Checked      = s.DescendIntoMsi;
 
         _depthCombo.SelectedIndex = s.DepthMode;
@@ -1713,7 +1717,6 @@ public sealed class MainForm : Form
     {
         Algorithm        = GetSelectedAlgorithm(),
         IncludeMetadata  = _metadataChk.Checked,
-        AllFileTypes     = _allTypesChk.Checked,
         DescendIntoMsi   = _msiChk.Checked,
         DepthMode        = _depthCombo.SelectedIndex,
         DepthLevels      = (int)_depthValue.Value,
