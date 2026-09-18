@@ -36,8 +36,6 @@ public sealed class SettingsStoreTests : IDisposable
         Assert.Equal("SHA256", s.Algorithm);
         Assert.Equal(0, s.DepthMode);
         Assert.Equal(1, s.DepthLevels);
-        Assert.Equal(".sha256", s.SidecarExtension);
-        Assert.Equal("sha256sum", s.SidecarFormat);
         Assert.False(s.IncludeMetadata);
         Assert.False(s.DescendIntoMsi);
     }
@@ -51,9 +49,7 @@ public sealed class SettingsStoreTests : IDisposable
             IncludeMetadata  = true,
             DescendIntoMsi   = true,
             DepthMode        = 2,
-            DepthLevels      = 7,
-            SidecarExtension = ".sha512",
-            SidecarFormat    = "extended"
+            DepthLevels      = 7
         };
 
         Assert.True(SettingsStore.Save(original, _file));
@@ -64,8 +60,6 @@ public sealed class SettingsStoreTests : IDisposable
         Assert.Equal(original.DescendIntoMsi,   loaded.DescendIntoMsi);
         Assert.Equal(original.DepthMode,        loaded.DepthMode);
         Assert.Equal(original.DepthLevels,      loaded.DepthLevels);
-        Assert.Equal(original.SidecarExtension, loaded.SidecarExtension);
-        Assert.Equal(original.SidecarFormat,    loaded.SidecarFormat);
     }
 
     [Theory]
@@ -130,17 +124,6 @@ public sealed class SettingsStoreTests : IDisposable
         File.WriteAllText(_file, $$"""{"DepthLevels":{{stored}}}""");
 
         Assert.Equal(expected, SettingsStore.Load(_file).DepthLevels);
-    }
-
-    [Fact]
-    public void Load_BlankSidecarExtensionOrUnknownFormat_FallsBack()
-    {
-        File.WriteAllText(_file, """{"SidecarExtension":"   ","SidecarFormat":"yaml"}""");
-
-        var s = SettingsStore.Load(_file);
-
-        Assert.Equal(".sha256", s.SidecarExtension);
-        Assert.Equal("sha256sum", s.SidecarFormat);
     }
 
     [Fact]

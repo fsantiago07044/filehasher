@@ -1699,14 +1699,6 @@ public sealed class MainForm : Form
         _depthCombo.SelectedIndex = s.DepthMode;
         _depthValue.Value         = s.DepthLevels;
 
-        _sidecarExtBox.Text = s.SidecarExtension;
-        switch (s.SidecarFormat)
-        {
-            case "hashonly": _rdHashOnly.Checked   = true; break;
-            case "extended": _rdExtended.Checked   = true; break;
-            default:         _rdSha256Sum.Checked  = true; break;
-        }
-
         // The enable rules depend on the values just set (and on the path box,
         // which is deliberately not restored), so re-derive them rather than
         // leaving whatever the constructor decided.
@@ -1719,11 +1711,7 @@ public sealed class MainForm : Form
         IncludeMetadata  = _metadataChk.Checked,
         DescendIntoMsi   = _msiChk.Checked,
         DepthMode        = _depthCombo.SelectedIndex,
-        DepthLevels      = (int)_depthValue.Value,
-        SidecarExtension = _sidecarExtBox.Text.Trim(),
-        SidecarFormat    = _rdHashOnly.Checked ? "hashonly"
-                         : _rdExtended.Checked ? "extended"
-                         : "sha256sum"
+        DepthLevels      = (int)_depthValue.Value
     };
 
     protected override void OnFormClosing(FormClosingEventArgs e)

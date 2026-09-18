@@ -11,9 +11,11 @@ namespace FileHasher;
 /// files on disk that the user never re-enabled in that session, which is a
 /// different risk class from remembering an algorithm or a scan depth.
 ///
-/// The sidecar extension and format ARE remembered, because neither writes
-/// anything on its own: they only describe how a sidecar would be written, and
-/// the checkbox that actually gates writing is always off at startup.
+/// The sidecar extension and format go with them (decided 2026-09-18). They
+/// qualify a feature that is deliberately reset, so remembering them left
+/// greyed controls showing values attached to a switched-off feature, and a
+/// remembered "extended" format would change the CONTENT of files written the
+/// moment someone ticked the box.
 ///
 /// The target path is also excluded. It is a per-run input rather than a
 /// preference, and reopening on a stale path invites a run against the wrong
@@ -38,12 +40,9 @@ public sealed record AppSettings
     public int    DepthMode        { get; init; }
     public int    DepthLevels      { get; init; } = 1;
 
-    public string SidecarExtension { get; init; } = ".sha256";
-    public string SidecarFormat    { get; init; } = "sha256sum";
     public bool   DescendIntoMsi   { get; init; }
 
     private static readonly string[] Algorithms = { "MD5", "SHA1", "SHA256", "SHA512" };
-    private static readonly string[] Formats    = { "sha256sum", "hashonly", "extended" };
 
     /// <summary>
     /// Coerces anything out of range back to a usable value. The file is plain
@@ -55,9 +54,7 @@ public sealed record AppSettings
         SchemaVersion    = CurrentSchemaVersion,
         Algorithm        = Array.Exists(Algorithms, a => a == Algorithm) ? Algorithm : "SHA256",
         DepthMode        = DepthMode is >= 0 and <= 2 ? DepthMode : 0,
-        DepthLevels      = Math.Clamp(DepthLevels, 1, 64),
-        SidecarExtension = string.IsNullOrWhiteSpace(SidecarExtension) ? ".sha256" : SidecarExtension,
-        SidecarFormat    = Array.Exists(Formats, f => f == SidecarFormat) ? SidecarFormat : "sha256sum"
+        DepthLevels      = Math.Clamp(DepthLevels, 1, 64)
     };
 }
 
