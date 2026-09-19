@@ -9,12 +9,21 @@
 # third-party binaries (putty, rufus, 7za, busybox) whose names have no place
 # in a public Store listing.
 
+# -SourceExe: which FileHasher.exe to drop into the demo folder as a sample
+# file. Defaults to the installed one; point it at a build tree when the
+# screenshots are for a version that is not installed yet.
+param(
+  [string]$SourceExe = 'C:\Program Files\FileHasher\FileHasher.exe',
+  [string]$OwnMsiVersion = '0.4.0'
+)
+
 $ErrorActionPreference = 'Stop'
 $demo = 'C:\Users\fabian\Documents\Release Artifacts'
 Remove-Item $demo -Recurse -Force -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force $demo | Out-Null
 
-Copy-Item 'C:\Program Files\FileHasher\FileHasher.exe' (Join-Path $demo 'FileHasher.exe') -Force
+if (-not (Test-Path $SourceExe)) { throw "SourceExe not found: $SourceExe" }
+Copy-Item $SourceExe (Join-Path $demo 'FileHasher.exe') -Force
 
 Set-Content (Join-Path $demo 'release-notes.txt') "Release notes`r`n=============`r`n`r`nSample text file used to demonstrate hashing and sidecar verification." -Encoding UTF8
 Set-Content (Join-Path $demo 'build-manifest.json') "{`r`n  `"product`": `"Sample build manifest`",`r`n  `"files`": 5`r`n}" -Encoding UTF8
@@ -32,14 +41,17 @@ foreach ($n in 1..12) {
 $buf = New-Object byte[] 262144; $rand.NextBytes($buf)
 [IO.File]::WriteAllBytes((Join-Path $demo 'payload.bin'), $buf)
 
-# FileHasher's own released MSI, for the inner-MSI scan shot. Hashing our own
+# FileHasher's own released MSI, for the inner-MSI scan shot. Downloaded
+# BESIDE the demo folder, never into it: capture-screenshots.ps1 targets this
+# file directly by path, and dropping a 60+ MB installer into the scanned
+# folder would change the folder-hash shots and slow every run. Hashing our own
 # installer is on-brand, and the parent hash in the screenshot is verifiably
 # the one published in that release's .msi.sha256 sidecar.
-$own = 'C:\Users\fabian\Documents\FileHasher-0.3.1.msi'
+$own = "C:\Users\fabian\Documents\FileHasher-$OwnMsiVersion.msi"
 if (-not (Test-Path $own)) {
   [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
   $ProgressPreference = 'SilentlyContinue'
-  Invoke-WebRequest 'https://github.com/fsantiago07044/filehasher/releases/download/v0.3.1/FileHasher-0.3.1.msi' -OutFile $own -UseBasicParsing
+  Invoke-WebRequest "https://github.com/fsantiago07044/filehasher/releases/download/v$OwnMsiVersion/FileHasher-$OwnMsiVersion.msi" -OutFile $own -UseBasicParsing
 }
 
 icacls $demo /grant "$env:COMPUTERNAME\fabian:(OI)(CI)F" /T /Q | Out-Null

@@ -1,3 +1,14 @@
+# -Exe: which FileHasher.exe to photograph. Defaults to the installed one, so
+# the shots normally come from exactly what a Store customer gets. Point it at
+# a build tree to capture a version that is not installed yet; the UI is
+# identical, but remember the About box will show that build's version.
+param(
+  [string]$Exe = 'C:\Program Files\FileHasher\FileHasher.exe',
+  # The released MSI used for the inner-MSI shot. Must match the version
+  # make-demo-data.ps1 downloaded, and lives beside the demo folder, not in it.
+  [string]$OwnMsi = 'C:\Users\fabian\Documents\FileHasher-0.4.0.msi'
+)
+
 $ErrorActionPreference = 'Continue'
 $log = 'C:\Windows\Temp\shots.log'
 function L($m){ Add-Content $log ("[{0:HH:mm:ss}] {1}" -f (Get-Date), $m) }
@@ -33,7 +44,9 @@ Start-Sleep 1
 # would read "FileHasher [Administrator]", wrongly implying the app needs
 # elevation. Launching via explorer.exe hands the request to the shell, which
 # starts it with the ordinary user token.
-Start-Process explorer.exe -ArgumentList '"C:\Program Files\FileHasher\FileHasher.exe"'
+if (-not (Test-Path $Exe)) { L "FATAL: exe not found: $Exe"; exit 1 }
+L "launching: $Exe"
+Start-Process explorer.exe -ArgumentList ('"{0}"' -f $Exe)
 $p = $null
 foreach ($i in 1..30) {
   Start-Sleep 1
@@ -168,7 +181,7 @@ try {
   Click 'ClearBtn'
   Check 'SidecarChk' $false
   Check 'MsiChk' $true
-  SetVal 'PathBox' 'C:\Users\fabian\Documents\FileHasher-0.3.1.msi'
+  SetVal 'PathBox' $OwnMsi
   Click 'RunBtn'
   DismissDialog (WaitDone)
   Shot '05-inner-msi-scan'
