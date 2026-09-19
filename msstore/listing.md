@@ -197,7 +197,7 @@ It is built for the moment you need to prove a file is the file you think it is:
 
 WHAT IT DOES
 
-Choose MD5, SHA1, SHA256, or SHA512 per run. Point it at a file or a folder and it scans recursively, filtered to .exe and .msi by default, or every file type with one checkbox.
+Choose MD5, SHA1, SHA256, or SHA512 per run. Point it at a file or a folder, choose how far into subfolders the scan reaches (all of them, none, or a set number of levels), and filter to .exe and .msi by default or every file type with one checkbox.
 
 Write sidecar hash files in three formats: sha256sum style, hash only, or an extended format that also records the file's last-modified time in ISO 8601 UTC and its size in bytes. The suggested file extension follows the algorithm you picked, and a custom extension you type is never overwritten.
 
@@ -226,7 +226,7 @@ Free and open source under the MIT license. Not trial software, nothing to activ
 ### Product features (up to 20, 200 characters each)
 
 - MD5, SHA1, SHA256, and SHA512, selected per run
-- Recursive folder scans with an extension filter, or every file type with one checkbox
+- Folder scans to any subfolder depth, filtered by extension or covering every file type
 - Sidecar hash files in sha256sum, hash-only, or extended format with timestamp and size
 - Verify a whole tree against existing sidecars, auto-detecting each one's algorithm
 - Clear per-file verdicts: OK, mismatch with both hashes shown, missing file, or no sidecar

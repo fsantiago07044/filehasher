@@ -3,8 +3,13 @@
 Repo layout, conventions, and the traps that have already bitten us once.
 The macOS sibling lives in a separate repo (filehasher-macos, fork-linked on
 GitLab); output formats (sidecars, CSV, logs) are kept compatible between the
-two, but scan defaults intentionally differ (Windows keeps the .exe/.msi
-default filter and always-recursive scans).
+two, but scan **defaults** intentionally differ. Both apps now share the same
+scan MODEL: a Subfolders depth (unlimited / this folder only / N levels) rather
+than a recursion boolean, and the same rule for which preferences persist. What
+differs is where each starts: Windows keeps the `.exe`/`.msi` default filter and
+unlimited depth, macOS scans every file type and stops at the top level. Neither
+default was changed when the model converged, because doing so would silently
+alter what existing users' scans cover.
 
 ## Build and toolchain
 
