@@ -11,6 +11,29 @@ unlimited depth, macOS scans every file type and stops at the top level. Neither
 default was changed when the model converged, because doing so would silently
 alter what existing users' scans cover.
 
+## Project layout
+
+- **`FileHasher.Core`** (plain `net10.0`, AnyCPU) holds the engine: HashWorker,
+  SidecarVerifier, MsiExtractor, HelpContent, Logger, AppSettings and the DTOs.
+  **`FileHasherApp`** (`net10.0-windows`, x64) is only the WinForms layer:
+  MainForm, HelpForm, Program, ColorProgressBar. Extracted in the 0.5.0 cycle so
+  the planned CLI (`docs/cli-design.md`) can drive the same code; the product
+  promise that a hash written by one FileHasher verifies in another depends on
+  there being one implementation, not two that drift.
+- Core stays **AnyCPU and non-Windows-targeted** on purpose: an AnyCPU library
+  referenced from an x64 project is warning-free, and pinning it would block the
+  cross-platform RIDs the CLI needs. `RootNamespace` is `FileHasher` in both, so
+  moved files kept their namespace and no `using` changed.
+- MsiExtractor compiles anywhere (WiX DTF ships netstandard2.0) but only **runs**
+  on Windows, because those wrappers call native `msi.dll`.
+- **`<Version>` is in BOTH csproj and they move together.** Since HelpContent
+  moved to Core, `HelpContent.AppVersion` calls
+  `Assembly.GetExecutingAssembly()` and therefore reports **Core's** version in
+  the About box and the support mailto. Release builds are safe because CI
+  passes `-p:Version=<tag>` as a global property, which propagates through the
+  ProjectReference (verified); local builds do not, so bumping only the app
+  csproj leaves the About box stale.
+
 ## Build and toolchain
 
 - Target framework is **net10.0-windows**, SDK pinned by `global.json` to
@@ -96,6 +119,22 @@ AutomationId and test class. Hard-won specifics:
 - Test classes marked `[Collection("Serial")]` must not run in parallel; new
   UI test classes should follow that and take one app instance per test unless
   purely read-only.
+- **`AppFixture.Dispose` kills the app rather than closing it, and that is now
+  load-bearing.** Kill skips `OnFormClosing`, which skips the settings save, so
+  one test selecting SHA512 cannot change what the next test's launch sees. If
+  this is ever changed to a graceful close, `FILEHASHER_SETTINGS` becomes the
+  only thing preventing order-dependent failures.
+- **`FILEHASHER_SETTINGS`** overrides the settings file path, and the fixture
+  points every launched instance at a throwaway file. Without it the UI tests
+  read the developer's own `%APPDATA%\FileHasher\settings.json`, so
+  `MainFormStateTests` asserting SHA256-by-default would fail on a machine where
+  someone last closed the app on MD5. Mirrors `FILEHASHER_EXE`.
+- Not every test drives the UI. `SettingsStoreTests`, `MsiExtractorTests`,
+  `SidecarVerifierTests`, `MainFormPathSeedTests` and
+  `MainFormSettingsRoundTripTests` need no desktop; the last constructs MainForm
+  in-process on an **STA thread** (xUnit threads are MTA).
+- Count test **cases**, not attributes: a `[Theory]` contributes one per
+  `[InlineData]`. Counting `[Fact]`/`[Theory]` lines undercounts badly.
 
 ## CI / release
 
@@ -108,6 +147,38 @@ AutomationId and test class. Hard-won specifics:
   either.
 - The exe is Authenticode-signed on a Linux HSM host; WiX/MSI work happens on
   the Windows runner. Never re-sign or move `signed-builds/` artifacts by hand.
+
+## Behaviour rules worth not relearning
+
+- **Scan depth, not recursion.** `HashOptions.MaxDepth`: null unlimited, 0 the
+  target folder only, N levels below. Windows defaults to **unlimited**, macOS to
+  **0**, and neither moved when the model converged, because changing either
+  silently alters what existing users' scans cover.
+- **The verifier must get the same depth as the hash run**, or a bounded verify
+  invents `NO SIDECAR` rows for files the hash run never visited.
+- **Which preferences persist is a rule, not a judgement:** if a control's
+  enabled state depends on the target, its value describes that target rather
+  than a standing preference, so it is not persisted; and nothing that writes
+  files is persisted. That leaves algorithm, include-metadata and inner-MSI.
+  `MainFormSettingsRoundTripTests` asserts the persisted field set by
+  reflection, so adding a field for the target path, scan-all-file-types, the
+  Subfolders depth or anything behind the sidecar/CSV gates fails a test rather
+  than shipping. This took three rounds of getting it wrong to arrive at.
+- `settings.json` is written on close, so it does not exist until the app has
+  been closed once. Load absorbs every failure (missing, corrupt, truncated,
+  newer schema) and returns defaults, because failing to read a preference must
+  never stop the app starting.
+- **UI changes invalidate three sets of screenshots**: the Microsoft Store
+  (`msstore/screenshots/`), UniGetUI (`docs/unigetui-screenshots.md`, URLs
+  pinned to the release tag, so **commit images before tagging**), and the Mac
+  App Store in the sibling repo. Raise regenerating them rather than waiting to
+  be asked.
+- **Pre-release tags create no pipeline, by design.** Betas are built by hand
+  through a manual web run with `<Version>` set to `0.5.0-beta.N`; only
+  `vX.Y.Z` publishes. Never widen the `workflow:` rules: the strict regex on the
+  six publish jobs is the only thing between a beta and four public channels,
+  and `ci/mirror-to-github.sh` has no `--prerelease`, so a mirrored beta would
+  become GitHub's Latest and Scoop's excavator would ship it.
 
 ## Style
 
