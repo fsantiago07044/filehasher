@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git show:*)",
+      "Bash(git branch:*)",
+      "Bash(git remote -v)",
+      "Bash(git tag:*)",
+      "Bash(git ls-files:*)",
+      "Bash(git blame:*)",
+      "Bash(git grep:*)",
+      "Bash(dotnet build:*)",
+      "Bash(dotnet restore:*)",
+      "Bash(dotnet list package:*)",
+      "Bash(dotnet sln:*)",
+      "Bash(dotnet --version)",
+      "Bash(dotnet --list-sdks)"
+    ],
+    "ask": [
+      "Bash(git push:*)",
+      "Bash(git tag -s:*)",
+      "Bash(dotnet publish:*)"
+    ],
+    "deny": [
+      "Bash(git push --force:*)",
+      "Bash(git push -f:*)",
+      "Bash(git reset --hard:*)",
+      "Read(./.claude/settings.local.json)"
+    ]
+  }
+}
