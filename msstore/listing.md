@@ -151,10 +151,21 @@ Update the date on every submission; the docs ask for it so testers can judge
 whether a transient problem still applies.
 
 **Count the characters before pasting.** The limit is 2000 and this note runs
-at 1922, so there is almost no headroom. A resubmission tempts you to prepend a
+at 1988, so there is almost no headroom. A resubmission tempts you to prepend a
 paragraph about what was fixed, which is exactly what happened on 2026-09-08:
 the note went to 2339 and would not fit the field. Prepending means cutting
 elsewhere.
+
+The 0.5.0 note drops the two "FIXED" paragraphs that answered the 09/08/2026
+report. That report was closed when 0.4.0 was approved on 09/10, so carrying
+them into a new submission points a tester at a resolved finding and spends
+around 330 characters doing it. One line stating there are no open issues does
+the same job. The space bought the Subfolders sentence and the settings.json
+disclosure.
+
+If the date has to move and the note no longer fits, the first things to cut
+are the parenthesised Add/Remove Programs field list and the closing channel
+names; both are verifiable elsewhere.
 
 **Where it lives in Partner Center:** the bottom of the **Properties** page,
 under Product declarations. It is not a page in the submission's left nav, and
@@ -166,21 +177,17 @@ was deliberately omitted, since naming an unavailable channel invites a check
 that fails.
 
 ```text
-Submitted 2026-09-08. Resubmission addressing the 09/08/2026 report.
-
-10.1.2.10 (scaling): FIXED. Both windows now set AutoScaleMode.Font, so the layout scales with the display instead of using fixed 96-DPI coordinates. Retested at 100%, 150%, 175% and 200%, the last on a 2560x1600 display, with nothing clipped or overlapping.
-
-10.1.3 (search terms): FIXED. Reduced to seven single-word terms.
+Submitted 2026-09-19. Version 0.5.0. No open certification issues; the 09/08/2026 findings were fixed in 0.4.0, approved 09/10/2026.
 
 FileHasher is a standalone desktop utility: no account, no sign-in, and no network connection is required or made. Nothing is hidden, locked, or region-dependent.
 
-To exercise it in a minute: launch it, click Browse, pick any folder, leave SHA256 selected, click Run. Tick "Write sidecar hash files" and run again to see .sha256 files written beside each file, then click "Verify Sidecars" to check them back.
+To exercise it in a minute: launch it, click Browse Folder, pick any folder, leave SHA256 selected, click Run. New in this version, the "Subfolders" control sets how deep a folder scan goes: all subfolders (the default, as before), this folder only, or a set number of levels. Tick "Write sidecar hash files" and run again to see .sha256 files written beside each file, then "Verify Sidecars" to check them back.
 
-Install: the MSI is per-machine, to %ProgramFiles%\FileHasher, so Windows shows a UAC prompt. That is by design; the app is meant to be available to every user of the machine and no per-user variant is published. It creates a Start Menu shortcut and an Add/Remove Programs entry (ProductName FileHasher, Publisher FSP Productions LLC, version, icon), and uninstall removes both. The MSI and the FileHasher.exe inside it are Authenticode-signed by FSP Productions, LLC with an RFC 3161 timestamp; the exe is a self-contained .NET 10 build needing no runtime install.
+Install: the MSI is per-machine, to %ProgramFiles%\FileHasher, so Windows shows a UAC prompt. That is by design: it installs for every user of the machine, and no per-user variant is published. It creates a Start Menu shortcut and an Add/Remove Programs entry (ProductName FileHasher, Publisher FSP Productions LLC, version, icon), and uninstall removes both. The MSI and the FileHasher.exe inside it are Authenticode-signed by FSP Productions, LLC with an RFC 3161 timestamp; the exe is a self-contained .NET 10 build needing no runtime install.
 
-Two behaviours a scanner may notice, both intentional and user-initiated: the optional "Hash files inside MSI installers" checkbox opens .msi files read-only via the Windows Installer database API and extracts them to %TEMP%\FileHasher_msi_<random> to hash each inner file, deleting that directory when the run ends; and the app appends to a log at %AppData%\FileHasher\Logs.
+Three behaviours a scanner may notice, all intentional and user-initiated: the optional "Hash files inside MSI installers" checkbox opens .msi files read-only via the Windows Installer database API and extracts them to %TEMP%\FileHasher_msi_<random> to hash each inner file, deleting that directory when the run ends; the app appends to a log at %AppData%\FileHasher\Logs; and it writes %AppData%\FileHasher\settings.json on close, remembering the algorithm and two checkbox states.
 
-No non-Microsoft drivers or NT services, no bundled software, no advertising, no telemetry. The same signed MSI is distributed through winget (FSPProductions.FileHasher) and Chocolatey (filehasher).
+No non-Microsoft drivers or NT services, no bundled software, no advertising, no telemetry. The same signed MSI ships through winget (FSPProductions.FileHasher) and Chocolatey (filehasher); Scoop installs the portable zip from the same release.
 ```
 
 ## Store listing
