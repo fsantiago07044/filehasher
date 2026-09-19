@@ -602,6 +602,15 @@ public-mirror copy of this repo. All of them carry all three privacy flags:
 
 ## Releasing a new version
 
+0. **If the UI changed, regenerate the screenshots first.** They feed three
+   listings and all of them go stale together: `msstore/screenshots/` (six PNGs,
+   regenerate with `msstore/tools/capture-screenshots.ps1`), the Mac App Store
+   shot list in the filehasher-macos repo, and
+   `docs/filehasher-winget-PR-assets/` which UniGetUI serves. **This must land
+   before the tag**, because the UniGetUI entry points at the tag ref and a tag
+   created before the images exist will 404 forever. See
+   `docs/unigetui-screenshots.md`.
+
 1. Bump `<Version>` in `FileHasherApp/FileHasherApp.csproj`. If the working
    version carries a prerelease suffix (`X.Y.Z-beta` during a test cycle),
    strip it to plain `X.Y.Z` here: the tag glob and the `build` job's
@@ -668,6 +677,12 @@ public-mirror copy of this repo. All of them carry all three privacy flags:
 
 If the `test` job fails because the tag does not match `<Version>` in the csproj,
 fix the csproj or recreate the tag at the right commit and push again.
+
+12. **Open the UniGetUI screenshot PR** (`docs/unigetui-screenshots.md`). Manual
+    and deliberately so: the entry pins every URL to the release tag, so each
+    release needs its own PR and old entries keep showing the screenshots that
+    matched that version. Nothing breaks if this is skipped or delayed; the
+    previous release's entry keeps working, it just describes an older UI.
 
 ## Manual / ad-hoc re-build
 
