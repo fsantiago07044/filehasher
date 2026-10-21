@@ -274,7 +274,7 @@ least searched.
 Version 0.4.0 moves FileHasher to .NET 10, the current long-term-support release of the .NET runtime, which also cuts the download by about a quarter. The window now scales correctly on high-resolution displays, including at 150%, 175% and 200% display scaling.
 ```
 
-Rewritten for 0.4.0 at the resubmission. Two things to keep in mind each release.
+Rewritten for 0.5.0. Two things to keep in mind each release.
 
 It must match the version in the **Packages** page. The first submission carried
 the 0.3.1 text while the package was being changed to 0.4.0, which would have
