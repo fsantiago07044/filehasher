@@ -606,7 +606,7 @@ winget-update:
         Write-Error "winget/release-notes.txt not found; it must be updated as part of every release commit (see ci/README.md, Releasing a new version)."
         exit 1
       }
-      $nf = @(Get-Content $notesFile | Where-Object { $_.Trim() })
+      $nf = @(Get-Content $notesFile -Encoding UTF8 | Where-Object { $_.Trim() })
       if ($nf.Count -lt 2 -or $nf[0].Trim() -ne "v$($env:VERSION)") {
         Write-Error "winget/release-notes.txt is stale: first line is '$($nf[0])', expected 'v$($env:VERSION)'. Update it as part of the release commit (see ci/README.md, Releasing a new version)."
         exit 1
@@ -757,7 +757,7 @@ chocolatey-push:
         Write-Error "winget/release-notes.txt not found; it must be updated as part of every release commit (see ci/README.md, Releasing a new version)."
         exit 1
       }
-      $nf = @(Get-Content $notesFile | Where-Object { $_.Trim() })
+      $nf = @(Get-Content $notesFile -Encoding UTF8 | Where-Object { $_.Trim() })
       if ($nf.Count -lt 2 -or $nf[0].Trim() -ne $tag) {
         Write-Error "winget/release-notes.txt is stale: first line is '$($nf[0])', expected '$tag'. Update it as part of the release commit (see ci/README.md, Releasing a new version)."
         exit 1
@@ -773,10 +773,9 @@ chocolatey-push:
       New-Item -ItemType Directory -Force chocolatey-out | Out-Null
       Copy-Item chocolatey/* chocolatey-out -Recurse -Force
       Remove-Item chocolatey-out/README.md -Force -ErrorAction SilentlyContinue
-      Copy-Item LICENSE chocolatey-out/tools/LICENSE.txt -Force
 
       foreach ($f in Get-ChildItem chocolatey-out -Recurse -File) {
-        $text = Get-Content $f.FullName -Raw
+        $text = Get-Content $f.FullName -Raw -Encoding UTF8
         $text = $text.Replace('{VERSION}', $env:VERSION).Replace('{SHA256}', $computed).Replace('{RELEASE_NOTES}', $notes)
         Set-Content -Path $f.FullName -Value $text -Encoding utf8   # CPMR0054: the nuspec must be UTF-8
       }
@@ -810,13 +809,19 @@ chocolatey-push:
         exit 1
       }
 
-      # Skip the push when this version is already on the repository, so a
-      # retry of this job is a no-op rather than a 409.
+      # Skip the push only when this version is already APPROVED, so a retry is
+      # a no-op rather than a 409. A version still in moderation is listed here
+      # too and must stay pushable: Chocolatey's documented way to deliver a
+      # reviewer's requested change is to push the SAME version again.
       $q = "https://community.chocolatey.org/api/v2/Packages(Id='$($env:PACKAGE_ID)',Version='$($env:VERSION)')"
       $published = $false
       try {
-        Invoke-WebRequest $q -UseBasicParsing | Out-Null
-        $published = $true
+        $resp = Invoke-WebRequest $q -UseBasicParsing
+        if ($resp.Content -match '<d:IsApproved[^>]*>true</d:IsApproved>') {
+          $published = $true
+        } else {
+          Write-Host "$($env:PACKAGE_ID) $($env:VERSION) is on the repository but not approved (under moderation); re-pushing the same version."
+        }
       } catch {
         $code = $_.Exception.Response.StatusCode.value__
         if ($code -eq 404) {

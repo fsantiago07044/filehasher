@@ -45,7 +45,7 @@
     <authors>FSP Productions, LLC</authors>
     <projectUrl>https://www.fspproductions.com/software-projects</projectUrl>
     <iconUrl>https://cdn.jsdelivr.net/gh/fsantiago07044/filehasher@41f3e822e071029f5f986b02465de3c99690a28e/FileHasherApp/assets/app-icon/hash-icon-128.png</iconUrl>
-    <copyright>Copyright © 2026 FSP Productions, LLC</copyright>
+    <copyright>Copyright (c) 2026 FSP Productions, LLC</copyright>
     <licenseUrl>https://github.com/fsantiago07044/filehasher/blob/main/LICENSE</licenseUrl>
     <requireLicenseAcceptance>false</requireLicenseAcceptance>
     <projectSourceUrl>https://github.com/fsantiago07044/filehasher</projectSourceUrl>

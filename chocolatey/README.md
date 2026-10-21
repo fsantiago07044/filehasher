@@ -39,7 +39,7 @@ it stands**:
 
 | Placeholder | Where | Value |
 | --- | --- | --- |
-| `{VERSION}` | nuspec, install script, VERIFICATION.txt | release version, no leading `v` |
+| `{VERSION}` | nuspec, install script | release version, no leading `v` |
 | `{SHA256}` | install script | lowercase hex SHA256 of that version's MSI |
 | `{RELEASE_NOTES}` | nuspec | prose summary plus the release URL |
 
@@ -54,8 +54,11 @@ The release-notes prose comes from
 tag). The file lives under `winget/` for historical reasons; both channels read
 it, so it only needs updating once per release.
 
-`tools/LICENSE.txt` is **not** in git: the job copies the repository's root
-`LICENSE` into the staged package at pack time, so the two cannot drift.
+**No `tools/LICENSE.txt` or `tools/VERIFICATION.txt`.** Both were shipped until
+0.5.0 and the moderator asked for their removal: they are required for packages
+that **embed** binaries, and this one downloads the signed MSI from the GitHub
+release instead. The real verification is the SHA256 that
+`chocolateyinstall.ps1` pins, which Chocolatey enforces before installing.
 
 Note that `packageSourceUrl`, `projectSourceUrl`, `docsUrl` and
 `bugTrackerUrl` are Chocolatey extensions to the nuspec schema. Pack with
@@ -125,7 +128,6 @@ repo are immutable).
    New-Item -ItemType Directory chocolatey-out | Out-Null
    Copy-Item chocolatey/* chocolatey-out -Recurse -Force
    Remove-Item chocolatey-out/README.md
-   Copy-Item LICENSE chocolatey-out/tools/LICENSE.txt
 
    # The notes land inside a nuspec element, so escape XML metacharacters
    # exactly as the CI job does. Substituting anything containing < or > raw
@@ -209,3 +211,22 @@ repo are immutable).
 - Nothing here needs the ProductCode. Unlike the winget installer manifest,
   which pins each version's regenerated ProductCode, Chocolatey discovers it
   from the registry at uninstall time.
+
+## Resubmitting a version the moderator asked you to change
+
+Chocolatey's fix for a reviewer's request is to push the **same version again**,
+never a new one. Two things make that awkward here, both now handled:
+
+- `chocolatey-push` runs only on a `vX.Y.Z` tag, and retrying the job replays the
+  **tag's** `.gitlab-ci.yml`, not whatever is on `main`. So a fix landed on main
+  does not reach a retry of an existing release's job. Until the next tag, the
+  re-push is the manual workflow above.
+- The job used to skip whenever the version was already on the repository, which
+  includes a version sitting in moderation, so a retry was a silent no-op. It now
+  skips only when the version is **approved**.
+
+Encoding, for the same reason it bit 0.5.0: PowerShell 5.1's `Get-Content`
+decodes a BOM-less file as Windows-1252, so UTF-8 source bytes were decoded and
+re-encoded, turning `(c)`'s symbol form into `Â©` in the published nuspec. Every
+read in the job now passes `-Encoding UTF8`. Keep the nuspec ASCII anyway; it
+costs nothing and removes a whole class of failure.
