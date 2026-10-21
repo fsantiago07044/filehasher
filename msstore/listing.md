@@ -271,7 +271,13 @@ least searched.
 ### What's new in this version (max 1500 characters)
 
 ```text
-Version 0.4.0 moves FileHasher to .NET 10, the current long-term-support release of the .NET runtime, which also cuts the download by about a quarter. The window now scales correctly on high-resolution displays, including at 150%, 175% and 200% display scaling.
+Version 0.5.0 adds a Subfolders control to the Target group, so a folder scan can cover every subfolder, the chosen folder on its own, or a set number of levels deep. Sidecar verification uses the same setting as the hash run, so the two always agree on which files are in scope.
+
+FileHasher now remembers your hash algorithm and the file metadata option between runs. The two options that write files, sidecar hash files and CSV export, always start switched off, so a run only ever creates files because you asked it to in that session.
+
+The Browse buttons open where you are already pointing: the folder currently in the box, or the containing folder of a selected file, instead of wherever another app last left the shell.
+
+The window now opens fully on screen at every display scaling, including 150%, 175% and 200% on high-resolution displays.
 ```
 
 Rewritten for 0.5.0. Two things to keep in mind each release.
