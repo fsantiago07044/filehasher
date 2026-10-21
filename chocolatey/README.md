@@ -210,7 +210,10 @@ repo are immutable).
    choco push chocolatey-out\filehasher.$v.nupkg --source https://push.chocolatey.org/ --api-key <key>
    ```
 
-   The key is in Bitwarden. A 409 means that version is already published.
+   The push key is the Bitwarden item **`CHOCO_API_KEY`** (same value as the
+   GitLab Protected CI/CD variable of that name). Note there is also a
+   `community.chocolatey.org` item, which is the website login, not the push
+   key. A 409 means that version is already published and approved.
 
 6. **Watch the review** at
    `https://community.chocolatey.org/packages/filehasher/X.Y.Z` and respond to

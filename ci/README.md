@@ -215,6 +215,9 @@ that are not on the runner:
    with any other account's key returns
    `403 The specified API key does not provide the authority to push packages`.
 2. **The `CHOCO_API_KEY` CI/CD variable** (Settings → CI/CD → Variables),
+   whose value is kept in the Bitwarden item of the same name,
+   `CHOCO_API_KEY`. The separate `community.chocolatey.org` item is the
+   website login, not the push key.
    marked Masked + Hidden + Protected like `HSM_PIN`, so it is only injected
    into pipelines on the protected `v*` tag glob. The job checks for it first
    and fails fast with a pointer to this section if it is missing; since the
