@@ -159,16 +159,27 @@ repo are immutable).
 
    Select-String -Path chocolatey-out\filehasher.nuspec -Pattern '<copyright>'
 
-   # The nuspec must be pure ASCII. Resolve-Path first: [IO.File] methods
-   # resolve a RELATIVE path against .NET's current directory, not PowerShell's,
-   # so a bare relative path reads the wrong location (or nothing) and an
-   # unassigned $bytes then makes this test pass silently. Printing the byte
-   # count is what proves it actually read the file.
-   $nuspec = Resolve-Path .\chocolatey-out\filehasher.nuspec
-   $bytes  = [IO.File]::ReadAllBytes($nuspec)
-   $bad    = @($bytes | Where-Object { $_ -gt 127 })
-   if ($bad.Count) { Write-Warning "$($bad.Count) non-ASCII byte(s) present" }
-   else { "nuspec is pure ASCII ($($bytes.Count) bytes)" }
+   # The nuspec body must be free of mojibake. Two traps in this one check:
+   #
+   #  - [IO.File] methods resolve a RELATIVE path against .NET's current
+   #    directory, not PowerShell's, so a bare relative path reads the wrong
+   #    location; $bytes then stays unassigned and a naive test reports success
+   #    having read nothing. Resolve-Path throws instead.
+   #  - Set-Content -Encoding utf8 on PowerShell 5.1 writes a UTF-8 BOM, which
+   #    is three bytes above 127 at offsets 0,1,2. That is valid UTF-8 and NuGet
+   #    accepts it, so the BOM must be skipped rather than flagged.
+   #
+   # Anything non-ASCII AFTER the BOM is the real problem: it is what "Â©"
+   # looked like in 0.5.0.
+   $f = Resolve-Path .\chocolatey-out\filehasher.nuspec
+   $b = [IO.File]::ReadAllBytes($f)
+   $start = if ($b.Count -ge 3 -and $b[0] -eq 0xEF -and $b[1] -eq 0xBB -and $b[2] -eq 0xBF) { 3 } else { 0 }
+   $bad = @($start..($b.Count-1) | Where-Object { $b[$_] -gt 127 })
+   if ($bad.Count) {
+     Write-Warning "mojibake: $($bad.Count) non-ASCII byte(s) at offsets $($bad -join ',')"
+   } else {
+     "nuspec body is pure ASCII ($($b.Count) bytes, BOM $(if($start){'present'}else{'absent'}))"
+   }
    ```
 
 3. **Pack:**
