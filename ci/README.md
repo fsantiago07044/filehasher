@@ -611,9 +611,11 @@ public-mirror copy of this repo. All of them carry all three privacy flags:
    created before the images exist will 404 forever. See
    `docs/unigetui-screenshots.md`.
 
-1. Bump `<Version>` in `FileHasherApp/FileHasherApp.csproj`. If the working
-   version carries a prerelease suffix (`X.Y.Z-beta` during a test cycle),
-   strip it to plain `X.Y.Z` here: the tag glob and the `build` job's
+1. Bump `<Version>` in **both** `FileHasherApp/FileHasherApp.csproj` and
+   `FileHasher.Core/FileHasher.Core.csproj`; they carry matching versions and
+   only the app one is checked against the tag, so Core drifts silently if it
+   is forgotten. If the working version carries a prerelease suffix
+   (`X.Y.Z-beta` during a test cycle), strip it to plain `X.Y.Z` here: the tag glob and the `build` job's
    tag-versus-csproj check both accept only `MAJOR.MINOR.PATCH`, so a tag
    pipeline cannot run against a suffixed version. Nothing else needs
    reverting; the About dialog and support-email subject read the version at
