@@ -177,7 +177,7 @@ was deliberately omitted, since naming an unavailable channel invites a check
 that fails.
 
 ```text
-Submitted 2026-09-19. Version 0.5.0. No open certification issues; the 09/08/2026 findings were fixed in 0.4.0, approved 09/10/2026.
+Submitted 2026-10-21. Version 0.5.0. No open certification issues; the 09/08/2026 findings were fixed in 0.4.0, approved 09/10/2026.
 
 FileHasher is a standalone desktop utility: no account, no sign-in, and no network connection is required or made. Nothing is hidden, locked, or region-dependent.
 
