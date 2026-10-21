@@ -669,6 +669,20 @@ public-mirror copy of this repo. All of them carry all three privacy flags:
    version again, not a new one. If the job yellow-flags, the packed nupkg is a
    job artifact and the manual fallback is in
    [`../chocolatey/README.md`](../chocolatey/README.md).
+10b. **Review the Store listing and hand Fabian the finished copy, unasked.**
+   Do not wait to be asked. Produce, with character counts against each limit:
+   **What's new in this version** written fresh for this release (Store framing,
+   not upgrade-notes framing: describe what the app does now, never a defect the
+   reader has not met); the **description** and any other changed field as a
+   **complete final value** rather than a fragment; and a **screenshots verdict**
+   naming which of the six `msstore/screenshots/` shots the UI change
+   invalidated and why. Unlike the Mac App Store there is no API to read the live
+   listing back, because the Store submission API was deliberately not set up, so
+   `msstore/listing.md` is the only record: re-read it in full rather than
+   trusting memory, and keep it updated in the same commit. The certification
+   note carries a submission date and runs at 1988 of its 2000 characters, so
+   check the count before adding anything.
+
 11. The Microsoft Store listing is **not** automated, but its download is: the
     `wasabi-upload` job has already published the MSI, and its log prints the
     exact package URL. In Partner Center, open an Update submission, paste that

@@ -168,6 +168,12 @@ AutomationId and test class. Hard-won specifics:
   been closed once. Load absorbs every failure (missing, corrupt, truncated,
   newer schema) and returns defaults, because failing to read a preference must
   never stop the app starting.
+- **Every release includes a Store-listing review, unprompted.** Fabian should
+  never have to ask for "what's new" copy, a description update, or a
+  screenshots verdict; produce all of it as complete final values with character
+  counts. Step 10b of `ci/README.md`. There is no API to read the live Microsoft
+  Store listing back, so `msstore/listing.md` is the only record and must be
+  re-read in full, not recalled.
 - **UI changes invalidate three sets of screenshots**: the Microsoft Store
   (`msstore/screenshots/`), UniGetUI (`docs/unigetui-screenshots.md`, URLs
   pinned to the release tag, so **commit images before tagging**), and the Mac
