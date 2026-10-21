@@ -136,8 +136,12 @@ repo are immutable).
    $notes = "$summary`n`nFull release notes: https://github.com/fsantiago07044/filehasher/releases/tag/v$v"
    $notes = $notes.Replace('&', '&amp;').Replace('<', '&lt;').Replace('>', '&gt;')
 
+   # -Encoding UTF8 on the READ matters: PowerShell 5.1 otherwise decodes a
+   # BOM-less file as Windows-1252, and re-encoding that turns any non-ASCII
+   # character into mojibake. That shipped a garbled copyright in the 0.5.0
+   # nuspec and cost a moderator round trip.
    Get-ChildItem chocolatey-out -Recurse -File | ForEach-Object {
-     (Get-Content $_.FullName -Raw).Replace('{VERSION}', $v).Replace('{SHA256}', $sha).Replace('{RELEASE_NOTES}', $notes) |
+     (Get-Content $_.FullName -Raw -Encoding UTF8).Replace('{VERSION}', $v).Replace('{SHA256}', $sha).Replace('{RELEASE_NOTES}', $notes) |
        Set-Content $_.FullName -Encoding utf8
    }
    $sha
