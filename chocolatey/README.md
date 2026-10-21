@@ -150,13 +150,34 @@ repo are immutable).
    Confirm the printed `$sha` against the release's `.msi.sha256` sidecar
    before going on.
 
-2. **Pack:**
+2. **Check what the moderator checks**, before packing:
+
+   ```powershell
+   # Only the install script belongs in tools/. LICENSE.txt and VERIFICATION.txt
+   # are for packages that EMBED binaries; this one downloads the MSI.
+   Get-ChildItem chocolatey-out\tools | Select-Object -ExpandProperty Name
+
+   Select-String -Path chocolatey-out\filehasher.nuspec -Pattern '<copyright>'
+
+   # The nuspec must be pure ASCII. Resolve-Path first: [IO.File] methods
+   # resolve a RELATIVE path against .NET's current directory, not PowerShell's,
+   # so a bare relative path reads the wrong location (or nothing) and an
+   # unassigned $bytes then makes this test pass silently. Printing the byte
+   # count is what proves it actually read the file.
+   $nuspec = Resolve-Path .\chocolatey-out\filehasher.nuspec
+   $bytes  = [IO.File]::ReadAllBytes($nuspec)
+   $bad    = @($bytes | Where-Object { $_ -gt 127 })
+   if ($bad.Count) { Write-Warning "$($bad.Count) non-ASCII byte(s) present" }
+   else { "nuspec is pure ASCII ($($bytes.Count) bytes)" }
+   ```
+
+3. **Pack:**
 
    ```powershell
    choco pack chocolatey-out\filehasher.nuspec --output-directory chocolatey-out
    ```
 
-3. **Test the real install path** on a scratch VM rather than the build host,
+4. **Test the real install path** on a scratch VM rather than the build host,
    since this is a real machine-wide install (it will not disturb the FlaUI
    suite, which runs the exe out of `bin`, but it does change what is installed
    on that machine):
@@ -172,7 +193,7 @@ repo are immutable).
    folder and the shortcut (this exercises Chocolatey's auto-uninstaller, which
    is what real users get, since the package ships no uninstall script).
 
-4. **Push:**
+5. **Push:**
 
    ```powershell
    choco push chocolatey-out\filehasher.$v.nupkg --source https://push.chocolatey.org/ --api-key <key>
@@ -180,7 +201,7 @@ repo are immutable).
 
    The key is in Bitwarden. A 409 means that version is already published.
 
-5. **Watch the review** at
+6. **Watch the review** at
    `https://community.chocolatey.org/packages/filehasher/X.Y.Z` and respond to
    any validator, verifier, or moderator comment. Once approved:
 
