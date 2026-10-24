@@ -1,3 +1,4 @@
+using System.Runtime.Versioning;
 using WixToolset.Dtf.WindowsInstaller;
 using WixToolset.Dtf.WindowsInstaller.Package;
 
@@ -113,6 +114,16 @@ public sealed class MsiExtractor : IDisposable
     /// <exception cref="FileNotFoundException">The MSI does not exist.</exception>
     /// <exception cref="InvalidDataException">A cap was exceeded.</exception>
     /// <exception cref="IOException">Insufficient free disk space for the projected extraction.</exception>
+    /// <remarks>
+    /// Windows only. WiX DTF's <c>Database</c> and <c>InstallPackage</c> compile
+    /// anywhere (the package ships netstandard2.0) but P/Invoke native
+    /// <c>msi.dll</c> at runtime, so this is the one capability Core cannot offer
+    /// off Windows. The annotation is accurate regardless and keeps CA1416
+    /// honest; callers in platform-neutral code must guard with
+    /// <see cref="OperatingSystem.IsWindows"/>. Everything else on this class is
+    /// pure path logic and stays callable everywhere.
+    /// </remarks>
+    [SupportedOSPlatform("windows")]
     public async Task<IReadOnlyList<string>> ExtractAsync(string msiPath, CancellationToken ct)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);

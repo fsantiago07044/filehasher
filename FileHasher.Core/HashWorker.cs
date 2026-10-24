@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using System.Runtime.Versioning;
 
 namespace FileHasher;
 
@@ -44,7 +45,13 @@ public sealed class HashWorker
             // extract its contents to a sandboxed temp dir and hash each inner
             // file individually. The MSI itself has already been hashed above
             // as a normal file; this only adds inner-file rows.
+            // OperatingSystem.IsWindows() is not redundant with the option:
+            // Core targets plain net10.0 and runs on Linux and macOS for the
+            // CLI, where inner-MSI extraction P/Invokes a DLL that is not there.
+            // Off Windows the MSI is still hashed as an ordinary file above;
+            // only the inner-file rows are skipped.
             if (_opts.DescendIntoMsi &&
+                OperatingSystem.IsWindows() &&
                 result.Success &&
                 path.EndsWith(".msi", StringComparison.OrdinalIgnoreCase))
             {
@@ -59,6 +66,10 @@ public sealed class HashWorker
     /// FilePath rewritten relative to the extract dir, and return the
     /// progress counter advanced by the number of inner files processed.
     /// </summary>
+    // Annotated rather than guarded again inside: CA1416 does not reason across
+    // methods, so the whole helper is declared Windows-only and its single
+    // caller does the OperatingSystem.IsWindows() check.
+    [SupportedOSPlatform("windows")]
     private async Task<int> HashMsiInnerFilesAsync(
         string msiPath, IProgress<int> progress, CancellationToken ct, int done)
     {
