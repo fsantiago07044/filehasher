@@ -37,13 +37,14 @@ alter what existing users' scans cover.
   moved files kept their namespace and no `using` changed.
 - MsiExtractor compiles anywhere (WiX DTF ships netstandard2.0) but only **runs**
   on Windows, because those wrappers call native `msi.dll`.
-- **`<Version>` is in BOTH csproj and they move together.** Since HelpContent
+- **Why the version duplication matters.** Since HelpContent
   moved to Core, `HelpContent.AppVersion` calls
   `Assembly.GetExecutingAssembly()` and therefore reports **Core's** version in
   the About box and the support mailto. Release builds are safe because CI
   passes `-p:Version=<tag>` as a global property, which propagates through the
   ProjectReference (verified); local builds do not, so bumping only the app
-  csproj leaves the About box stale.
+  csproj leaves the About box stale. The CLI reads its own assembly, so it
+  needs the same treatment.
 
 ## Build and toolchain
 
