@@ -1,0 +1,43 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The command-line front end. Plain net10.0 and no Windows TFM: the whole
+    point is that this runs on the Linux and macOS CI runners where pipelines
+    actually live. Inner-MSI hashing is the one capability it cannot offer off
+    Windows, and it says so rather than failing inside a P/Invoke.
+
+    Version is a THIRD place to bump. docs/cli-design.md decision 8 ties the
+    CLI to the app's tag and version, so this must move with the <Version> in
+    FileHasherApp.csproj and FileHasher.Core.csproj. A Directory.Build.props
+    would remove the duplication, but the tag check in .gitlab-ci.yml greps
+    <Version> out of FileHasherApp.csproj as text, so that is a release-path
+    change to make deliberately, not as a side effect of adding this project.
+  -->
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>FileHasher.Cli</RootNamespace>
+    <AssemblyName>filehasher</AssemblyName>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+
+    <!-- dotnet tool packaging (decision 3: a separate tool package). -->
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>filehasher</ToolCommandName>
+    <PackageId>FileHasher.Cli</PackageId>
+    <Version>0.6.0-beta.1</Version>
+    <Authors>FSP Productions, LLC</Authors>
+    <Description>Hash files and folders, write and verify sidecar checksums, from the command line. The CLI companion to the FileHasher desktop apps; sidecars and CSV exports interoperate with all of them.</Description>
+    <PackageTags>hash;checksum;sha256;sha512;md5;sha1;verify;integrity;sidecar;ci</PackageTags>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\FileHasher.Core\FileHasher.Core.csproj" />
+  </ItemGroup>
+
+</Project>

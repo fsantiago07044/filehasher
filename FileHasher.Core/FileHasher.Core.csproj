@@ -45,7 +45,7 @@
       both assemblies). Local builds do not propagate anything, so a bump to
       only the app csproj leaves the About box showing the old number.
     -->
-    <Version>0.5.0</Version>
+    <Version>0.6.0-beta.1</Version>
     <Company>FileHasher</Company>
     <Product>FileHasher</Product>
     <Copyright>Copyright © 2026 FSP Productions, LLC</Copyright>

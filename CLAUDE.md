@@ -20,6 +20,17 @@ alter what existing users' scans cover.
   the planned CLI (`docs/cli-design.md`) can drive the same code; the product
   promise that a hash written by one FileHasher verifies in another depends on
   there being one implementation, not two that drift.
+- **`FileHasher.Cli`** (plain `net10.0`, `AssemblyName` **filehasher**) is the
+  command-line front end, packaged as a `dotnet tool`. **`FileHasher.Cli.Tests`**
+  is plain `net10.0` too, so unlike `FileHasherApp.Tests` it needs no desktop and
+  no Windows: it is the only suite that runs on the Mac and would run on a Linux
+  runner. Run it with
+  `DOTNET_ROOT="$HOME/.dotnet" PATH="$HOME/.dotnet:$PATH" dotnet test FileHasher.Cli.Tests/FileHasher.Cli.Tests.csproj`.
+- **`<Version>` now lives in THREE csproj**, not two: the app, Core and the CLI
+  move together (`docs/cli-design.md` decision 8). A `Directory.Build.props`
+  would remove the duplication, but `.gitlab-ci.yml` greps `<Version>` out of
+  `FileHasherApp.csproj` as text for its tag check, so that is a release-path
+  change to make deliberately.
 - Core stays **AnyCPU and non-Windows-targeted** on purpose: an AnyCPU library
   referenced from an x64 project is warning-free, and pinning it would block the
   cross-platform RIDs the CLI needs. `RootNamespace` is `FileHasher` in both, so

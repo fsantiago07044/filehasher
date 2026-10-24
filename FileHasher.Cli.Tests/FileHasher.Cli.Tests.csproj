@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Plain net10.0, unlike FileHasherApp.Tests, which is net10.0-windows because
+    it drives WinForms through FlaUI. These tests need no desktop and no
+    Windows, so they are the first suite in this repo that runs on the machine
+    the CLI is being written on, and on a Linux CI runner.
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk"    Version="18.9.0" />
+    <PackageReference Include="xunit"                     Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\FileHasher.Cli\FileHasher.Cli.csproj" />
+  </ItemGroup>
+
+</Project>
