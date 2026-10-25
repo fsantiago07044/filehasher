@@ -9,6 +9,19 @@ Release tags use the form `vMAJOR.MINOR.PATCH`. The release pipeline strips the
 leading `v` when injecting the version into the .NET build and validates the
 result against `<Version>` in `FileHasherApp/FileHasherApp.csproj`.
 
+## [Unreleased]
+
+Work towards 0.6.0. The version in the three project files is `0.6.0-beta.1`;
+this heading gets its date at release time, not before.
+
+### Added
+- **A command-line front end, `filehasher`.** `hash` and `verify` subcommands over the same `FileHasher.Core` the WinForms app uses, so a sidecar written by one verifies in the other by construction rather than by agreement. Human-readable output by default, `--json` for one event per line, `-q` for the summary alone. Exit codes distinguish a clean run from mismatches found from the tool itself failing, which is what a script actually needs. `docs/cli-design.md` records the seventeen decisions behind the surface, including the ones that went the other way.
+- **A shared file-type filter.** `.exe` and `.msi` were hardcoded into both walks, with a "scan all file types" checkbox as the only escape, which left the macOS app's typed list with no equivalent here and gave the Linux app a text box that accepted types and ignored them. `FileHasher.Core.FileTypeFilter` now parses and matches one list for all three front ends, because a filter parsed two slightly different ways is precisely the drift Core exists to prevent. Separators may be commas, semicolons, spaces or newlines, the leading dot and a leading `*` are optional, and case does not matter. Matching compares against the end of the file name rather than using `Path.GetExtension`, since `.tar.gz` is two extensions to the framework and one file type to a person, and matching on `.gz` alone would also catch a bare `.gz`. The CLI exposes it as `--types`. **No existing behaviour changes**: `HashOptions.FileTypes` and the verifier's new `fileTypes` argument both default to null, which keeps the historical `.exe`/`.msi` pair, and the Windows UI is untouched in this release. The verifier takes the same list as the hash walk for the reason the depth setting already did: a verify filtered differently from the run that wrote the sidecars reports `NO SIDECAR` for files the run never looked at.
+- **Symlink loops are refused rather than followed.** A directory symlink pointing at one of its own ancestors used to send the walk round until it ran out of path. `SymlinkGuard` checks only the ancestor case, which is the one that cannot terminate; a link to a sibling or an unrelated tree is still followed, since visiting the same file twice by two names is a duplicate, not a hang, and the alternative would mean remembering every inode in the walk.
+
+### Fixed
+- **Skipping a sidecar no longer drops the file from the run.** Answering *Skip* to the overwrite prompt removed the file from the work list, so hashing a folder a second time with sidecars on and skipping every conflict produced an empty results table with nothing to explain it. `HashOptions.SkipSidecarFor` now suppresses the write alone: the file is still hashed and still appears in the results. Found by using the app, not by a test, so there is now a test on both front ends.
+
 ## [0.5.0] - 2026-10-21
 
 ### Added
