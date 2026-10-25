@@ -17,6 +17,7 @@ public static class HashCommand
             ExportCsv:          a.CsvPath is not null,
             CsvPath:            a.CsvPath ?? string.Empty,
             AllFileTypes:       a.AllTypes,
+            FileTypes:          FileTypeFilter.Parse(a.FileTypes),
             DescendIntoMsi:     a.MsiInner,
             MaxDepth:           a.MaxDepth);
 

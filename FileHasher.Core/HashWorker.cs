@@ -158,9 +158,12 @@ public sealed class HashWorker
         if (_opts.IsFile)
             return new List<string> { _opts.TargetPath };
 
+        // Null means accept everything. Otherwise: the caller's typed list if
+        // it gave one, else the historical .exe/.msi pair.
         var extensions = _opts.AllFileTypes
             ? null
-            : new HashSet<string>(StringComparer.OrdinalIgnoreCase) { ".exe", ".msi" };
+            : _opts.FileTypes
+              ?? new HashSet<string>(StringComparer.OrdinalIgnoreCase) { ".exe", ".msi" };
 
         // When writing sidecars, never treat sidecar files themselves as targets —
         // that would create .sha256.sha256 chains on repeated runs.
@@ -188,7 +191,10 @@ public sealed class HashWorker
                         f.EndsWith(sidecarExt, StringComparison.OrdinalIgnoreCase))
                         continue;
 
-                    if (extensions is null || extensions.Contains(Path.GetExtension(f)))
+                    // FileTypeFilter.Matches, not Contains on the extension:
+                    // a suffix like ".tar.gz" is two extensions to Path and
+                    // one file type to a person.
+                    if (extensions is null || FileTypeFilter.Matches(f, extensions))
                         results.Add(f);
                 }
             }

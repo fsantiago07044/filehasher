@@ -29,6 +29,7 @@ public sealed record ParsedArgs
     public required string  TargetPath  { get; init; }
     public string  Algorithm      { get; init; } = "SHA256";
     public bool    AllTypes       { get; init; }
+    public string? FileTypes      { get; init; }
     public bool    Sidecar        { get; init; }
     public string? SidecarExt     { get; init; }
     public string  SidecarFormat  { get; init; } = "sha256sum";
@@ -108,6 +109,7 @@ public static class CommandLine
         };
 
         string?  target = null, algorithm = null, sidecarExt = null, sidecarFormat = null, csv = null, failOn = null;
+        string?  fileTypes = null;
         bool     allTypes = false, sidecar = false, metadata = false, msiInner = false;
         bool     json = false, quiet = false, noRecurse = false;
         int?     maxDepth = null;
@@ -134,6 +136,7 @@ public static class CommandLine
                 case "--sidecar-ext":         sidecarExt    = Next(argv, ref i, a); break;
                 case "--sidecar-format":      sidecarFormat = Next(argv, ref i, a); break;
                 case "--csv":                 csv           = Next(argv, ref i, a); break;
+                case "--types":               fileTypes     = Next(argv, ref i, a); break;
                 case "--fail-on":             failOn        = Next(argv, ref i, a); break;
 
                 case "--max-depth":
@@ -178,6 +181,7 @@ public static class CommandLine
             TargetPath    = target,
             Algorithm     = algo,
             AllTypes      = allTypes,
+            FileTypes     = fileTypes,
             Sidecar       = sidecar,
             SidecarExt    = sidecarExt is null ? null : NormalizeExt(sidecarExt),
             SidecarFormat = NormalizeFormat(sidecarFormat),

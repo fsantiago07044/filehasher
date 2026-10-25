@@ -13,7 +13,8 @@ public static class VerifyCommand
             sidecarExtension: a.SidecarExt ?? ".sha256",
             allFileTypes:     a.AllTypes,
             logger:           logger,
-            maxDepth:         a.MaxDepth);
+            maxDepth:         a.MaxDepth,
+            fileTypes:        FileTypeFilter.Parse(a.FileTypes));
 
         verifier.WarningRaised += w =>
         {

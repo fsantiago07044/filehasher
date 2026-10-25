@@ -40,5 +40,14 @@ public sealed record HashOptions(
     // exercised twice in a row.
     //
     // Null means write them all, so every existing caller is unaffected.
-    IReadOnlySet<string>? SkipSidecarFor = null
+    IReadOnlySet<string>? SkipSidecarFor = null,
+
+    // Which file types a folder scan accepts, as produced by
+    // FileTypeFilter.Parse. Only consulted when AllFileTypes is false.
+    //
+    // Null keeps the historical Windows behaviour of .exe and .msi, so no
+    // existing caller changes. The macOS app has always offered a typed list
+    // instead, and the Linux app follows it; this is where that list lands
+    // rather than each front end filtering for itself.
+    IReadOnlySet<string>? FileTypes = null
 );

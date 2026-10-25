@@ -26,6 +26,7 @@ public sealed class SidecarVerifier
     private readonly bool   _isFile;
     private readonly string _sidecarExtension;
     private readonly bool   _allFileTypes;
+    private readonly IReadOnlySet<string>? _fileTypes;
     private readonly int?   _maxDepth;
     private readonly Logger _logger;
 
@@ -38,12 +39,16 @@ public sealed class SidecarVerifier
     /// <see cref="HashWorker"/> was given, or verification will disagree with
     /// hashing about which files exist.</param>
     public SidecarVerifier(string targetPath, bool isFile, string sidecarExtension,
-                           bool allFileTypes, Logger logger, int? maxDepth = null)
+                           bool allFileTypes, Logger logger, int? maxDepth = null,
+                           IReadOnlySet<string>? fileTypes = null)
     {
         _targetPath       = targetPath;
         _isFile           = isFile;
         _sidecarExtension = sidecarExtension;
         _allFileTypes     = allFileTypes;
+        // Must match what HashWorker was given, or a verify reports NO SIDECAR
+        // for files the hash run never looked at.
+        _fileTypes        = fileTypes;
         _maxDepth         = maxDepth is int d ? Math.Max(0, d) : null;
         _logger           = logger;
     }
@@ -128,13 +133,14 @@ public sealed class SidecarVerifier
         // (same rule as HashWorker.CollectFiles) that have no sidecar.
         var extensions = _allFileTypes
             ? null
-            : new HashSet<string>(StringComparer.OrdinalIgnoreCase) { ".exe", ".msi" };
+            : _fileTypes
+              ?? new HashSet<string>(StringComparer.OrdinalIgnoreCase) { ".exe", ".msi" };
 
         foreach (var f in all)
         {
             if (f.EndsWith(ext, StringComparison.OrdinalIgnoreCase))
                 continue;
-            if (extensions is not null && !extensions.Contains(Path.GetExtension(f)))
+            if (extensions is not null && !FileTypeFilter.Matches(f, extensions))
                 continue;
             if (!bases.Contains(f))
                 items.Add(new VerifyWorkItem(f, null));
