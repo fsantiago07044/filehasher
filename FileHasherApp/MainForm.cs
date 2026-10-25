@@ -926,6 +926,13 @@ public sealed class MainForm : Form
 
         // ── Build options snapshot ────────────────────────────────────────────
 
+        // Populated during conflict resolution below, which happens after the
+        // worker is constructed but before hashing starts. The worker holds
+        // this reference and reads it when it comes to write each sidecar, so
+        // filling it later is deliberate rather than an oversight. The await
+        // between the two orders the write against the reads.
+        var skipSidecarFor = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
         var opts = new HashOptions(
             TargetPath:       path,
             IsFile:           isFile,
@@ -940,7 +947,8 @@ public sealed class MainForm : Form
             CsvPath:          _csvPathBox.Text.Trim(),
             AllFileTypes:     _allTypesChk.Checked,
             DescendIntoMsi:   _msiChk.Checked,
-            MaxDepth:         isFile ? null : SelectedMaxDepth()
+            MaxDepth:         isFile ? null : SelectedMaxDepth(),
+            SkipSidecarFor:   skipSidecarFor
         );
 
         // ── Reset UI ─────────────────────────────────────────────────────────
@@ -1019,8 +1027,13 @@ public sealed class MainForm : Form
                         }
                     }
 
-                    if (toSkip.Count > 0)
-                        files.RemoveAll(f => toSkip.Contains(f));
+                    // Suppress the sidecar WRITE for these, rather than
+                    // dropping the files from the run. Removing them answered
+                    // a question about a sidecar by also removing the file
+                    // from the results table, which is not what the dialog
+                    // offered: hash a folder twice with sidecars on, skip the
+                    // conflicts, and the second run showed nothing at all.
+                    foreach (var f in toSkip) skipSidecarFor.Add(f);
                 }
             }
 

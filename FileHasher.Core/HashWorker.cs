@@ -276,6 +276,12 @@ public sealed class HashWorker
         if (filePath.EndsWith(_opts.SidecarExtension, StringComparison.OrdinalIgnoreCase))
             return;
 
+        // The caller resolved a conflict for this file and chose to keep the
+        // sidecar already on disk. The file itself is still hashed and still
+        // reported; only the write is suppressed.
+        if (_opts.SkipSidecarFor?.Contains(filePath) == true)
+            return;
+
         try
         {
             var sidecarPath = filePath + _opts.SidecarExtension;
