@@ -94,7 +94,16 @@ public sealed class SidecarVerifier
                 try
                 {
                     foreach (var sub in Directory.EnumerateDirectories(dir))
+                    {
+                        // A symlink pointing back up its own tree would other-
+                        // wise be descended into forever. See SymlinkGuard.
+                        if (SymlinkGuard.WouldLoop(sub, dir))
+                        {
+                            WarningRaised?.Invoke($"Skipped symlinked directory that loops back to an ancestor: {sub}");
+                            continue;
+                        }
                         stack.Push((sub, depth + 1));
+                    }
                 }
                 catch (Exception ex)
                 {
