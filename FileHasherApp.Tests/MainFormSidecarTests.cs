@@ -229,7 +229,8 @@ public sealed class MainFormSidecarTests : IDisposable
             var conflict = TestHelpers.WaitForModal(Win, TimeSpan.FromSeconds(5));
             TestHelpers.ClickDialogButton(conflict, "Skip All");
 
-            // Completion dialog still appears (0 files hashed, N skipped)
+            // Completion dialog still appears. Both files ARE hashed; only the
+            // sidecar write is skipped, which is what the next test pins.
             var completion = TestHelpers.WaitForModal(Win, TimeSpan.FromSeconds(15));
             TestHelpers.DismissFirstButton(completion);
 
@@ -239,10 +240,22 @@ public sealed class MainFormSidecarTests : IDisposable
         finally { Directory.Delete(dir, true); }
     }
 
+    /// <summary>
+    /// Skipping a sidecar suppresses the WRITE and nothing else: the file is
+    /// still hashed and still listed.
+    ///
+    /// This test previously asserted the opposite, that the results view ended
+    /// up empty, because the app removed skipped files from the run entirely.
+    /// That answered a question about a sidecar by also dropping the file from
+    /// the results, with nothing to say so; hashing a folder twice with
+    /// sidecars on produced a blank table the second time. Core gained
+    /// SkipSidecarFor so the write alone can be suppressed, and this test now
+    /// pins the behaviour the dialog has always offered.
+    /// </summary>
     [Fact]
-    public void SidecarConflict_SkipAll_ResultsViewIsEmpty()
+    public void SidecarConflict_SkipAll_StillHashesTheFiles()
     {
-        var dir = BuildConflictFolder(out _, out _, "X", "Y");
+        var dir = BuildConflictFolder(out var sc1, out var sc2, "X", "Y");
         try
         {
             EnableSidecar();
@@ -252,7 +265,12 @@ public sealed class MainFormSidecarTests : IDisposable
             TestHelpers.ClickDialogButton(TestHelpers.WaitForModal(Win, TimeSpan.FromSeconds(5)), "Skip All");
             TestHelpers.DismissFirstButton(TestHelpers.WaitForModal(Win, TimeSpan.FromSeconds(15)));
 
-            Assert.Equal(0, TestHelpers.GetResultsRowCount(Win));
+            Assert.Equal(2, TestHelpers.GetResultsRowCount(Win));
+
+            // ...and the sidecars on disk are untouched, which is the half of
+            // the promise that was already working.
+            Assert.Equal("X", File.ReadAllText(sc1));
+            Assert.Equal("Y", File.ReadAllText(sc2));
         }
         finally { Directory.Delete(dir, true); }
     }
