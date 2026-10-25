@@ -40,18 +40,16 @@ public static class HashCommand
             // (docs/cli-design.md, decision 2).
             if (a.Json)
             {
-                Console.WriteLine(JsonSerializer.Serialize(new
-                {
-                    type      = "file",
-                    path      = r.FilePath,
-                    hash      = r.Hash.Length == 0 ? null : r.Hash,
-                    algorithm = a.Algorithm,
-                    size      = r.Length,
-                    modified  = r.LastWriteUtc,
-                    container = r.Container,
-                    ok        = r.Success,
-                    error     = r.ErrorMessage,
-                }));
+                Console.WriteLine(JsonSerializer.Serialize(new HashEvent(
+                    Type:      "file",
+                    Path:      r.FilePath,
+                    Hash:      r.Hash.Length == 0 ? null : r.Hash,
+                    Algorithm: a.Algorithm,
+                    Size:      r.Length,
+                    Modified:  r.LastWriteUtc,
+                    Container: r.Container,
+                    Ok:        r.Success,
+                    Error:     r.ErrorMessage), CliJsonContext.Default.HashEvent));
             }
             else if (!a.Quiet)
             {

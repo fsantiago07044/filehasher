@@ -36,6 +36,22 @@
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
   </PropertyGroup>
 
+  <!--
+    Trimming is on for self-contained publishes only: 71 MB down to 14 MB for
+    linux-x64. It is safe here because every System.Text.Json call now goes
+    through a source-generated JsonSerializerContext, so nothing the linker
+    removes is reached by reflection. If a future change reintroduces a
+    reflection-based Serialize/Deserialize, the build says so with IL2026 and
+    that warning must be fixed rather than suppressed: a trimming fault does
+    not show up until the binary runs on someone else's machine.
+    TrimmerSingleWarn=false so every offending call site is listed, not one.
+  -->
+  <PropertyGroup Condition="'$(SelfContained)' == 'true'">
+    <PublishTrimmed>true</PublishTrimmed>
+    <TrimMode>full</TrimMode>
+    <TrimmerSingleWarn>false</TrimmerSingleWarn>
+  </PropertyGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\FileHasher.Core\FileHasher.Core.csproj" />
   </ItemGroup>

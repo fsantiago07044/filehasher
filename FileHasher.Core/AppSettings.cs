@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization.Metadata;
 
 namespace FileHasher;
 
@@ -59,7 +60,10 @@ public sealed record AppSettings
 /// roaming profile. Per-user only, no elevation, no registry.</summary>
 public static class SettingsStore
 {
-    private static readonly JsonSerializerOptions Json = new() { WriteIndented = true };
+    // Source-generated, not reflection-based: see AppSettingsJsonContext. The
+    // reflection overloads carry RequiresUnreferencedCode and break under
+    // trimming, which the CLI needs.
+    private static JsonTypeInfo<AppSettings> TypeInfo => AppSettingsJsonContext.Default.AppSettings;
 
     /// <summary>
     /// %APPDATA%\FileHasher\settings.json on Windows. Uses the same
@@ -95,7 +99,7 @@ public static class SettingsStore
             var file = path ?? DefaultPath;
             if (!File.Exists(file)) return new AppSettings();
 
-            var loaded = JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(file));
+            var loaded = JsonSerializer.Deserialize(File.ReadAllText(file), TypeInfo);
             if (loaded is null) return new AppSettings();
 
             // A file written by a NEWER app may give existing fields new
@@ -122,7 +126,7 @@ public static class SettingsStore
             if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
 
             var tmp = file + ".tmp";
-            File.WriteAllText(tmp, JsonSerializer.Serialize(settings.Sanitised(), Json));
+            File.WriteAllText(tmp, JsonSerializer.Serialize(settings.Sanitised(), TypeInfo));
             File.Move(tmp, file, overwrite: true);
             return true;
         }

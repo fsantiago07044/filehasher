@@ -12,7 +12,7 @@ public static class Output
     {
         if (a.Json)
         {
-            Console.WriteLine(JsonSerializer.Serialize(new { type = "summary", counts }));
+            Console.WriteLine(JsonSerializer.Serialize(new SummaryEvent("summary", counts), CliJsonContext.Default.SummaryEvent));
             return;
         }
 

@@ -24,16 +24,14 @@ public static class VerifyCommand
         {
             if (a.Json)
             {
-                Console.WriteLine(JsonSerializer.Serialize(new
-                {
-                    type      = "file",
-                    path      = r.FilePath,
-                    sidecar   = r.SidecarPath.Length == 0 ? null : r.SidecarPath,
-                    status    = r.Status.ToString().ToUpperInvariant(),
-                    algorithm = r.Algorithm,
-                    computed  = r.ComputedHash,
-                    detail    = r.Detail,
-                }));
+                Console.WriteLine(JsonSerializer.Serialize(new VerifyEvent(
+                    Type:      "file",
+                    Path:      r.FilePath,
+                    Sidecar:   r.SidecarPath.Length == 0 ? null : r.SidecarPath,
+                    Status:    r.Status.ToString().ToUpperInvariant(),
+                    Algorithm: r.Algorithm,
+                    Computed:  r.ComputedHash,
+                    Detail:    r.Detail), CliJsonContext.Default.VerifyEvent));
             }
             else if (!a.Quiet || r.Status is not VerifyStatus.Ok)
             {
