@@ -134,11 +134,12 @@ public sealed class CommandLineTests
     }
 
     [Fact]
-    public void Follow_symlinks_is_refused_rather_than_silently_ignored()
+    public void Follow_symlinks_is_an_accepted_no_op()
     {
-        // It is not implemented yet. Accepting it would promise cycle-safe
-        // traversal the walk does not perform.
-        var ex = Assert.Throws<UsageException>(() => P("hash", "/tmp", "--follow-symlinks"));
-        Assert.Contains("not implemented", ex.Message);
+        // Decision 13 revised 2026-10-25: directory symlinks are followed, as
+        // the desktop apps do, so the flag states the existing default. Parsing
+        // must accept it and change nothing.
+        Assert.Null(P("hash", "/tmp", "--follow-symlinks").MaxDepth);
+        Assert.Equal("SHA256", P("hash", "/tmp", "--follow-symlinks").Algorithm);
     }
 }

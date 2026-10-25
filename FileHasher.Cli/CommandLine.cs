@@ -143,14 +143,13 @@ public static class CommandLine
                     maxDepth = d;
                     break;
 
-                // Not yet implemented, and silently ignoring it would be worse
-                // than refusing: the caller asked for cycle-safe traversal and
-                // would not get it. Tracked in docs/cli-design.md, "Symlinks".
+                // Accepted no-op, like -r. Decision 13 was revised on 2026-10-25
+                // to keep the desktop apps' behaviour, which is to follow
+                // directory symlinks, so there is nothing here to switch on.
+                // Deliberately absent from Usage: advertising a toggle that
+                // toggles nothing would be worse than not offering it.
                 case "--follow-symlinks":
-                    throw new UsageException(
-                        "--follow-symlinks is not implemented yet. Directory symlinks are " +
-                        "currently followed, as the desktop apps do; cycle-safe opt-in " +
-                        "traversal is still to come.");
+                    break;
 
                 default:
                     if (a.StartsWith('-')) throw new UsageException($"Unknown option '{a}'.");
