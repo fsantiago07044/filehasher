@@ -404,7 +404,7 @@ Build `FileHasherApp` first (the tests locate the compiled executable automatica
 # From the solution root
 dotnet build FileHasherApp\FileHasherApp.csproj -c Debug
 
-dotnet test FileHasherApp.Tests\FileHasherApp.Tests.csproj
+dotnet test filehasher.sln
 ```
 
 All tests run serially (via xUnit's `[Collection("Serial")]`) because they interact with real application windows on the Windows desktop.
@@ -647,7 +647,7 @@ window.FindFirstDescendant(cf => cf.ByAutomationId("RunBtn")).AsButton()
 
 ```powershell
 $env:FILEHASHER_EXE = "C:\build\output\FileHasher.exe"
-dotnet test FileHasherApp.Tests\FileHasherApp.Tests.csproj
+dotnet test filehasher.sln
 ```
 
 ---
