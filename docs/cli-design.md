@@ -35,6 +35,29 @@ Taken on 2026-09-11, closing the rest:
 | 16 | Fix the recursion drift across front ends? | **Yes**, converge it during this next set of updates |
 | 17 | Which recursion default wins? | **Unlimited on Windows; macOS keeps opt-in.** Converge the model, not the first-run default |
 
+Taken on 2026-10-25, reopening one of the above:
+
+| # | Question | Decision |
+| --- | --- | --- |
+| 13 (revised) | Follow directory symlinks? | **Keep current GUI behaviour: follow them.** Supersedes the earlier off-by-default answer |
+| 18 | Linux app repo | **`filehasher-linux`**, product name **FileHasher** as on macOS, MIT, GitLab origin mirrored to GitHub, **both private until the initial public release** |
+| 19 | Linux test environments | Ubuntu and Fedora VMs on the Mac host under **VMware Fusion Pro** |
+
+Decision 13's reversal means Core's enumeration does not change and the desktop
+apps keep behaving exactly as they do today, which is the point. Two
+consequences to carry forward:
+
+- `--follow-symlinks` becomes an accepted no-op, documented the way `-r` is:
+  it states an intent that is already the default. It must not be advertised as
+  a toggle, because there is nothing to toggle.
+- **Cycle detection is still worth adding, and is not the same question.**
+  Following symlinks without tracking visited directories by device and inode
+  means a loop spins until the path length blows up. On Windows that was
+  theoretical; on Linux, where `/proc` self-links and deliberate loops are
+  ordinary, it is reachable. Terminating a cycle changes which files are
+  scanned only in the case where the alternative is never terminating, so it is
+  a safety fix rather than a behaviour change, and can be proposed on its own.
+
 Decisions 4 and 5 are additions to the command surface below. Decision 1 turned
 out cheaper than this document first assumed, and its consequences for version
 pinning, reproducibility and signing are worked through at the end. Decisions 6
