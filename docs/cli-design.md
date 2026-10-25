@@ -58,6 +58,14 @@ consequences to carry forward:
   scanned only in the case where the alternative is never terminating, so it is
   a safety fix rather than a behaviour change, and can be proposed on its own.
 
+**Settled 2026-10-25.** Three options were put forward: do nothing, ancestor-only
+detection, or a full visited set keyed on device and inode. Fabian chose
+**ancestor-only**. The visited set was rejected because it deduplicates two
+different symlinks that resolve to the same directory, which changes results for
+trees containing no loop at all. `SymlinkGuard` in Core implements it for both
+walks; `SymlinkGuardTests` pins the distinction, including the case that must
+still be followed.
+
 Decisions 4 and 5 are additions to the command surface below. Decision 1 turned
 out cheaper than this document first assumed, and its consequences for version
 pinning, reproducibility and signing are worked through at the end. Decisions 6
