@@ -77,13 +77,15 @@ public sealed class SidecarVerifier
         // HashWorker; the two MUST agree or verify will disagree with hash),
         // then partition into sidecars and filter-matching files lacking one.
         var all   = new List<string>();
-        var stack = new Stack<(string Dir, int Depth)>();
-        stack.Push((_targetPath, 0));
+        // The canonical path travels down with each directory so the symlink
+        // guard never has to re-resolve a whole path. See SymlinkGuard.
+        var stack   = new Stack<(string Dir, string Canonical, int Depth)>();
+        stack.Push((_targetPath, SymlinkGuard.Canonical(_targetPath), 0));
 
         while (stack.Count > 0)
         {
             ct.ThrowIfCancellationRequested();
-            var (dir, depth) = stack.Pop();
+            var (dir, canonical, depth) = stack.Pop();
 
             try
             {
@@ -102,12 +104,12 @@ public sealed class SidecarVerifier
                     {
                         // A symlink pointing back up its own tree would other-
                         // wise be descended into forever. See SymlinkGuard.
-                        if (SymlinkGuard.WouldLoop(sub, dir))
+                        if (SymlinkGuard.WouldLoop(sub, canonical, out var subCanonical))
                         {
                             WarningRaised?.Invoke($"Skipped symlinked directory that loops back to an ancestor: {sub}");
                             continue;
                         }
-                        stack.Push((sub, depth + 1));
+                        stack.Push((sub, subCanonical, depth + 1));
                     }
                 }
                 catch (Exception ex)

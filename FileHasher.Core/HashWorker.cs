@@ -175,13 +175,15 @@ public sealed class HashWorker
         var maxDepth = _opts.MaxDepth is int d ? Math.Max(0, d) : (int?)null;
 
         var results = new List<string>();
-        var stack   = new Stack<(string Dir, int Depth)>();
-        stack.Push((_opts.TargetPath, 0));
+        // The canonical path travels down with each directory so the symlink
+        // guard never has to re-resolve a whole path. See SymlinkGuard.
+        var stack   = new Stack<(string Dir, string Canonical, int Depth)>();
+        stack.Push((_opts.TargetPath, SymlinkGuard.Canonical(_opts.TargetPath), 0));
 
         while (stack.Count > 0)
         {
             ct.ThrowIfCancellationRequested();
-            var (dir, depth) = stack.Pop();
+            var (dir, canonical, depth) = stack.Pop();
 
             try
             {
@@ -211,12 +213,12 @@ public sealed class HashWorker
                     {
                         // A symlink pointing back up its own tree would other-
                         // wise be descended into forever. See SymlinkGuard.
-                        if (SymlinkGuard.WouldLoop(sub, dir))
+                        if (SymlinkGuard.WouldLoop(sub, canonical, out var subCanonical))
                         {
                             WarningRaised?.Invoke($"Skipped symlinked directory that loops back to an ancestor: {sub}");
                             continue;
                         }
-                        stack.Push((sub, depth + 1));
+                        stack.Push((sub, subCanonical, depth + 1));
                     }
                 }
                 catch (Exception ex)
