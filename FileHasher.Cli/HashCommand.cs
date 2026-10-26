@@ -27,6 +27,11 @@ public static class HashCommand
         var unreadable = 0;
         var hashed     = 0;
 
+        // Only collected when a CSV was asked for. Everything else about this
+        // command streams, and holding a hundred thousand results for a run
+        // nobody wants a spreadsheet from would be a pointless cost.
+        var forCsv = opts.ExportCsv ? new List<HashResult>() : null;
+
         worker.WarningRaised += w =>
         {
             if (!a.Quiet && !a.Json) Console.Error.WriteLine($"warning: {w}");
@@ -35,6 +40,7 @@ public static class HashCommand
         worker.FileHashed += r =>
         {
             if (r.Success) hashed++; else unreadable++;
+            forCsv?.Add(r);
 
             // Streaming, one object per line: a hundred-thousand-file tree must
             // not be buffered before the caller sees anything
@@ -65,6 +71,24 @@ public static class HashCommand
             Console.Error.WriteLine($"{files.Count} file(s) to hash.");
 
         await worker.HashAllAsync(files, new Progress<int>(), ct);
+
+        if (forCsv is not null)
+        {
+            try
+            {
+                CsvExporter.Write(opts.CsvPath, forCsv, opts);
+                if (!a.Quiet && !a.Json)
+                    Console.Error.WriteLine($"CSV written: {opts.CsvPath}");
+            }
+            catch (Exception ex)
+            {
+                // The hashes are already out on stdout and are the point of the
+                // run; a failed CSV is a tool failure, not a finding, so it
+                // takes exit 3 rather than quietly leaving no file behind.
+                Console.Error.WriteLine($"error: cannot write CSV to {opts.CsvPath}: {ex.Message}");
+                return Program.ExitFailed;
+            }
+        }
 
         var empty = files.Count == 0;
         Output.Summary(a, new Dictionary<string, int>

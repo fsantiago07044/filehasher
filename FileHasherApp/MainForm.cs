@@ -1348,42 +1348,9 @@ public sealed class MainForm : Form
     {
         try
         {
-            var sb = new StringBuilder(4096);
-
-            // Header
-            sb.Append("Path");
-            sb.Append(',');
-            sb.Append(opts.Algorithm);
-            if (opts.IncludeMetadata)
-                sb.Append(",LengthBytes,LastWriteUtc");
-            if (opts.DescendIntoMsi)
-                sb.Append(",Container,MsiDirectoryId");
-            sb.AppendLine();
-
-            foreach (var r in _allResults.Where(r => r.Success).OrderBy(r => r.Container ?? "").ThenBy(r => r.FilePath))
-            {
-                sb.Append(CsvEscape(r.FilePath));
-                sb.Append(',');
-                sb.Append(r.Hash);
-                if (opts.IncludeMetadata)
-                {
-                    sb.Append(',');
-                    sb.Append(r.Length);
-                    sb.Append(',');
-                    sb.Append(r.LastWriteUtc?.ToString("yyyy-MM-ddTHH:mm:ssZ"));
-                }
-                if (opts.DescendIntoMsi)
-                {
-                    sb.Append(',');
-                    sb.Append(CsvEscape(r.Container ?? ""));
-                    sb.Append(',');
-                    sb.Append(CsvEscape(r.MsiDirectoryId ?? ""));
-                }
-                sb.AppendLine();
-            }
-
-            // UTF-8 with BOM so Excel opens it correctly without an import wizard
-            File.WriteAllText(opts.CsvPath, sb.ToString(), new UTF8Encoding(encoderShouldEmitUTF8Identifier: true));
+            // The document itself is Core's, so the CLI and the Linux app
+            // produce a byte-identical file from the same run.
+            CsvExporter.Write(opts.CsvPath, _allResults, opts);
 
             _logger?.LogInfo($"CSV exported to: {opts.CsvPath}");
             SetStatus($"CSV saved: {opts.CsvPath}");
@@ -1393,13 +1360,6 @@ public sealed class MainForm : Form
             MessageBox.Show($"CSV export failed:\n{ex.Message}",
                             "Export error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
         }
-    }
-
-    private static string CsvEscape(string s)
-    {
-        if (s.Contains(',') || s.Contains('"') || s.Contains('\n') || s.Contains('\r'))
-            return $"\"{s.Replace("\"", "\"\"")}\"";
-        return s;
     }
 
     // ── Sidecar conflict dialog ───────────────────────────────────────────────

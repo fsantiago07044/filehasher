@@ -71,7 +71,6 @@ public static class CommandLine
               --sidecar-ext <.ext>                   default: .sha256
               --all-types                            audit every file for a missing
                                                      sidecar, not just .exe/.msi
-              --csv <path>
 
         shared
               --no-recurse, --no-recursive           do not descend into subdirectories
@@ -172,6 +171,13 @@ public static class CommandLine
                 throw new UsageException($"--no-recurse and --max-depth {maxDepth} contradict each other.");
             maxDepth = 0;
         }
+
+        // No front end has ever exported a verify run as CSV: the WinForms app
+        // and the macOS app both write one on hash only, and the help text
+        // offering it here was aspirational. Saying so beats accepting a path
+        // and leaving no file, which is what it did until 2026-10-26.
+        if (verb == Verb.Verify && csv is not null)
+            throw new UsageException("--csv applies to 'hash', not 'verify'.");
 
         var algo = NormalizeAlgorithm(algorithm);
 
