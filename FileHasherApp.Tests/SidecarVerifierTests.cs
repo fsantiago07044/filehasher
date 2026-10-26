@@ -31,6 +31,19 @@ public sealed class SidecarVerifierTests : IDisposable
         try { Directory.Delete(_dir, true); } catch { /* best-effort */ }
     }
 
+    /// <summary>
+    /// Asserts a status and puts the result's Detail in the failure message.
+    /// Plain Assert.Equal on the status alone reports "Expected: Ok, Actual:
+    /// ReadError" and discards the one field that says why, which on 2026-10-26
+    /// left a single Windows failure with nothing to diagnose it from.
+    /// </summary>
+    private static VerifyResult Status(VerifyStatus expected, VerifyResult actual)
+    {
+        Assert.True(actual.Status == expected,
+            $"expected {expected} but got {actual.Status}: {actual.Detail ?? "(no detail)"}");
+        return actual;
+    }
+
     // ── OK paths across all three formats ────────────────────────────────────
 
     [Fact]
@@ -42,7 +55,7 @@ public sealed class SidecarVerifierTests : IDisposable
         var (results, summary) = await RunAsync(file, isFile: true);
 
         var r = Assert.Single(results);
-        Assert.Equal(VerifyStatus.Ok, r.Status);
+        Status(VerifyStatus.Ok, r);
         Assert.Equal("SHA256", r.Algorithm);
         Assert.NotNull(r.ComputedHash);
         Assert.Null(r.Detail);
@@ -59,7 +72,7 @@ public sealed class SidecarVerifierTests : IDisposable
         var (results, _) = await RunAsync(file, isFile: true);
 
         var r = Assert.Single(results);
-        Assert.Equal(VerifyStatus.Ok, r.Status);
+        Status(VerifyStatus.Ok, r);
         Assert.Null(r.Detail);
     }
 
@@ -75,7 +88,7 @@ public sealed class SidecarVerifierTests : IDisposable
         var (results, _) = await RunAsync(file, isFile: true);
 
         var r = Assert.Single(results);
-        Assert.Equal(VerifyStatus.Ok, r.Status);
+        Status(VerifyStatus.Ok, r);
         Assert.Null(r.Detail);
     }
 
@@ -88,7 +101,7 @@ public sealed class SidecarVerifierTests : IDisposable
 
         var (results, _) = await RunAsync(file, isFile: true);
 
-        Assert.Equal(VerifyStatus.Ok, Assert.Single(results).Status);
+        Status(VerifyStatus.Ok, Assert.Single(results));
     }
 
     [Fact]
@@ -100,7 +113,7 @@ public sealed class SidecarVerifierTests : IDisposable
 
         var (results, _) = await RunAsync(file, isFile: true);
 
-        Assert.Equal(VerifyStatus.Ok, Assert.Single(results).Status);
+        Status(VerifyStatus.Ok, Assert.Single(results));
     }
 
     // ── Informational notes never demote an OK row ───────────────────────────
@@ -116,7 +129,7 @@ public sealed class SidecarVerifierTests : IDisposable
         var (results, summary) = await RunAsync(file, isFile: true);
 
         var r = Assert.Single(results);
-        Assert.Equal(VerifyStatus.Ok, r.Status);
+        Status(VerifyStatus.Ok, r);
         Assert.NotNull(r.Detail);
         Assert.Contains("modified date differs", r.Detail, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("size differs",          r.Detail, StringComparison.OrdinalIgnoreCase);
@@ -133,7 +146,7 @@ public sealed class SidecarVerifierTests : IDisposable
         var (results, _) = await RunAsync(file, isFile: true);
 
         var r = Assert.Single(results);
-        Assert.Equal(VerifyStatus.Ok, r.Status);
+        Status(VerifyStatus.Ok, r);
         Assert.NotNull(r.Detail);
         Assert.Contains("renamed.exe", r.Detail);
     }
@@ -151,7 +164,7 @@ public sealed class SidecarVerifierTests : IDisposable
         var (results, summary) = await RunAsync(file, isFile: true);
 
         var r = Assert.Single(results);
-        Assert.Equal(VerifyStatus.Mismatch, r.Status);
+        Status(VerifyStatus.Mismatch, r);
         Assert.Equal("SHA256", r.Algorithm);
         Assert.Contains(wrong,                    r.Detail!, StringComparison.OrdinalIgnoreCase);
         Assert.Contains(Hash("SHA256", content),  r.Detail!, StringComparison.OrdinalIgnoreCase);
@@ -166,7 +179,7 @@ public sealed class SidecarVerifierTests : IDisposable
         var (results, summary) = await RunAsync(_dir, isFile: false);
 
         var r = Assert.Single(results);
-        Assert.Equal(VerifyStatus.MissingFile, r.Status);
+        Status(VerifyStatus.MissingFile, r);
         Assert.EndsWith("ghost.exe", r.FilePath);
         Assert.Equal(1, summary.MissingFile);
     }
@@ -178,7 +191,7 @@ public sealed class SidecarVerifierTests : IDisposable
 
         var (results, summary) = await RunAsync(file, isFile: true);
 
-        Assert.Equal(VerifyStatus.NoSidecar, Assert.Single(results).Status);
+        Status(VerifyStatus.NoSidecar, Assert.Single(results));
         Assert.Equal(1, summary.NoSidecar);
     }
 
@@ -190,7 +203,7 @@ public sealed class SidecarVerifierTests : IDisposable
 
         var (results, summary) = await RunAsync(file, isFile: true);
 
-        Assert.Equal(VerifyStatus.ParseError, Assert.Single(results).Status);
+        Status(VerifyStatus.ParseError, Assert.Single(results));
         Assert.Equal(1, summary.ParseError);
     }
 
@@ -202,7 +215,7 @@ public sealed class SidecarVerifierTests : IDisposable
 
         var (results, _) = await RunAsync(file, isFile: true);
 
-        Assert.Equal(VerifyStatus.ParseError, Assert.Single(results).Status);
+        Status(VerifyStatus.ParseError, Assert.Single(results));
     }
 
     // ── Algorithm auto-detection from hash length ────────────────────────────
@@ -221,7 +234,7 @@ public sealed class SidecarVerifierTests : IDisposable
         var (results, _) = await RunAsync(file, isFile: true);
 
         var r = Assert.Single(results);
-        Assert.Equal(VerifyStatus.Ok, r.Status);
+        Status(VerifyStatus.Ok, r);
         Assert.Equal(algorithm,       r.Algorithm);
     }
 
@@ -238,7 +251,7 @@ public sealed class SidecarVerifierTests : IDisposable
         var (results, _) = await RunAsync(sidecar, isFile: true);
 
         var r = Assert.Single(results);
-        Assert.Equal(VerifyStatus.Ok, r.Status);
+        Status(VerifyStatus.Ok, r);
         Assert.Equal(file,            r.FilePath);
     }
 
@@ -268,8 +281,8 @@ public sealed class SidecarVerifierTests : IDisposable
         Assert.Equal(0, summary.ParseError);
         Assert.Equal(0, summary.ReadError);
 
-        Assert.Equal(VerifyStatus.NoSidecar,
-            Assert.Single(results, r => r.FilePath.EndsWith("naked.exe")).Status);
+        Status(VerifyStatus.NoSidecar,
+               Assert.Single(results, r => r.FilePath.EndsWith("naked.exe")));
     }
 
     [Fact]
@@ -281,7 +294,7 @@ public sealed class SidecarVerifierTests : IDisposable
         Assert.Empty(offResults);
 
         var (onResults, onSummary) = await RunAsync(_dir, isFile: false, allTypes: true);
-        Assert.Equal(VerifyStatus.NoSidecar, Assert.Single(onResults).Status);
+        Status(VerifyStatus.NoSidecar, Assert.Single(onResults));
         Assert.Equal(1, onSummary.NoSidecar);
     }
 
@@ -317,7 +330,7 @@ public sealed class SidecarVerifierTests : IDisposable
         var (results, _) = await RunAsync(_dir, isFile: false);
 
         Assert.Equal(3, results.Count);
-        Assert.All(results, r => Assert.Equal(VerifyStatus.Ok, r.Status));
+        Assert.All(results, r => Status(VerifyStatus.Ok, r));
     }
 
     [Fact]
