@@ -54,6 +54,12 @@ public sealed class SidecarVerifier
     }
 
     // ── Phase 1: enumeration ─────────────────────────────────────────────────
+    // A pipe or a socket is not a file anyone meant to hash, and opening one
+    // can block forever. Said out loud rather than dropped silently.
+    void Skipped(string path) =>
+        WarningRaised?.Invoke($"Skipped, not a regular file: {path}");
+
+
 
     public Task<List<VerifyWorkItem>> EnumerateAsync(CancellationToken ct)
         => Task.Run(() => CollectWork(ct), ct);
@@ -89,7 +95,9 @@ public sealed class SidecarVerifier
 
             try
             {
-                all.AddRange(Directory.EnumerateFiles(dir));
+                // Not Directory.EnumerateFiles: a named pipe in the folder
+                // would hang the run on open. See SpecialFileGuard.
+                all.AddRange(SpecialFileGuard.RegularFilesIn(dir, Skipped));
             }
             catch (Exception ex)
             {

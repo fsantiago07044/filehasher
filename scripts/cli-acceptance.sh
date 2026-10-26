@@ -131,7 +131,24 @@ gap="$("$BIN" verify "$W/types" --all-types 2>/dev/null | grep -c 'NO SIDECAR')"
 chk "--fail-on no-sidecar turns that into exit 1" 1 "$BIN" verify "$W/types" --all-types -q --fail-on no-sidecar
 
 echo
-echo "== 9. a large-ish tree, for timing =="
+echo "== 9. things that are not files =="
+mkdir -p "$W/special"; printf 'x\n' > "$W/special/real.txt"; : > "$W/special/empty.txt"
+mkfifo "$W/special/pipe" 2>/dev/null
+if [ -p "$W/special/pipe" ]; then
+  # A pipe with no writer blocks forever on open, so this used to wedge the
+  # whole run with no error and no progress. /tmp is full of them.
+  out="$($TO "$BIN" hash "$W/special" --all-types 2>&1)"; rc=$?
+  if [ "$rc" = "124" ]; then bad "a pipe does not hang the run" "HUNG, timed out"
+  elif echo "$out" | grep -q "not a regular file"; then ok "a pipe is skipped with a warning"
+  else bad "a pipe is skipped with a warning" "$(echo "$out" | head -2 | tr '\n' ' ')"; fi
+  [ "$(echo "$out" | grep -c '^[0-9A-F]\{64\}')" = "2" ] && ok "the other two files still hashed" \
+      || bad "the other two files still hashed" "got $(echo "$out" | grep -c '^[0-9A-F]\{64\}')"
+else
+  echo "  SKIP  mkfifo unavailable"
+fi
+
+echo
+echo "== 10. a large-ish tree, for timing =="
 mkdir -p "$W/big"; for i in $(seq 1 500); do printf 'content %s\n' "$i" > "$W/big/f$i.dat"; done
 s=$(date +%s); "$BIN" hash "$W/big" --all-types -q >/dev/null 2>&1; e=$(date +%s)
 ok "500 files hashed in $((e-s))s"

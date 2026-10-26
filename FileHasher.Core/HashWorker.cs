@@ -152,6 +152,12 @@ public sealed class HashWorker
     }
 
     // ── File enumeration ─────────────────────────────────────────────────────
+    // A pipe or a socket is not a file anyone meant to hash, and opening one
+    // can block forever. Said out loud rather than dropped silently.
+    void Skipped(string path) =>
+        WarningRaised?.Invoke($"Skipped, not a regular file: {path}");
+
+
 
     private List<string> CollectFiles(CancellationToken ct)
     {
@@ -187,7 +193,9 @@ public sealed class HashWorker
 
             try
             {
-                foreach (var f in Directory.EnumerateFiles(dir))
+                // Not Directory.EnumerateFiles: a named pipe in the folder
+                // would hang the run on open. See SpecialFileGuard.
+                foreach (var f in SpecialFileGuard.RegularFilesIn(dir, Skipped))
                 {
                     if (sidecarExt != null &&
                         f.EndsWith(sidecarExt, StringComparison.OrdinalIgnoreCase))
