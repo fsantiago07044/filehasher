@@ -126,6 +126,44 @@ public sealed class MainFormSettingsRoundTripTests
         }
     }
 
+    [Theory]
+    [InlineData("MD5")]
+    [InlineData("SHA1")]
+    [InlineData("SHA256")]
+    [InlineData("SHA512")]
+    public void ApplySettings_RenamesTheResultsColumn(string algorithm)
+    {
+        // Only a run renamed that column, and at startup there is no run, so
+        // an app restored on SHA512 opened with its results column headed
+        // SHA256. Same gap was found and fixed in the macOS and Linux apps.
+        WithForm(form =>
+        {
+            form.ApplySettings(new AppSettings { Algorithm = algorithm });
+
+            Assert.Equal(algorithm, HashColumnText(form));
+        });
+    }
+
+    [Fact]
+    public void ApplySettings_WithAnUnusableAlgorithm_NamesTheOneActuallySelected()
+    {
+        // A hand-edited file falls back to SHA256 on the radios; the column
+        // has to agree with them rather than echo what was in the file.
+        WithForm(form =>
+        {
+            form.ApplySettings(new AppSettings { Algorithm = "ROT13" });
+
+            Assert.Equal("SHA256", form.CaptureSettings().Algorithm);
+            Assert.Equal("SHA256", HashColumnText(form));
+        });
+    }
+
+    private static string HashColumnText(MainForm form)
+    {
+        var list = (ListView)form.Controls.Find("ResultsView", searchAllChildren: true).Single();
+        return list.Columns[1].Text;
+    }
+
     [Fact]
     public void PersistedFieldSet_IsExactlyTheControlsTheUiNeverDisables()
     {

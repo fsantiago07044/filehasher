@@ -1673,6 +1673,14 @@ public sealed class MainForm : Form
         // which is deliberately not restored), so re-derive them rather than
         // leaving whatever the constructor decided.
         UpdateAllTypesEnabled();
+
+        // So does the results column. Only a run renames it, and at startup
+        // there is no run, so an app restored on SHA512 used to open with its
+        // results column headed SHA256: the window stating something about the
+        // table that the engine would never have produced. Read back from the
+        // radios rather than from s, so a hand-edited algorithm shows the one
+        // actually selected.
+        _colHash.Text = GetSelectedAlgorithm();
     }
 
     internal AppSettings CaptureSettings() => new()
