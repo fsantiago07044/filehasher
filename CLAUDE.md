@@ -49,30 +49,32 @@ alter what existing users' scans cover.
 ## Build and toolchain
 
 - Target framework is **net10.0-windows**, SDK pinned by `global.json` to
-  **10.0.400, rollForward: disable**. The 0.4.0 cycle moved the project off
+  **10.0.403, rollForward: disable**. The 0.4.0 cycle moved the project off
   net8.0-windows/8.0.420 because .NET 8 goes EOL 2026-11-10; .NET 10 is LTS
-  (EOL 2028-11-14). Fabian's Win10 VM is the authoritative build/test machine;
-  it keeps a private SDK copy at `C:\dotnet-10.0.400` (Windows Terminal profile
-  sets DOTNET_ROOT/PATH), immune to Microsoft Update and VS updates. Install or
-  refresh that copy with:
+  (EOL 2028-11-14); the 0.6.0 cycle moved 10.0.400 to 10.0.403 for the October
+  2026 runtime patches. Fabian's Win10 VM is the authoritative build/test
+  machine; it keeps a private SDK copy at `C:\dotnet-10.0.403` (Windows
+  Terminal profile sets DOTNET_ROOT/PATH), immune to Microsoft Update and VS
+  updates. Install or refresh that copy with:
 
   ```powershell
   Invoke-WebRequest https://dot.net/v1/dotnet-install.ps1 -OutFile "$env:TEMP\dotnet-install.ps1"
-  & "$env:TEMP\dotnet-install.ps1" -Version 10.0.400 -InstallDir C:\dotnet-10.0.400
+  & "$env:TEMP\dotnet-install.ps1" -Version 10.0.403 -InstallDir C:\dotnet-10.0.403
   ```
 
-  Tags before v0.4.0 pin 8.0.420, so keep the old private copy
-  (`C:\dotnet-8.0.420`) around to rebuild older releases. Any schtasks-driven
+  Every tag pins the SDK it was built with, so keep the older private copies
+  around to rebuild older releases: `C:\dotnet-10.0.400` for v0.4.0 through
+  v0.5.0, and `C:\dotnet-8.0.420` for anything before v0.4.0. Any schtasks-driven
   test run must set DOTNET_ROOT and PATH to the private copy it wants, or
   dotnet exits 0x8000809B (SdkResolveFailure).
 - Reproducibility is pinned at two levels: `global.json` fixes the SDK, and
   `<RuntimeFrameworkVersion>` in FileHasherApp.csproj fixes the runtime packs
-  embedded in the self-contained exe (10.0.11, the runtime bundled with SDK
-  10.0.400). Bump the two together; the property drives both
+  embedded in the self-contained exe (10.0.14, the runtime bundled with SDK
+  10.0.403). Bump the two together; the property drives both
   Microsoft.NETCore.App and Microsoft.WindowsDesktop.App.
 - On macOS, **compile-gate** changes before every push, leaving `global.json`
   in place. The system dotnet root (`/usr/local/share/dotnet`, root-owned) has
-  8.0.420 and 10.0.201, neither of which satisfies the pin, so 10.0.400 lives
+  8.0.420 and 10.0.201, neither of which satisfies the pin, so 10.0.403 lives
   in the user-local root `~/.dotnet` (installed with `dotnet-install.sh
   --install-dir "$HOME/.dotnet"`, no sudo needed). Gate with:
 

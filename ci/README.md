@@ -102,12 +102,12 @@ is explicitly tagged `[as gitlab-runner]`.
 #### 1. Install the pinned .NET SDK
 
 `global.json` pins the SDK with `rollForward: disable`, so the runner needs the
-**exact** patch it names (10.0.400 as of the 0.4.0 cycle) or every build fails
+**exact** patch it names (10.0.403 as of the 0.6.0 cycle) or every build fails
 fast. Install that patch explicitly rather than whatever the feed calls latest:
 
 ```powershell
 Invoke-WebRequest https://dot.net/v1/dotnet-install.ps1 -OutFile "$env:TEMP\dotnet-install.ps1"
-& "$env:TEMP\dotnet-install.ps1" -Version 10.0.400 -InstallDir 'C:\Program Files\dotnet'
+& "$env:TEMP\dotnet-install.ps1" -Version 10.0.403 -InstallDir 'C:\Program Files\dotnet'
 # Open a fresh PowerShell window so PATH picks up dotnet, then verify:
 dotnet --list-sdks    # the pinned patch must appear verbatim
 ```

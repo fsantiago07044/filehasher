@@ -30,7 +30,7 @@
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <!--
       Reproducibility: pin the runtime patch, not just the SDK. global.json
-      pins the SDK to 10.0.400, whose bundled runtime is 10.0.11; naming that
+      pins the SDK to 10.0.403, whose bundled runtime is 10.0.14; naming that
       version here keeps the self-contained publish bound to the exact
       Microsoft.NETCore.App and Microsoft.WindowsDesktop.App runtime packs
       (verified: this property drives both) instead of leaving it implied by
@@ -39,7 +39,7 @@
       that does not match the SDK's bundled runtime still builds, but the packs
       then come from nuget.org rather than the local SDK install.
     -->
-    <RuntimeFrameworkVersion>10.0.11</RuntimeFrameworkVersion>
+    <RuntimeFrameworkVersion>10.0.14</RuntimeFrameworkVersion>
     <!--
       Bundle native libraries (wpfgfx_cor3.dll, D3DCompiler_47_cor3.dll, etc.)
       inside FileHasher.exe instead of shipping them as sidecars. Only takes

@@ -78,7 +78,7 @@ The CI pipeline passes `-p:Deterministic=true -p:ContinuousIntegrationBuild=true
    ```json
    {
      "sdk": {
-       "version": "10.0.400",
+       "version": "10.0.403",
        "rollForward": "disable"
      }
    }

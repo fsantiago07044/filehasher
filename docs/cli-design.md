@@ -351,17 +351,17 @@ least confusing answer.
 Going cross-platform costs less here than expected, because cross-platform
 *targets* do not require cross-platform *builds*.
 
-**The SDK pin is untouched.** `global.json` pins 10.0.400 with
+**The SDK pin is untouched.** `global.json` pins 10.0.403 with
 `rollForward: disable`, and every artifact is still cross-compiled from the one
 Windows runner with `-r linux-x64`, `-r osx-arm64` and so on. One SDK produces
 everything, which is a marginally stronger guarantee than today rather than a
 weaker one. Only building *on* Linux would strain it, since that host would then
-need exactly 10.0.400.
+need exactly 10.0.403.
 
 **`RuntimeFrameworkVersion` multiplies but stays one knob.** A self-contained
 publish resolves a RID-specific runtime pack
 (`Microsoft.NETCore.App.Runtime.win-x64`, `.linux-x64`, `.osx-arm64`), and the
-single `10.0.11` property pins all of them, because those packs ship together at
+single `10.0.14` property pins all of them, because those packs ship together at
 matching versions. Two things get simpler: the CLI needs only
 `Microsoft.NETCore.App`, not `Microsoft.WindowsDesktop.App`, so it pins half of
 what the GUI does; and Core is a library rather than a self-contained app, so it
@@ -405,7 +405,7 @@ runtime first, and a CLI that needs one would be the odd one out.
 
 This is compatible with shipping as a `dotnet tool`, but only just, and only
 because of the .NET version already pinned here. **RID-specific and
-self-contained tools require SDK 10 or later**, and `global.json` pins 10.0.400.
+self-contained tools require SDK 10 or later**, and `global.json` pins 10.0.403.
 Setting `RuntimeIdentifiers` alongside `PackAsTool` makes the SDK build a
 self-contained package per RID, and `dotnet tool install` selects the right one
 automatically, so users see no difference:

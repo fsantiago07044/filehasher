@@ -8,7 +8,7 @@ it cost someone a wasted afternoon to discover.
 Points that catch people out fastest:
 
 - **Compile-gate before pushing.** The SDK is pinned by `global.json` to
-  10.0.400 with `rollForward: disable`, and on the Mac that SDK is in
+  10.0.403 with `rollForward: disable`, and on the Mac that SDK is in
   `~/.dotnet`, not the system root, so a bare `dotnet` wrongly reports
   `sdk-not-found`.
 - **Fabian's Win10 VM is the build and test machine.** Ask him to produce builds
